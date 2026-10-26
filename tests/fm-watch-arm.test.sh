@@ -1456,10 +1456,10 @@ start_owned_watcher() {  # <home> <state> <fakebin> <arm-out>
   local home=$1 state=$2 fakebin=$3 armout=$4 i
   PATH="$fakebin:$PATH" FM_HOME="$home" FM_STATE_OVERRIDE="$state" \
     FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
-    FM_ARM_CONFIRM_TIMEOUT=2 "$WATCH_ARM" > "$armout" 2>&1 &
+    FM_ARM_CONFIRM_TIMEOUT="$REARM_CONFIRM_SECONDS" "$WATCH_ARM" > "$armout" 2>&1 &
   ARM_PID=$!
   i=0
-  while [ "$i" -lt 100 ]; do
+  while [ "$i" -lt "$REARM_REPORT_POLLS" ]; do
     grep -q '^watcher: started pid=' "$armout" 2>/dev/null && break
     is_live_non_zombie "$ARM_PID" || break
     sleep 0.1
@@ -1486,16 +1486,36 @@ wait_for_pid_gone() {  # <pid> <polls>
 # already in progress before its next FM_POLL=1 tick. A busy poll may spend
 # longer than ten seconds in subprocesses on a contended CI runner.
 test_watcher_exits_when_its_state_directory_is_removed() {
-  local dir home state fakebin armout
-  dir=$(make_case state-dir-removed)
+  local dir home state fakebin armout real_ln
+  dir=$(make_case "state-dir-removed-${1:-poll}")
   home="$dir/home"
   state="$dir/state"
   fakebin="$dir/fakebin"
   armout="$dir/arm.out"
   mkdir -p "$home/data"
+  if [ "${1:-}" = recovery ]; then
+    real_ln=$(command -v ln)
+    {
+      printf '#!/usr/bin/env bash\nstate=%q\ntrigger=%q\nreal_ln=%q\n' "$state" "$dir/remove-during-recovery" "$real_ln"
+      cat <<'SH'
+for target in "$@"; do :; done
+if [ "$target" = "$state/.watcher-down.lock" ] && [ -f "$trigger" ]; then
+  rm -rf -- "$state"
+  mv "$trigger" "$trigger.fired"
+  exit 1
+fi
+exec "$real_ln" "$@"
+SH
+    } > "$fakebin/ln"
+    chmod +x "$fakebin/ln"
+  fi
   start_owned_watcher "$home" "$state" "$fakebin" "$armout"
 
-  rm -rf "$state"
+  if [ "${1:-}" = recovery ]; then
+    : > "$dir/remove-during-recovery"
+  else
+    rm -rf "$state"
+  fi
   wait_for_pid_gone "$WATCH_PID" 400 \
     || { kill -TERM "$WATCH_PID" 2>/dev/null; fail "watcher pid $WATCH_PID outlived its deleted state directory"; }
   wait_for_exit "$ARM_PID" 100 >/dev/null 2>&1 || true
@@ -1503,6 +1523,8 @@ test_watcher_exits_when_its_state_directory_is_removed() {
     || fail "watcher did not log the state-gone exit reason: $(cat "$armout")"
   ! grep -q '^signal:\|^check:\|^stale:\|^heartbeat' "$armout" \
     || fail "a state-gone exit was reported as an actionable wake: $(cat "$armout")"
+  [ "${1:-}" != recovery ] || [ -f "$dir/remove-during-recovery.fired" ] \
+    || fail 'state deletion never interrupted recovery-marker acquisition'
   pass "watch-arm: a watcher exits when its state directory is removed"
 }
 
@@ -1830,6 +1852,14 @@ EOF
   pass "watch-arm: the OpenCode arm plugin decides with the shared supervision predicate"
 }
 
+if [ "${FM_TEST_ONLY:-}" = state-removal ]; then
+  test_watcher_exits_when_its_state_directory_is_removed
+  test_watcher_exits_when_its_state_directory_is_removed recovery
+  test_watcher_exits_when_its_home_is_removed
+  test_attached_arm_exits_when_its_root_is_removed
+  exit 0
+fi
+
 test_append_wakes_handling_successor after-ack
 test_append_wakes_handling_successor before-ack
 test_append_wakes_handling_successor after-ack missing
@@ -1843,6 +1873,7 @@ test_attached_arm_reports_the_delivered_wake_after_drain
 test_arm_refuses_an_unusable_launch_confirm_window
 test_arm_refuses_a_disposable_validation_checkout
 test_watcher_exits_when_its_state_directory_is_removed
+test_watcher_exits_when_its_state_directory_is_removed recovery
 test_watcher_exits_when_its_home_is_removed
 test_attached_arm_exits_when_its_root_is_removed
 test_reaper_stops_a_tracked_watcher

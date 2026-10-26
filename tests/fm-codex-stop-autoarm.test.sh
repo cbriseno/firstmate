@@ -218,7 +218,12 @@ if [ "${1:-}" = --case ]; then
       # This is another copied Bash process, not an installed Claude runtime.
       cp /bin/bash "$CASE_HOME/claude"
       "$CASE_HOME/claude" "$ROOT/bin/fm-turnend-guard.sh" < "$CASE_HOME/payload" || fail 'native requirement leaked to another harness'
-      FM_ROOT_OVERRIDE="$ROOT" run_owner --guard < "$CASE_HOME/payload" || fail 'native requirement leaked to crew worktree'
+      # CI checks out a primary repository; construct the linked-worktree
+      # boundary explicitly rather than assuming the suite's checkout is one.
+      fm_git_worktree "$CASE_HOME/fixture-repo" "$CASE_HOME/crew" fm/crew
+      : > "$CASE_HOME/crew/AGENTS.md"
+      ln -s "$ROOT/bin" "$CASE_HOME/crew/bin"
+      FM_ROOT_OVERRIDE="$CASE_HOME/crew" run_owner --guard < "$CASE_HOME/payload" || fail 'native requirement leaked to crew worktree'
       : > "$STATE/.afk"
       run_owner --guard < "$CASE_HOME/payload" || fail 'native requirement displaced away owner'
       rm "$STATE/.afk"

@@ -9,6 +9,11 @@ Other Unix kernels are not currently accepted.
 ## Prepare the runtime
 
 Install Git, Bash, Python 3.9 or newer, Perl and jq with your platform's package manager.
+On Linux and WSL2, use GNU Coreutils `mkdir`, `timeout` and `cat` on the runtime's `PATH`.
+The doctor reports other implementations as unsupported: uutils 0.10.0 can return success to competing directory-lock claimants, has different interrupt-timeout behavior, and can report a successful write with stdout closed.
+The upstream [mkdir correction](https://github.com/uutils/coreutils/commit/bf423f388d543b9180db6b7283d82b301f138913) does not establish compatibility for the rest of that toolchain.
+Ubuntu 24.04 provides the GNU route used by Linux CI; on Ubuntu 26.04, select the GNU utilities using [Ubuntu's documented alternatives](https://github.com/ubuntu/ubuntu-release-notes/blob/main/docs/26.04/summary-for-lts-users.md#rust-coreutils) before running Firstmate.
+macOS continues to use its BSD utilities and the existing timeout fallback.
 The [toolchain configuration](configuration.md#toolchain) owns the additional agent, Node, forge and fleet tools and their version requirements.
 Choose a supported primary harness and runtime; [tmux](tmux-backend.md) is the reference route.
 The [upstream tmux installation guide](https://github.com/tmux/tmux/wiki/Installing) covers Linux distributions and macOS package managers.

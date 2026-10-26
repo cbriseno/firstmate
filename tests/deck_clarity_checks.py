@@ -222,6 +222,37 @@ class Clarity(unittest.TestCase):
         self.assertFalse(json.loads(path.read_text())['valid'])
         self.assertEqual(self.history()['records'], [])
 
+    def test_ops_report_close_preserves_response_without_inventing_delivery(self):
+        if not shutil.which('tasks-axi') or not shutil.which('node'):
+            self.skipTest('installed tasks-axi + Node required')
+        (self.home / 'data/backlog.md').write_text(
+            '## In flight\n- [ ] demo - Operational report (kind: ops)\n\n## Queued\n\n## Done\n')
+        closed = self.run_cli('fm-tasks-axi.sh', 'done', 'demo',
+                              '--report', 'data/demo/report.md', '--json')
+        result = json.loads(closed.stdout)
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['task']['id'], 'demo')
+        self.assertEqual(result['task']['state'], 'done')
+        self.assertEqual(closed.stderr, '')
+        self.assertFalse((self.home / 'data/demo/completion.json').exists())
+        self.assertEqual(self.history()['records'], [])
+
+    def test_receipt_failure_does_not_corrupt_successful_close_json(self):
+        if not shutil.which('tasks-axi') or not shutil.which('node'):
+            self.skipTest('installed tasks-axi + Node required')
+        (self.home / 'data/backlog.md').write_text(
+            '## In flight\n- [ ] demo - Local change (kind: ship)\n\n## Queued\n\n## Done\n')
+        outside = Path(self.tmp.name) / 'outside'
+        outside.mkdir()
+        (self.home / 'data/demo').rmdir()
+        (self.home / 'data/demo').symlink_to(outside, target_is_directory=True)
+        closed = self.run_cli('fm-tasks-axi.sh', 'done', 'demo', '--note', 'local main', '--json')
+        self.assertEqual(json.loads(closed.stdout)['task']['state'], 'done')
+        self.assertIn('unsafe receipt task directory', closed.stderr)
+        self.assertIn('completion time not recorded', closed.stderr)
+        self.assertEqual(list(outside.iterdir()), [])
+        self.assertEqual(self.history()['records'][0]['card_time']['precision'], 'date')
+
     def test_local_completion_time_survives_archive_and_snapshot(self):
         if not shutil.which('tasks-axi') or not shutil.which('node'):
             self.skipTest('installed tasks-axi + Node required')

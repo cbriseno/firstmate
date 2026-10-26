@@ -1043,7 +1043,9 @@ EOF
   fakebin=$(make_fakebin "$home")
   one=$(run "$home" "$fakebin" --json)
   two=$(run "$home" "$fakebin" --json)
-  [ "$(printf '%s' "$one" | jq -c '.landed')" = "$(printf '%s' "$two" | jq -c '.landed')" ] \
+  printf '%s' "$one" | jq '.landed' > "$home/landed-first.json"
+  printf '%s' "$two" | jq '.landed' > "$home/landed-second.json"
+  diff -u "$home/landed-first.json" "$home/landed-second.json" \
     || fail "the same structured state produced different recent-completion baselines"
   printf '%s' "$two" | jq -e '
     (.landed | any(.id == "done-a"))
@@ -3427,9 +3429,9 @@ EOF
 EOF
   printf 'spawn_gen=attempt-current\nspawned_at=2026-10-01T00:00:00Z\n' >> "$home/state/ship-task.meta"
   printf 'working [at=1791000000]: authored progress\n' > "$home/state/ship-task.status"
-  start=$(wc -c < "$home/state/ship-task.status")
+  start=$(wc -c < "$home/state/ship-task.status" | tr -d '[:space:]')
   printf 'working [at=1792000000]: transport receipt with arbitrary prose\n' >> "$home/state/ship-task.status"
-  end=$(wc -c < "$home/state/ship-task.status")
+  end=$(wc -c < "$home/state/ship-task.status" | tr -d '[:space:]')
   bash -c '. "$1/bin/fm-wake-lib.sh"; . "$1/bin/fm-classify-lib.sh"; status_home_appends_record "$2" "$3" "$4"' \
     _ "$ROOT" "$home/state/ship-task.status" "$start" "$end" || fail 'recording fixture receipt ownership failed'
   printf 'poll [at=1792500000]: checking\n' >> "$home/state/ship-task.status"
@@ -3494,6 +3496,11 @@ EOF
     || fail 'same-second new declaration lost its original timestamp'
   pass 'optional card times retain authoritative precision, ownership, and lifecycle across polls and timezone changes'
 }
+
+if [ "${FM_TEST_ONLY:-}" = test_current_landed_baseline_is_repeatable_and_prior_report_independent ]; then
+  test_current_landed_baseline_is_repeatable_and_prior_report_independent
+  exit 0
+fi
 
 test_card_time_preserves_source_precision_and_lifecycle
 [ "${1:-}" != --card-time-only ] || exit 0

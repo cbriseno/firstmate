@@ -40,3 +40,39 @@ for command in fm-session-start.sh fm-bootstrap.sh fm-spawn.sh fm-doctor.sh; do
   assert_contains "$(cat "$TASK_TMP/result")" PLATFORM_UNSUPPORTED "$command explains WSL2 route"
 done
 printf 'PASS: platform classifications and four fail-closed entry points (simulated kernels)\n'
+
+# The Linux kernel route alone is insufficient when utilities report different
+# lock ownership and deadline results. Doctor must expose the tool prerequisite
+# without invoking a backend or changing the temporary operational home.
+TEST_KERNEL=Linux
+TEST_RELEASE=generic
+for tool in node gh gh-axi no-mistakes chrome-devtools-axi tasks-axi quota-axi tmux; do
+  printf '#!/bin/sh\nexit 0\n' > "$TASK_TMP/fakebin/$tool"
+  chmod +x "$TASK_TMP/fakebin/$tool"
+done
+REAL_CAT=$(command -v cat)
+export REAL_CAT
+for tool in mkdir timeout cat; do
+  cat > "$TASK_TMP/fakebin/$tool" <<'SH'
+#!/bin/sh
+if [ "${0##*/}" = cat ] && [ "${1:-}" != --version ]; then
+  exec "$REAL_CAT" "$@"
+fi
+[ "${1:-}" = --version ] || exit 99
+printf '%s\n' "${0##*/} (${TEST_COREUTILS}) 0.10.0"
+SH
+  chmod +x "$TASK_TMP/fakebin/$tool"
+done
+export TEST_COREUTILS='uutils coreutils'
+rc=0
+bash "$ROOT/bin/fm-doctor.sh" --backend tmux > "$TASK_TMP/result" 2>&1 || rc=$?
+[ "$rc" = 1 ] || fail 'doctor must refuse the unsupported Linux utility route'
+for tool in mkdir timeout cat; do
+  assert_contains "$(cat "$TASK_TMP/result")" "unsupported: Linux requires GNU $tool on PATH" \
+    "doctor explains the $tool prerequisite"
+done
+TEST_COREUTILS='GNU coreutils'
+bash "$ROOT/bin/fm-doctor.sh" --backend tmux > "$TASK_TMP/result" 2>&1 \
+  || fail "doctor refused the complete GNU prerequisite fixture: $(cat "$TASK_TMP/result")"
+[ ! -e "$FM_HOME" ] || fail 'doctor changed the operational home'
+printf 'PASS: doctor distinguishes Linux utility prerequisites without runtime mutation (simulated versions)\n'
