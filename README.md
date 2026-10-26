@@ -20,6 +20,9 @@
 
 <h3 align="center">Talk to one agent. Ship with a crew.</h3>
 
+This fork builds on [upstream Firstmate](https://github.com/kunchenguid/firstmate).
+Use [this fork's source](https://github.com/cbriseno/firstmate) and [issue tracker](https://github.com/cbriseno/firstmate/issues) for this version.
+
 <p align="center">
   <img alt="firstmate - talk to one agent, ship with a crew" src="assets/banner.png" width="100%" />
 </p>
@@ -84,7 +87,7 @@ Launch it with `--trust`, or none of its project hooks load; it also has no turn
 
 ```sh
 gh auth login
-git clone https://github.com/kunchenguid/firstmate
+git clone https://github.com/cbriseno/firstmate.git
 cd firstmate
 ```
 
@@ -257,7 +260,7 @@ Contributions are welcome - see [CONTRIBUTING.md](CONTRIBUTING.md) for the workf
 
 MIT - see [LICENSE](LICENSE).
 
-## Star History
+## Upstream Star History
 
 <a href="https://www.star-history.com/?repos=kunchenguid%2Ffirstmate&type=date&legend=top-left">
  <picture>
