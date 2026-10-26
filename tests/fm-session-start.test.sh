@@ -29,6 +29,7 @@
 #     network result surfaces exactly once (inline or as a wake, never both), a
 #     read-only session declares the checks it skipped, and the tasks-axi
 #     compatibility verdict is paid for once per session start
+# FM_SESSION_START_CASE=lock-concurrency runs only the session-lock fixture.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -958,7 +959,7 @@ lock_concurrency_barrier() {  # <dir> <count>
 }
 
 test_session_lock_concurrent_single_winner() {
-  local rec root home fakebin ready completed winners pids i pid count
+  local rec root home fakebin ready completed winners pids i pid count fake_parent
   rec=$(new_world lock-concurrency)
   IFS='|' read -r root home fakebin <<EOF
 $rec
@@ -992,11 +993,23 @@ case "$*" in
       printf '%s\n' bash
     fi
     ;;
-  *"ppid="*) printf '%s\n' "$FM_FAKE_HARNESS_PID" ;;
+  *"ppid="*)
+    # A real process cannot parent itself. End the synthetic Claude run at
+    # init instead of spending all sixteen ancestry hops on the same PID.
+    if [ "$pid" = "$FM_FAKE_HARNESS_PID" ]; then
+      printf '1\n'
+    else
+      printf '%s\n' "$FM_FAKE_HARNESS_PID"
+    fi
+    ;;
   *) exit 1 ;;
 esac
 SH
   chmod +x "$fakebin/ps"
+
+  fake_parent=$(FM_FAKE_LOCK_STATE="$home/state" FM_FAKE_HARNESS_PID=$$ \
+    "$fakebin/ps" -o ppid= -p "$$")
+  [ "$fake_parent" != "$$" ] || fail 'concurrency fixture makes the harness its own parent'
 
   pids=
   i=1
@@ -3093,6 +3106,12 @@ EOF
 
   pass "session start rejects Pi loaded markers from previous sessions"
 }
+
+case "${FM_SESSION_START_CASE:-}" in
+  lock-concurrency) test_session_lock_concurrent_single_winner; exit 0 ;;
+  '') ;;
+  *) fail 'unknown focused session-start case' ;;
+esac
 
 test_context_digest_absent_empty_present
 test_lock_refusal_read_only_path
