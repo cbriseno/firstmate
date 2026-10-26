@@ -2314,11 +2314,13 @@ SH
   done
 }
 
+if [ "${1:-}" != --card-time-only ]; then
 test_launch_environment_allowlist
 test_launch_environment_invalid_config_refuses
 test_launch_environment_inaccessible_config_refuses
 test_launch_environment_inherited_by_secondmate
 test_launch_environment_inheritance_preserves_on_source_errors
+fi
 
 test_worker_launch_delivers_role_scope() {
   local rec id out launch kind prompt envelope encoded brief_kind brief content first_line role_line task_line inbox
@@ -2591,8 +2593,66 @@ test_non_claude_harness_ignores_claude_permission_mode() {
   pass "config/claude-permission-mode changes claude launches only"
 }
 
+if [ "${1:-}" != --card-time-only ]; then
 test_launch_preserves_inherited_git_config
 test_worker_launch_delivers_role_scope
+fi
+test_spawn_captures_original_attempt_time_and_status_boundary() {
+  local rec id out status before first_gen
+  id=card-time-attempt
+  rec=$(make_spawn_case card-time-attempt claude "$id")
+  read_case_record "$rec"
+  printf 'done [at=1791000000]: previous attempt\n' > "$HOME_DIR/state/$id.status"
+  before=$(wc -c < "$HOME_DIR/state/$id.status" | tr -d '[:space:]')
+  cat > "$FAKEBIN_DIR/date" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  '-u +%Y-%m-%dT%H:%M:%SZ') printf '%s\n' "${FM_FIXTURE_SPAWN_TIME:?}" ;;
+  *) exec /usr/bin/date "$@" ;;
+esac
+SH
+  chmod +x "$FAKEBIN_DIR/date"
+  out=$(FM_FIXTURE_SPAWN_TIME=2026-10-24T21:00:00Z run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
+  status=$?
+  expect_code 0 "$status" "timestamp fixture spawn failed: $out"
+  assert_equals 2026-10-24T21:00:00Z "$(sed -n 's/^spawned_at=//p' "$HOME_DIR/state/$id.meta")" 'spawn did not record its actual transition time'
+  assert_equals "$before" "$(sed -n 's/^status_start_bytes=//p' "$HOME_DIR/state/$id.meta")" 'spawn did not separate old status bytes'
+  first_gen=$(sed -n 's/^spawn_gen=//p' "$HOME_DIR/state/$id.meta")
+  printf 'working [at=1792875600]: first attempt progress\n' >> "$HOME_DIR/state/$id.status"
+  before=$(wc -c < "$HOME_DIR/state/$id.status" | tr -d '[:space:]')
+  # This suite's ordinary spawn fake reports an ambiguous pane. Model an
+  # actually dead fixture endpoint before testing replacement; no live control.
+  mv "$FAKEBIN_DIR/tmux" "$FAKEBIN_DIR/tmux-base"
+  cat > "$FAKEBIN_DIR/tmux" <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in
+  display-message)
+    if [ -e "${0%/*}/.card-time-dead" ]; then
+      case "$*" in
+        *pane_current_command*) printf 'bash\n'; exit 0 ;;
+        *pane_tty*) exit 0 ;;
+      esac
+    fi
+    ;;
+  new-window) rm -f "${0%/*}/.card-time-dead" ;;
+esac
+exec "${0}-base" "$@"
+SH
+  chmod +x "$FAKEBIN_DIR/tmux"
+  touch "$FAKEBIN_DIR/.card-time-dead"
+  out=$(FM_FIXTURE_SPAWN_TIME=2026-10-24T21:00:00Z run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" --relaunch)
+  status=$?
+  expect_code 0 "$status" "timestamp fixture relaunch failed: $out"
+  assert_equals 2026-10-24T21:00:00Z "$(sed -n 's/^spawned_at=//p' "$HOME_DIR/state/$id.meta")" 'relaunch did not capture its actual transition'
+  assert_equals "$before" "$(sed -n 's/^status_start_bytes=//p' "$HOME_DIR/state/$id.meta")" 'same-second relaunch inherited prior status bytes'
+  assert_equals 1 "$(awk -F= '$1 == "spawned_at" {n++} END {print n+0}' "$HOME_DIR/state/$id.meta")" 'relaunch retained an old timestamp key'
+  assert_not_equals "$first_gen" "$(sed -n 's/^spawn_gen=//p' "$HOME_DIR/state/$id.meta")" 'relaunch lost its actual lifecycle identity'
+  pass 'spawn and same-second relaunch capture original attempt time and status boundary without historical backfill'
+}
+
+test_spawn_captures_original_attempt_time_and_status_boundary
+[ "${1:-}" != --card-time-only ] || exit 0
+
 test_no_profile_keeps_claude_profile_defaults
 test_claude_launch_brief_publishes_record_doorbell
 test_claude_secondmate_launch_brief_publishes_into_its_own_home

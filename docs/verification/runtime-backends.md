@@ -3016,3 +3016,18 @@ The full run's native Ahoy cases depend on the model's own choices and failed wi
 
 A real `bin/fm-spawn.sh --scout --harness opencode --model opencode-go/deepseek-v4.1-flash` in a private tmux server recorded `opencode_version=1.18.20` (and `1.18.31` on the second release), launched the worker as `opencode --model opencode-go/deepseek-v4.1-flash --prompt <brief>` with no `--standalone`, and the worker answered its brief.
 `bin/fm-control.sh <task> exit` then resolved the typed `/exit` from that recorded major and returned both panes to the shell.
+
+## Codex native Stop owner
+
+The [configuration contract](../configuration.md#codex-native-supervision) owns the default-off native path and target binding.
+Portable regression: `bash bin/fm-test-run.sh tests/fm-codex-stop-autoarm.test.sh` exercises process ownership, guarded closure, canonical operational delivery, replay suppression beyond the handling grace, durable wake handling/ACK, successor, failure and revocation with an isolated recorder.
+It does not prove vendor hook loading or callback survival.
+The token-free opt-in guard `bash bin/fm-test-run.sh tests/fm-codex-native-owner-live.test.sh` checks the real binding and watcher without submitting input; for a queued receipt it instead checks the explicit client-ID/turn/outcome join through the bound endpoint.
+It cannot establish idle reentry or recovery after a failed model turn.
+The portable suite also covers acceptance followed by a correlated capacity failure without Stop, bounded recovery, normal Stop takeover, ACK preservation, non-capacity outcomes, unrelated IDs and ambiguous delivery.
+Its transport fixture requires the control socket's WebSocket upgrade and masked text frames, including fragmented responses, failed upgrades and metadata-only RPC diagnostics; a JSON-line peer cannot establish that transport contract.
+The public-protocol seam is pinned to Codex 0.164.0; as of 2026-10-26 its new outcome observer and automatic failure recovery have no live acceptance result.
+On 2026-10-26, the real Codex 0.164.0 Unix control endpoint returned a typed RPC response with exit 0 to `python3 bin/fm-codex-native-rpc.py outcome --executable <attested-cli> --remote <attested-unix-endpoint> --thread <own-thread-id> --turn-id <known-turn-id>` over the corrected WebSocket transport.
+The result was `status: unknown, error_class: outcome-missing`; it confirms transport and a bounded metadata response, without establishing that turn's outcome, a queued client-ID join or automatic recovery.
+Native Stop loading, callback survival across final, repeated cycles beyond two180-second checkpoints and an event created after idle require coordinated live acceptance before this frontend is called continuous.
+No permanent native-owner acceptance is recorded here.

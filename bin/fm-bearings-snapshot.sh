@@ -33,6 +33,8 @@
 # captain_decision because it has an open
 # captain hold still contributes each working child as its own Underway row;
 # the home row on secondmates[] keeps the decision and gate classification.
+# Main Underway rows carry blocked_by using the same comma-separated, bounded
+# unresolved-blocker string as gates ("-" when empty or absent).
 # Captain-hold placement follows the canonical snapshot's hold_bucket and
 # nothing else; this wrapper never inspects hold reason or body prose. The
 # buckets are total and mutually exclusive, so every captain hold appears in
@@ -89,6 +91,10 @@
 #   --all-pr-repos   query every discovered repository under --include-prs
 #   -h,--help        usage
 #
+# Rows may carry optional card_time; bin/fm-card-time-lib.sh owns its contract.
+# Optional flow preserves full reasons/dependency context (bin/fm-flow-lib.sh).
+# supervisor is a bounded explicit declaration, not model liveness; its writer
+# and expiry contract are bin/fm-supervisor-activity.sh. Reads never renew it.
 # Output contract: `fm-bearings.v1`. No locks or reports; the underlying snapshot's
 # parent-side remote-ledger cache refresh is the only default fleet-state mutation.
 set -u
@@ -101,6 +107,11 @@ FLEET="$SCRIPT_DIR/fm-fleet-snapshot.sh"
 # shellcheck source=bin/fm-landed-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-landed-lib.sh"  # FM_LANDED_JQ_DEFS: the shared landed selector
+
+# shellcheck source=bin/fm-card-time-lib.sh disable=SC1091
+. "$SCRIPT_DIR/fm-card-time-lib.sh"
+# shellcheck source=bin/fm-flow-lib.sh disable=SC1091
+. "$SCRIPT_DIR/fm-flow-lib.sh"
 
 # Bounds (overridable for tests / large fleets).
 FM_BEARINGS_LANDED=${FM_BEARINGS_LANDED:-6}
@@ -145,7 +156,7 @@ Default collection performs bounded concurrent remote-ledger reads for registere
 remote homes under one shared snapshot budget and may refresh the parent-side cache.
 --include-prs additionally performs live GitHub discovery and checks.
 
-Default fields: schema, home, generated, prs, in_flight{id,kind,state,repo,name,doing},
+Default fields: schema, home, generated, prs, in_flight{id,kind,state,repo,name,doing,blocked_by},
   secondmates{id,state,doing,provenance,freshness,age_seconds,contradiction,reason},
   secondmate_reconcile{id,spawn_gen,host,kind,ids},
   decisions_open{id,key,verb,summary,owner}, landed{id,what,artifact,owner},
@@ -168,6 +179,10 @@ Opt-in surfaces: --fields bodies|paths|actions|endpoints, --all-in-flight,
   --all-secondmates, --all-landed, --all-reports, --all-queued, --all-recorded-prs,
   --all-unhealthy, --all-pr-repos, --include-prs (adds candidate_prs).
 Raise FM_BEARINGS_PR_LIMIT to expand per-repository open-PR results.
+Optional flow on in_flight/gates/decisions_open preserves full reasons, dependency titles/owners,
+and the next coordination step (bin/fm-flow-lib.sh).
+supervisor reports an explicit bounded declaration, never model/process liveness
+(bin/fm-supervisor-activity.sh); expired/missing declarations are unknown.
 EOF
 }
 
@@ -346,12 +361,15 @@ EOF
 fi
 
 # --- projection: canonical snapshot -> fm-bearings.v1 model (JSON) ----------
+SNAP_HOME=$(printf '%s' "$SNAP" | jq -r '.fm_home')
+SUPERVISOR=$(FM_HOME="$SNAP_HOME" bash "$SCRIPT_DIR/fm-supervisor-activity.sh" --json 2>/dev/null) || SUPERVISOR=null
 BEARINGS_TODAY=${NOW%%T*}
 case "$BEARINGS_TODAY" in
   [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) : ;;
   *) BEARINGS_TODAY=$(date -u +%Y-%m-%d) ;;
 esac
 MODEL=$(printf '%s' "$SNAP" | jq \
+  --argjson supervisor "$SUPERVISOR" \
   --arg home "$HOME_LABEL" \
   --arg now "$NOW" \
   --arg today "$BEARINGS_TODAY" \
@@ -380,7 +398,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   --argjson pr_rows_capped "$PR_ROWS_CAPPED" \
   --argjson pr_rows_min_total "$PR_ROWS_MIN_TOTAL" \
   --argjson return_catchup "$RETURN_CATCHUP" \
-  --argjson candidate_prs "$CANDIDATE_PRS" "$FM_LANDED_JQ_DEFS"'
+  --argjson candidate_prs "$CANDIDATE_PRS" "$FM_LANDED_JQ_DEFS$FM_CARD_TIME_JQ_DEFS$FM_FLOW_JQ_DEFS"'
   def trunc($n): if . == null then null else
     (tostring | gsub("\\s+"; " ") | if (length > $n) then (.[:$n] + "…") else . end) end;
   def fit($n):
@@ -427,11 +445,17 @@ MODEL=$(printf '%s' "$SNAP" | jq \
            + ($base | fit($context_n - $title_n)))
         end
       end;
-  def as_gate($owner):
+  def compact_blockers:
+    ((.unresolved_blocker_ids // []) | if length > 0 then join(",") else "-" end | trunc(120));
+  def flow_owner($owner):
+    if . == null then null else .owner=$owner | .dependencies |= map(.owner=$owner) end;
+  def as_gate($owner; $records):
     {id, title:(.title | trunc(60)),
-     blocked_by:((.unresolved_blocker_ids // []) | if length > 0 then join(",") else "-" end | trunc(120)),
+     flow:((.flow // flow_context(.; null; null; $owner; $records; [])) | flow_owner($owner)),
+     blocked_by:compact_blockers,
      reason:(hold_gate_reason | trunc(40)), owner:$owner,
-     filed:((.since // null) | trunc(40))};
+     filed:((.since // null) | trunc(40)),
+     card_time:(.card_time // backlog_card_time)};
   def round_robin_landed($n):
     . as $groups
     | [range(0; (($groups | map(length) | max) // 0)) as $i
@@ -445,7 +469,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   | (($fl | index("endpoints")) != null) as $f_endpoints
   | ([ .backlog.records[] | select(landed_record)
        | {id, title, kind, hold_kind, pr_url, report_path, local_note, completion,
-          home:"(main)", home_id:"(main)"} ]) as $main_done
+          card_time:(.delivered_time // delivered_card_time),home:"(main)", home_id:"(main)"} ]) as $main_done
   | ((.secondmate_landed.records) // []) as $mate_done
   | ($main_done + $mate_done) as $all_landed_rows
   | ([ $all_landed_rows | group_by(.home_id)[]
@@ -459,6 +483,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   | ([.tasks[] | select(.kind != "secondmate") | .id]) as $live_ids
   | ([.tasks[] | select(.kind != "secondmate" and .current_state.state == "working") | .id]) as $working_ids
   | ($live_ids + $done_ids) as $rel_ids
+  | . as $canonical
   | ([ .tasks[]
        | select(.endpoint.exists == false or .endpoint.agent_alive == "dead")
        | {id, backend, target:(.endpoint.target // "-"), exists:.endpoint.exists, agent:.endpoint.agent_alive} ]
@@ -504,9 +529,11 @@ MODEL=$(printf '%s' "$SNAP" | jq \
        | select(.kind != "secondmate")
        | select(.backlog.current_role != "program")
        | select(.backlog.current_role != "held" or .current_state.state == "working")
-       | {id, kind,
+       | {id, kind, card_time:(.card_time // null),
         state: .current_state.state,
+        flow:flow_context(.backlog; .current_state; .declaration; "(main)"; $canonical.backlog.records; .hints.open_decisions),
         repo:(.backlog.repo // .project // null),
+        blocked_by:(.backlog | compact_blockers),
         name:((.backlog.title // "") as $name
               | (if ($name | test("[^[:space:]]")) then $name else .id end) | trunc(70)),
         doing: ((.current_state.detail // "") as $d
@@ -515,8 +542,9 @@ MODEL=$(printf '%s' "$SNAP" | jq \
      + [ $secondmate_views[] as $m
          | $m.active_children[]?
          | {id:($m.id + "/" + .id),
-            kind:(.kind // "secondmate"),
+            kind:(.kind // "secondmate"),card_time:(.card_time // null),
             state:(.state // "working"),
+            flow:((.flow // null) | flow_owner($m.id)),
             repo:(.repo // null),
             name:((.name // "") as $name
                   | (if (($name | type) == "string" and ($name | test("[^[:space:]]")))
@@ -527,14 +555,18 @@ MODEL=$(printf '%s' "$SNAP" | jq \
          | select(.structured and .hold_bucket != null)
          | select(($all_decisions == 1) or live_captain_call)
          | {id,key:.id,verb:"captain-hold",
-            summary:hold_summary(.title; .hold_reason),owner:"(main)"} ]
+            flow:flow_context(.; null; null; "(main)"; $canonical.backlog.records; []),
+            summary:hold_summary(.title; .hold_reason),owner:"(main)",
+            card_time:(.card_time // backlog_card_time)} ]
      + [ (.secondmate_current.records // [])[] as $m
          | ([ $m.decisions_open[]?
               | select(.source == "backlog" and .verb == "captain-hold")
               | select(($all_decisions == 1) or live_captain_call)
+              | . as $call
               | {id:($m.id + "/" + .id),key,verb,
+                 flow:((.flow // ([$m.queued[]? | select(.id == $call.id)][0].flow) // null) | flow_owner($m.id)),
                  summary:hold_summary((.summary // .id);
-                                      (.reason // "captain decision pending")),owner:$m.id} ]
+                                      (.reason // "captain decision pending")),owner:$m.id,card_time:(.card_time // null)} ]
             + [ $m.queued[]?
                 | select($all_decisions == 1 and .hold_kind == "captain")
                 | select(.id as $id
@@ -543,8 +575,9 @@ MODEL=$(printf '%s' "$SNAP" | jq \
                             | .id]
                          | index($id) | not)
                 | {id:($m.id + "/" + .id),key:.id,verb:"captain-hold",
+                   flow:((.flow // null) | flow_owner($m.id)),
                    summary:hold_summary((.title // .id);
-                                        (.hold_reason // "captain decision pending")),owner:$m.id} ])[] ]) as $decisions_all
+                                        (.hold_reason // "captain decision pending")),owner:$m.id,card_time:(.card_time // null)} ])[] ]) as $decisions_all
   | ([ .backlog.records[]
          | . as $record
          | select(.structured and projected_deferred_hold) ]
@@ -579,13 +612,13 @@ MODEL=$(printf '%s' "$SNAP" | jq \
               (.state == "in_flight" and .current_role == "held" and ($working_ids | index($record.id) | not))))
          | select(.captain_actionable != true)
          | select((.hold_bucket == null) or ($all_decisions == 0))
-         | as_gate("(main)") ]
+         | as_gate("(main)"; $canonical.backlog.records) ]
      + [ (.secondmate_current.records // [])[] as $m
          | select($m.provenance.selected == "structured-home")
          | $m.queued[]?
          | select(.captain_actionable != true)
          | select((.hold_bucket == null) or ($all_decisions == 0))
-         | as_gate($m.id) ]) as $gates_all
+         | as_gate($m.id; $m.queued) ]) as $gates_all
   | ([ .scout_reports[]
        | . as $r
        | select(($all_reports == 1) or (($rel_ids | index($r.id)) != null))
@@ -635,6 +668,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
            missing_verdicts:([$measured[].missing_verdicts] | add // 0),
            captain_omitted:([$measured[].captain_omitted] | add // 0),
            captain:[$measured[] as $h | $h.captain[]? | . + {owner:$h.owner}]}),
+      supervisor:$supervisor,
       in_flight: (if $all_in_flight == 1 then $in_flight_all else $in_flight_all[:$in_flight_n] end),
       secondmates: (if $all_secondmates == 1 then $secondmates_all else $secondmates_all[:$secondmates_n] end),
       secondmate_reconcile: [ (.secondmate_current.records // [])[]
@@ -642,7 +676,8 @@ MODEL=$(printf '%s' "$SNAP" | jq \
         | {id, spawn_gen:(.spawn_gen // null), host:(.host // null), kind:(.reconcile_inventory.kind // null), ids:((.reconcile_inventory.ids // []) | map(select(type == "string")) | sort)} ],
       decisions_open: (if $all_decisions == 1 then $decisions_all else $decisions_all[:$decisions_n] end),
       landed: ($done | map({id, what:(.title | trunc(70)),
-                            artifact:(landed_artifact // "-"),owner:.home_id})),
+                            artifact:(landed_artifact // "-"),owner:.home_id,
+                            card_time:(.card_time // delivered_card_time)})),
       gates: ($return_catchup_gate
               + ($gates_all | newest_filed_first
                  | if $all_queued == 1 then . else .[:$gates_n] end)),

@@ -7,6 +7,9 @@ Ordinary wake: drain, handle all emitted wakes, reconcile open decisions and unr
 Before that acknowledgement, interruption leaves the work durable for idempotent re-handling.
 Use `bin/fm-watch-arm.sh` only when the harness has a tracked background mechanism that survives the tool call and notifies the model on process exit.
 Use a bounded foreground wait over `bin/fm-watch.sh` when that wake mechanism is not verified.
+Keep the turn active through the wait/drain/handle/ack cycle while supervision is required.
+A bounded wait started before a final reply does not prove a post-final wake; do not promote this harness or claim unattended continuation from that observation.
+If the session must end without a verified successor, report that supervision will stop and name the unresolved work and next action.
 Never use shell `&` for watcher supervision.
 Failure or missing cycle only: inspect the failure and restore the same verified wait shape.
 

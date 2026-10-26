@@ -216,6 +216,10 @@ test_ship_modes_generate_clean_briefs() {
     assert_grep 'never a bare number such as "PR 108"' "$brief" "$id: brief missing the full-PR-URL rule"
     assert_grep "mid-task \`working:\` line (including setup complete) is nonterminal" "$brief" \
       "$id: brief missing nonterminal working:/setup-complete gate protection"
+    assert_grep 'stop retrying that path' "$brief" "$id: no bounded retry rule"
+    assert_grep 'Continue independent authorized work' "$brief" "$id: an optional obstacle parks the whole ship"
+    assert_grep 'failed path; evidence; affected work; next action needed from firstmate' "$brief" "$id: technical escalation has no scope or action owner"
+    assert_grep 'This does not relax safety gates, required validation' "$brief" "$id: independent progress bypasses safety or validation"
     assert_no_grep "EOF" "$brief" "$id: brief leaked a heredoc EOF marker (unterminated heredoc)"
   done
   pass "fm-brief.sh: no-mistakes/direct-PR/local-only briefs generate cleanly"
@@ -1151,6 +1155,8 @@ test_scout_and_secondmate_scaffold() {
   assert_grep "## Captain's intent" "$brief" "scout brief missing Captain's intent subsection"
   assert_grep "## Firstmate spec" "$brief" "scout brief missing Firstmate spec subsection"
   assert_grep "{FIRSTMATE_SPEC}" "$brief" "scout brief missing the spec placeholder"
+  assert_grep 'Continue independent authorized work' "$brief" 'an optional obstacle parks the whole scout'
+  assert_grep 'stop the whole task only when no such work remains' "$brief" 'scout lacks a whole-task stop boundary'
 
   FM_SECONDMATE_CHARTER='Supervise the alpha domain.' \
     FM_HOME="$BRIEF_HOME" "$ROOT/bin/fm-brief.sh" brief-sm-q6 --secondmate alpha >/dev/null 2>&1 \
@@ -1212,6 +1218,7 @@ test_workers_wait_without_spending_turns() {
   for id in brief-wait-ship brief-wait-scout; do
     brief="$home/data/$id/brief.md"
     assert_grep "end your turn at once" "$brief" "$id: a decision wait must end the turn"
+    assert_grep 'When rule 5 or 6 requires stopping' "$brief" "$id: Waiting overrides the scoped retry boundary"
     assert_grep "with ONE blocking shell command that returns when the state changes" "$brief" \
       "$id: an external wait must sleep in one blocking shell command"
     assert_grep "gh pr checks <pr> --watch" "$brief" "$id: the CI wait primitive is missing"

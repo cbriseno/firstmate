@@ -12,6 +12,39 @@ set -u
 
 TMP_ROOT=$(fm_test_tmproot fm-guard-stale-banner)
 
+unset FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_CONFIG_OVERRIDE FM_WAKE_QUEUE FM_WAKE_QUEUE_LOCK
+export HOME="$TMP_ROOT/user-home" FM_HOME="$TMP_ROOT/default-home"
+mkdir -p "$HOME" "$FM_HOME/state" "$FM_HOME/data" "$FM_HOME/config"
+
+test_presented_wake_is_a_bounded_handling_phase() {
+  local dir home out phase
+  dir=$(make_guard_case handling-phase)
+  home=$(case_home "$dir")
+  touch "$home/state/.last-watcher-beat"
+  printf '100\t1\tcheck\tlab\tcheck: lab answer\n' > "$home/state/.wake-queue"
+  printf 'pending:handling:lab-generation\n' > "$home/state/.watcher-down"
+  out=$(run_guard_case "$dir")
+  assert_contains "$out" 'presented wakes await handling and acknowledgement' 'normal wake handling was called a watcher failure'
+  assert_contains "$out" 'no live watcher holds the lock' 'notice invented live supervision'
+  assert_not_contains "$out" 'WATCHER DOWN' 'normal handling printed the full failure banner'
+  assert_not_contains "$out" 'drain them with' 'handling was told to start over before acting'
+  # A recent beat alone, an aged handling phase, a downtime generation, and
+  # an unhealthy held lock must all remain real alarms.
+  for phase in stale downtime missing held; do
+    printf 'pending:handling:lab-generation\n' > "$home/state/.watcher-down"
+    case "$phase" in
+      stale) touch -t 202001010000 "$home/state/.watcher-down" ;;
+      downtime) printf 'pending:downtime:lab-generation\n' > "$home/state/.watcher-down" ;;
+      missing) rm "$home/state/.watcher-down" ;;
+      held) mkdir -p "$home/state/.watch.lock"; printf '999999999\n' > "$home/state/.watch.lock/pid" ;;
+    esac
+    out=$(run_guard_case "$dir")
+    case "$out" in *'WATCHER DOWN'*|*'watcher still down'*) ;; *) fail "$phase hid a real supervision gap" ;; esac
+    assert_contains "$out" 'queued wakes pending' "$phase hid unhandled queued work"
+  done
+  pass 'a presented wake gets a bounded handling notice while stale, missing and unhealthy supervision remain alarms'
+}
+
 make_guard_case() {
   local name=$1 dir home root
   dir="$TMP_ROOT/$name"
@@ -942,6 +975,7 @@ test_pi_harness_routes_itself_to_the_extension_model() {
   pass "fm-guard stale banner: Pi and pi-signed primaries route themselves to the extension model"
 }
 
+test_presented_wake_is_a_bounded_handling_phase
 test_first_stale_call_prints_full_banner
 test_full_banner_names_quiet_mode_when_active
 test_repeated_same_episode_prints_reminder_only

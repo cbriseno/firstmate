@@ -239,6 +239,9 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=bin/fm-platform-lib.sh
+. "$SCRIPT_DIR/fm-platform-lib.sh"
+fm_platform_require || exit 2
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
@@ -1120,6 +1123,12 @@ if [ "$READ_ONLY" -eq 0 ] && [ "$REEMIT" -eq 0 ]; then
       printf '\nSESSION_START_AGENTS_BASELINE: not recorded - a later supported rebuild will re-emit AGENTS.md.\n'
     fi
   fi
+fi
+
+if [ "$READ_ONLY" -eq 0 ] && [ -f "$FM_HOME/config/agent-notify.json" ]; then
+  # shellcheck source=bin/fm-agent-notify-lib.sh
+  . "$SCRIPT_DIR/fm-agent-notify-lib.sh"
+  fm_notify_register
 fi
 
 exit 0

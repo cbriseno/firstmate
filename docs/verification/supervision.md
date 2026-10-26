@@ -6,6 +6,27 @@ This record supports current session-start, turn-end, watcher-continuity, superv
 Operator behavior and active limits remain in the linked current guides.
 Task-specific chronology, temporary paths, run identifiers, and delivery transcripts remain in private reports or PR evidence.
 
+## Durable answer delivery and foreground continuation
+
+The portable regressions use authoritative isolated task records and the existing wake queue, drain, bounded checkpoint, and task inbox.
+The delivery cases ran on 2026-10-24 UTC with Bash 5.2.15 and tasks-axi 0.2.6 on Linux, with these results:
+
+```text
+ok - keyed main-home answers wake their owner, relay a concrete action, close the blocker, and acknowledge only after handling
+ok - a failed owner wake preserves the answer and parent channel; an exact retry repairs local delivery without duplicating the parent resolution
+```
+
+Refresh them with:
+
+```sh
+bin/fm-test-run.sh tests/fm-send-resolve-key.test.sh tests/fm-wake-drain-open-decisions.test.sh tests/fm-guard-stale-banner.test.sh tests/fm-brief.test.sh tests/fm-supervision-instructions.test.sh
+```
+
+They exercise main-home close/release answers, pending-retry deduplication, preservation and retry after queue-write failure, delivery to a running checkpoint, a supervisor action reaching the worker inbox and closing its technical key, and acknowledgement after handling.
+They also separate the bounded presented-wake notice from stale or missing supervision, retain buried technical dependencies, and render scoped retry instructions for both ship and scout briefs.
+The terminal transport is a fixture; these tests do not certify native CLI busy state, pane ownership, a human Deck submission, or a post-final callback.
+The [Codex protocol](../supervision-protocols/codex.md) owns the active-turn limit, and [`fm-captain-hold.sh`](../../bin/fm-captain-hold.sh)'s header owns the durable delivery contract.
+
 ## Native session-start delivery
 
 The cross-harness transport pass ran on 2026-07-17 with Codex 0.144.4, Grok 0.2.103, OpenCode 1.17.18, Pi 0.80.10, and the tracked Claude hook wiring.

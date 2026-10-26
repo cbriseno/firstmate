@@ -15,6 +15,27 @@ DRAIN="$ROOT/bin/fm-wake-drain.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-wake-drain-open-decisions-tests)
 
+unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_CONFIG_OVERRIDE FM_WAKE_QUEUE FM_WAKE_QUEUE_LOCK
+export HOME="$TMP_ROOT/user-home" FM_HOME="$TMP_ROOT/default-home"
+mkdir -p "$HOME" "$FM_HOME/state" "$FM_HOME/data" "$FM_HOME/config"
+
+test_technical_blocker_keeps_an_action_owner() {
+  local dir state out
+  dir=$(make_case technical-owner)
+  state="$dir/state"
+  printf 'blocked [key=provenance]: authenticated native binding unavailable; standalone lab is possible\n' > "$state/producer.status"
+  printf 'blocked [key=producer]: waiting for producer\nworking: preserved branch\n' > "$state/consumer.status"
+  out=$(FM_STATE_OVERRIDE="$state" "$DRAIN" 2>/dev/null) || fail 'technical blocker drain failed'
+  assert_contains "$out" 'owner=firstmate for triage' 'unresolved technical work has no triage owner'
+  assert_contains "$out" 'assign the next action and its owner' 'blocker produced no actionable obligation'
+  assert_contains "$out" 'route a dependency to a named worker' 'dependency handling is missing'
+  assert_contains "$out" 'status alone is not a human gate' 'technical block was conflated with a human gate'
+  assert_contains "$out" 'producer [key=provenance] blocked:' 'producer blocker was lost'
+  assert_contains "$out" 'consumer [key=producer] blocked:' 'buried dependency was lost'
+  [ ! -e "$FM_HOME/data/backlog.md" ] || fail 'triage presentation invented a captain call'
+  pass 'technical and dependency blocks surface with a supervisor action obligation without fabricating a human gate'
+}
+
 test_buried_decision_still_surfaces() {
   local dir state out
   dir=$(make_case buried)
@@ -215,6 +236,7 @@ test_over_long_decision_note_is_capped_with_a_marker() {
   pass "an over-long open decision is cut to its per-item budget with the shared truncation marker"
 }
 
+test_technical_blocker_keeps_an_action_owner
 test_buried_decision_still_surfaces
 test_over_long_decision_note_is_capped_with_a_marker
 test_explicit_resolution_closes_it

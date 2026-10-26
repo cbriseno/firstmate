@@ -14,3 +14,9 @@ When this session owns supervision and away mode is not active:
 
 Codex cannot reason while a foreground tool call is running.
 The bounded checkpoint returns control regularly so user messages and queued wakes can be handled without relying on background-task wake semantics.
+Keep the turn active and repeat the checkpoint/drain/handle/ack cycle while supervision is required; use progress messages for updates.
+A checkpoint started before a final reply is not persistent supervision, and its quiet timeout is normal.
+There is no verified post-final native wake adapter for this protocol.
+Durable answer wakes survive until handled, but cannot start a new Codex turn by themselves.
+The existing host's posture coverage and bounded park are documented in [Supervision host](../supervision-host.md#codex-checkpoint-bound).
+If the session must end without a verified successor, report that supervision will stop and name the unresolved work and next action; never claim unattended continuation.

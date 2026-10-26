@@ -42,6 +42,13 @@ DRAIN="$ROOT/bin/fm-wake-drain.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-send-resolve-key)
 
+# Direct invocation must not inherit an operator's fleet or tasks-axi user
+# configuration (upstream issue 7691). Per-case homes below override this safe
+# default; state-only helper calls can never fall back to an actual home.
+unset FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_CONFIG_OVERRIDE FM_WAKE_QUEUE FM_WAKE_QUEUE_LOCK
+export HOME="$TMP_ROOT/user-home" FM_HOME="$TMP_ROOT/default-home"
+mkdir -p "$HOME" "$FM_HOME/state" "$FM_HOME/data" "$FM_HOME/config"
+
 # Stub tmux: logs literal typed text to FM_SEND_LOG and lets the submit path
 # reach a clean "empty" verdict (numeric cursor_y, empty bordered composer).
 # FM_FAKE_TMUX_SEND_FAIL=1 makes send-keys fail so the delivery-failure leg can
@@ -114,7 +121,109 @@ setup_home() {  # <name> -> echoes a fresh home dir with an empty state/
 }
 
 drain_out() {  # <home>
-  FM_STATE_OVERRIDE="$1/state" "$DRAIN" 2>/dev/null
+  FM_HOME="$1" FM_ROOT_OVERRIDE="$1" FM_STATE_OVERRIDE="$1/state" "$DRAIN" 2>/dev/null
+}
+
+test_captain_answer_wakes_owner_then_reaches_worker() {
+  local home fb log out show seq generation mode count checkpoint_pid i
+  command -v tasks-axi >/dev/null 2>&1 || { echo 'skip: tasks-axi not found'; return; }
+  home=$(setup_home owner-answer)
+  fb=$(make_stubs "$home"); log="$home/send.log"
+  mkdir -p "$home/data" "$home/config"
+  fm_test_tasks_toml "$home/.tasks.toml"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+  env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" hold lab-call \
+    --title 'Select a lab route' --reason 'Select the isolated route' --repo sample >/dev/null \
+    || fail 'could not create the authoritative held lab call'
+  # Actual bounded foreground watcher, no vendor process or model turn. There
+  # are no status files or custom checks to provide an alternative wake.
+  touch "$home/state/home-summary.json" "$home/state/.last-check" "$home/state/.last-heartbeat"
+  fm_test_track_watcher_state "$home/state"
+  env PATH="$fb:$PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$home" FM_BACKEND=tmux \
+    FM_POLL=1 FM_HEARTBEAT=999999 FM_HOME_SUMMARY_INTERVAL=999999 FM_CHECK_INTERVAL=999999 \
+    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 60 > "$home/checkpoint.out" 2> "$home/checkpoint.err" &
+  checkpoint_pid=$!
+  i=0
+  while [ ! -e "$home/state/.last-watcher-beat" ] && kill -0 "$checkpoint_pid" 2>/dev/null && [ "$i" -lt 200 ]; do
+    sleep 0.1
+    i=$((i + 1))
+  done
+  [ -e "$home/state/.last-watcher-beat" ] || fail 'isolated checkpoint never started'
+  for mode in release 'done'; do
+    if [ "$mode" = 'done' ]; then
+      env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" hold lab-call \
+        --reason 'Select the next isolated route' --repo sample >/dev/null \
+        || fail 'could not re-hold the released call'
+    fi
+    printf 'lab-call\tuse %s route\tselected\t%s\n' "$mode" "$mode" \
+      | env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" answers \
+        --source 'isolated Deck intake' >/dev/null || fail 'the keyed answer failed'
+    # Same durable delivery twice must leave one pending owner wake.
+    printf 'lab-call\tuse %s route\tselected\t%s\n' "$mode" "$mode" \
+      | env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" answers \
+        --source 'isolated Deck intake' >/dev/null || fail 'the keyed retry failed'
+    count=$(awk -F '\t' '$3 == "check" && $4 ~ /^captain-answer:lab-call:/ { n++ } END { print n+0 }' "$home/state/.wake-queue")
+    assert_equals "$count" 1 'answer retries duplicated an unacknowledged owner wake'
+    out=$(drain_out "$home")
+    assert_contains "$out" 'check: captain-answer task=lab-call' 'main-home answer never reached its owner'
+    assert_contains "$out" 'owner=firstmate' 'answer wake has no action owner'
+    show=$(env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-tasks-axi.sh" show lab-call --full)
+    assert_contains "$show" "Answer: use $mode route" 'owner cannot read the recorded selection'
+    if [ "$mode" = release ]; then
+      wait "$checkpoint_pid" || fail "answer failed to wake the running checkpoint: $(cat "$home/checkpoint.out" "$home/checkpoint.err")"
+      assert_grep 'check:' "$home/checkpoint.out" 'running checkpoint returned without an actionable wake'
+      fm_write_meta "$home/state/t1.meta" 'window=sess:fm-t1' 'backend=tmux' 'harness=codex' 'kind=ship'
+      printf 'blocked [key=lab-probe]: owner must select an isolated experiment\n' > "$home/state/t1.status"
+      assert_not_contains "$show" 'state: done' 'release falsely completed unfinished work'
+      # Simulate the supervisor's authorized action, using the actual durable
+      # send and status consumers. The endpoint transport is a fixture only.
+      run_send "$fb" "$home" "$log" t1 --resolve-key lab-probe \
+        'Use the selected isolated route; owner=t1; report provenance before further routing.' \
+        || fail 'owner could not relay the answer'
+      assert_grep 'owner=t1' "$home/state/t1.inbox/001.msg" 'next action did not reach the worker inbox'
+      out=$(drain_out "$home")
+      assert_not_contains "$out" 'OPEN DECISIONS' 'answered technical blocker stayed open'
+    else
+      assert_contains "$show" 'state: done' 'question-shaped answer did not close its call'
+    fi
+    seq=$(awk -F '\t' 'END { print $2 }' "$home/state/.wake-queue")
+    generation=$(cut -d: -f3 "$home/state/.watcher-down")
+    env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$DRAIN" --ack-through "$seq" \
+      --recovery-generation "$generation" >/dev/null 2>&1 || fail 'handled owner wake could not be acknowledged'
+    [ ! -s "$home/state/.wake-queue" ] || fail 'handled owner wake remained queued'
+  done
+  pass 'keyed main-home answers wake their owner, relay a concrete action, close the blocker, and acknowledge only after handling'
+}
+
+test_answer_wake_failure_preserves_resolution_for_retry() {
+  local home parent out before after
+  command -v tasks-axi >/dev/null 2>&1 || { echo 'skip: tasks-axi not found'; return; }
+  home=$(setup_home owner-retry)
+  parent=$(setup_home answer-parent)
+  mkdir -p "$home/data" "$home/config" "$home/state/.wake-queue"
+  printf 'lab-mate\n' > "$home/.fm-secondmate-home"
+  printf 'schema=fm-secondmate-parent.v1\nroute=local\nparent_home=%s\n' "$parent" > "$home/.fm-secondmate-parent"
+  fm_test_tasks_toml "$home/.tasks.toml"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+  env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" hold retry-call \
+    --title 'Retry this call' --reason 'Choose a route' --repo sample >/dev/null || fail 'could not hold retry fixture'
+  printf 'Keep the existing work.\n' > "$home/answer.txt"
+  if out=$(env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" answer retry-call \
+    --decision-file "$home/answer.txt" --release 2>&1); then
+    fail 'an unwritable owner queue was reported as successful delivery'
+  fi
+  assert_contains "$out" 'answer recorded for retry-call but owner wake failed' 'failure did not explain the durable answer and retry'
+  before=$(env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-tasks-axi.sh" show retry-call --full)
+  assert_contains "$before" 'Resolution mode: released' 'wake failure lost the resolution'
+  assert_grep 'captain hold retry-call: released' "$parent/state/lab-mate.status" 'secondmate answer never reached its parent'
+  rmdir "$home/state/.wake-queue"
+  env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" answer retry-call \
+    --decision-file "$home/answer.txt" --release >/dev/null || fail 'exact retry did not repair owner delivery'
+  after=$(env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-tasks-axi.sh" show retry-call --full)
+  assert_equals "$after" "$before" 'delivery repair changed the authoritative resolution'
+  assert_equals "$(grep -c 'captain-hold-retry-call-1' "$parent/state/lab-mate.status")" 2 'wake retry duplicated the existing parent hold/resolution'
+  assert_contains "$(drain_out "$home")" 'check: captain-answer task=retry-call' 'repaired delivery never reached the owner'
+  pass 'a failed owner wake preserves the answer and parent channel; an exact retry repairs local delivery without duplicating the parent resolution'
 }
 
 test_answer_send_closes_open_decision() {
@@ -905,6 +1014,8 @@ test_decision_answer_partition_relocates_under_the_record() {
   pass "fm-send --resolve-key: a decision answer refuses the attended branch before sending, a blocked: key stays steering, and the away-posture record relocates the answer"
 }
 
+test_captain_answer_wakes_owner_then_reaches_worker
+test_answer_wake_failure_preserves_resolution_for_retry
 test_answer_send_closes_open_decision
 test_answer_close_is_self_announced
 test_separate_resolve_key_answers_do_not_rewake

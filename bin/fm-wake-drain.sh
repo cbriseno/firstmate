@@ -509,6 +509,8 @@ EOF
   # the send that answers a listed decision also closes it, so closure never
   # depends on the busy worker writing a matching resolved line (contract:
   # bin/fm-send.sh header).
+  printf 'OPEN DECISIONS: owner=firstmate for triage; a blocked or needs-decision status alone is not a human gate.\n' || return 1
+  printf 'OPEN DECISIONS: assign the next action and its owner: execute an authorized technical step, make an owner decision, route a dependency to a named worker, or escalate a concrete human choice. Continue independent work; do not leave workers waiting on each other or invent a captain hold.\n' || return 1
   printf "OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'\n" || return 1
 }
 

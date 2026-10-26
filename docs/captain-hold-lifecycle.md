@@ -84,6 +84,12 @@ It then works in this order:
 2. It retains the leading hold-set stamp until the selected `tasks-axi done` or `tasks-axi unhold` transition succeeds.
 3. It then restores the successful record's resolution-first body ordering.
    The previous body remains preserved below the block and archived through tasks-axi `--archive-body`.
+4. It publishes the parent resolution where applicable and queues an owner wake in the answering home, including a main home without a parent channel.
+   [`bin/fm-captain-hold.sh`](../bin/fm-captain-hold.sh)'s header owns delivery, retry, and failure semantics.
+
+The receiving supervisor reads the authoritative resolution and applies or relays its concrete scope before acknowledging the wake.
+Recording an answer does not itself resolve a worker's separate status key; the answerer uses `fm-send --resolve-key` when relaying that answer.
+The [Codex supervision protocol](supervision-protocols/codex.md) owns the foreground-only continuation limit.
 
 If the close is interrupted, the still-held task therefore keeps its original age basis.
 A matching retry also completes any resolution-first normalization left unfinished after the close itself succeeded.

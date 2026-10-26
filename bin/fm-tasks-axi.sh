@@ -52,6 +52,10 @@
 #     this command exists to prevent. Lifecycle transitions refuse the same file.
 # Otherwise the exit status is tasks-axi's own, unless decoding a read fails;
 # in that case the decoder's nonzero status is returned.
+# New successful done/close transitions preserve an optional owner completion
+# receipt through fm-backlog-transition-lib.sh; retries retain the old instant.
+# start/reopen invalidate that receipt. Receipt failures warn without changing
+# a successful backend result; unavailable proof retains date-only history.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -149,6 +153,29 @@ case "${1:-}" in
     set -o pipefail
     tasks-axi ${ARGS[@]+"${ARGS[@]}"} | fm_hold_reason_decode_stream
     exit $?
+    ;;
+  done|close)
+    case "${2:-}" in
+      ''|-*) exec tasks-axi ${ARGS[@]+"${ARGS[@]}"} ;;
+    esac
+    previous_state=''
+    previous_hold=''
+    if fm_backlog_row_probe "$DATA" "$2"; then
+      previous_state=${FM_BACKLOG_ROW_STATE%% *}
+      previous_hold=$FM_BACKLOG_ROW_HOLD_KIND
+    fi
+    tasks-axi ${ARGS[@]+"${ARGS[@]}"}
+    result=$?
+    if [ "$result" -eq 0 ] && [ -n "$previous_state" ] && [ "$previous_state" != 'done' ] && [ "$previous_hold" != captain ]; then
+      fm_backlog_record_completion "$DATA" "$2" ''
+    fi
+    exit "$result"
+    ;;
+  start|reopen)
+    tasks-axi ${ARGS[@]+"${ARGS[@]}"}
+    result=$?
+    [ "$result" -ne 0 ] || fm_backlog_invalidate_completion "$DATA" "${2:-}"
+    exit "$result"
     ;;
 esac
 exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}

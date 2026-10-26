@@ -32,6 +32,11 @@ The same run measured the wedge-cap parity suite at 27763 ms, which `bin/fm-test
 The local measurements had left the serial lane less aggregate headroom under the nine shards' 1200000 ms budget than the packing-boundary check needs to place one script exactly at the budget, so that check failed; the CI measurements restore it.
 The session-start hint retains its pre-optimization maximum until CI measures the shorter fixture-only home-summary bound; do not discount a local speedup from CI packing weights.
 
+The native Codex owner regression carries a provisional local Linux measurement of 122211 ms from 2026-10-25, pending a CI refresh.
+`bash bin/fm-test-run.sh tests/fm-codex-stop-autoarm.test.sh --per-script-timeout-secs 180` reported `exit=0 duration_ms=122211` for its nine isolated process scenarios; this is not vendor hook acceptance or an interchangeable Ubuntu sample.
+The native live guard keeps the conservative unmeasured default rather than assigning it a fabricated capability-skip time.
+The serial layout uses ten shards to admit this coverage while preserving the 1200000 ms target and existing execution timeouts.
+
 ## Parallel lanes
 
 The two parallel lanes use longest-processing-time assignment over those hints.
@@ -120,7 +125,7 @@ No fast mode, path skips, or paid runner provisioning is part of this layout.
 
 The longer-term performance objective remains a complete green run under fifteen minutes including start delay, but the current watch-triage floor alone exceeds that objective.
 The immediate packing target is the runner's modeled script budget, not a claim that more shards alone can make an indivisible script faster.
-The layout uses fourteen long-lived Linux jobs (nine serial, two parallel, Herdr, two lint), plus short checks and macOS; insufficient shared account capacity can erase the packing gain.
+The layout uses fifteen long-lived Linux jobs (ten serial, two parallel, Herdr, two lint), plus short checks and macOS; insufficient shared account capacity can erase the packing gain.
 Compare complete before/after runs, preserve cancelled and partial-run evidence, and measure a representative normal-run sample before claiming a P95 improvement.
 The workflow retains per-PR supersession without cancelling main pushes or changing the compliance workflow's event semantics.
 

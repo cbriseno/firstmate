@@ -298,6 +298,49 @@ The command's closing message reports both choices as they will take effect.
 
 Both choices are local to each Firstmate home and are not part of secondmate inherited configuration, the same as the Calm preference; a secondmate home pins its own supervision model and effort with its own `/supervision-model`.
 
+## Codex native supervision
+
+Codex retains the foreground checkpoint protocol by default.
+An experimental, explicit opt-in adapts its native asynchronous Stop hook to the public `codex queue` command, without a separate supervisor, backend or daemon.
+It is limited to a root primary thread on Linux and an operator-verified codex-cli 0.164.0 executable and endpoint.
+Installing these files does not enable it or prove that a frontend loads trusted hooks, preserves the callback after final, or sustains repeated idle reentry.
+The [verification entry](verification/runtime-backends.md#codex-native-stop-owner) separates portable coverage from the required coordinated live acceptance.
+
+The opt-in is `config/codex-native-supervision.json`, a regular, non-symlink file owned by this user with mode `0600` on the config directory's filesystem.
+Its schema is:
+
+| Field | Required value |
+| --- | --- |
+| `schema` | Number `1`. |
+| `cli_version` | String `0.164.0`, attested for the executable below. |
+| `thread_id` | Canonical lowercase UUID of this primary's thread, verified through a native read of that same thread. |
+| `session_id` | Canonical lowercase UUID emitted by this root primary's actual Stop payload; must equal the independently verified `thread_id`. |
+| `owner_pid` | Decimal string matching this home's `state/.lock` and the owning Codex ancestor. |
+| `owner_identity` | Exact `fm_pid_identity` result for that PID. |
+| `executable` | Absolute executable path matching `/proc/<owner_pid>/exe`. |
+| `executable_sha256` | Lowercase SHA-256 of that executable. |
+| `remote` | Verified public queue endpoint, either `unix://` or an absolute `unix:///...` socket URI. |
+| `codex_home` | Absolute existing Codex home for that verified CLI/endpoint context. |
+
+The file attests an already identified target; it never discovers a thread from a name, working directory, focus, or another session.
+The hook's raw `Stop` payload must match the attested root session.
+[Codex 0.164.0 snapshots the app-server process environment for hooks](https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/hooks/src/registry.rs#L83); it does not inject the per-thread tool environment there.
+The read-only capability and handling probes run from tools and require their own `CODEX_THREAD_ID` to match the attested thread.
+Descendant `SubagentStop` callbacks and bindings whose thread and session differ are rejected.
+Matching a notification service's resolved ID is insufficient.
+The runtime also requires the owning session lock and executable identity to remain unchanged, plus `jq`, Perl and Python 3 for binding validation, owner-death cleanup and the bounded public-protocol client.
+A configured supervision host retains its existing owner, and an away or quiet record suspends this native path.
+All other primary harnesses and runtime backends retain their existing paths.
+
+The hook owner's header and `--help` in [`bin/fm-codex-stop-autoarm.sh`](../bin/fm-codex-stop-autoarm.sh) own its lease, receipt, replay, failure and cleanup mechanics.
+The synchronous Stop guard accepts a native cycle only after observing its actual watcher or a same-turn delivery receipt with a live callback inside its lease.
+When this Codex primary's private opt-in selects the root and supervision is required, missing or invalid owner/turn proof blocks the final with exit 2 and a foreground repair instruction, even after `stop_hook_active` becomes true.
+The already registered shared Stop entrypoint delegates this requirement before its legacy loop allowance, so enforcement does not depend solely on loading the new shim definition.
+A foreground checkpoint alone cannot satisfy that native requirement; keep the turn open with foreground supervision and progress updates while repairing the bound owner.
+This does not prove that the frontend loaded either hook definition legitimately; that live acceptance remains separate.
+Queue acceptance never acknowledges a durable wake: the handling turn must drain, act and run the drain's exact acknowledgement command.
+Removing the opt-in revokes the callback on its next poll; a restart, executable change or binding change requires fresh verification before opt-in can be restored.
+
 ## Supervision host (config/supervision-host)
 
 Two optional local, gitignored files control the supervision host for this home: `config/supervision-host-off` opts the home out, and `config/supervision-host` opts a home in and selects its engine.
@@ -1652,6 +1695,9 @@ FM_DISPATCH_MODEL=typesafe/jev-1.13
 The live rule-match evidence is recorded in [`verification/dispatch-resolve.md`](verification/dispatch-resolve.md).
 
 ## Toolchain
+
+[Platform setup](platforms.md) owns supported operating-system routes and the read-only prerequisite doctor.
+Defensive Windows/MSYS timeout defaults retained by low-level helpers do not establish native Windows runtime support.
 
 On session start the first mate detects what its required toolchain is missing or too old and lists each problem with its exact install or upgrade command, or with manual instructions.
 It installs missing automatically supported tools only after you say go; for an installed but outdated tool, run the printed upgrade command after consent, while manual-only tools remain for you to install from the printed instructions.

@@ -33,7 +33,9 @@
     "docs/cmux-backend.md",
     "docs/paseo-backend.md",
     "docs/rex-backend.md",
-    "docs/remote-secondmates.md"
+    "docs/remote-secondmates.md",
+    "docs/platforms.md",
+    "docs/public-export.md"
   ],
   "requiredOwnerPointers": [
     {
@@ -455,6 +457,10 @@
       "audience": "agent-runtime"
     },
     {
+      "path": "docs/supervision-protocols/codex-native.md",
+      "audience": "agent-runtime"
+    },
+    {
       "path": "docs/supervision-protocols/cursor.md",
       "audience": "agent-runtime"
     },
@@ -621,6 +627,14 @@
     {
       "path": ".agents/skills/validation-supervision/SKILL.md",
       "audience": "agent-runtime"
+    },
+    {
+      "path": "docs/platforms.md",
+      "audience": "operator-current"
+    },
+    {
+      "path": "docs/public-export.md",
+      "audience": "operator-current"
     }
   ]
 }

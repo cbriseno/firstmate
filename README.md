@@ -59,6 +59,8 @@ Full detail on every feature lives in [docs/architecture.md](docs/architecture.m
 
 ### Requirements
 
+See [platform setup](docs/platforms.md) for Linux, macOS and the Windows WSL2 route, including the read-only prerequisite doctor.
+
 - A verified primary agent harness: Claude Code, Grok, Pi, `pi-signed`, Oh My Pi (`omp`), Codex, OpenCode, or Cursor Agent CLI.
 - Git and the GitHub CLI, authenticated through `gh auth login`.
 - The CLI and dependencies for your selected runtime backend; tmux is the reference default.
@@ -212,6 +214,9 @@ Firstmate's skills live in two separate places with different audiences:
   It intentionally shares no code with the firstmate-internal `.agents/skills/stow` it is named after, so the two can evolve independently.
 
 ## Documentation
+
+- [docs/platforms.md](docs/platforms.md) - platform setup, private home integration and verification limits.
+- [docs/public-export.md](docs/public-export.md) - safe public export and updates without private operator history.
 
 - [docs/architecture.md](docs/architecture.md) - maintainer architecture for the crew, supervision, worktrees, secondmates, and project modes.
 - [docs/configuration.md](docs/configuration.md) - environment variables, `FM_HOME`, runtime backend selection, optional Relay and its X and Discord setup steps, trusted external process-event adapter setup, the files you set, and harness support.

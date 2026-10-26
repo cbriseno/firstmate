@@ -68,10 +68,15 @@ FM_BACKLOG_ROW_ERROR=
 # the row is not held.
 # shellcheck disable=SC2034 # Output global, read by the sourcing caller.
 FM_BACKLOG_ROW_HOLD_KIND=
+# Set by the same probe for artifact eligibility; absent legacy kind stays empty.
+FM_BACKLOG_ROW_KIND=
 # Set by fm_backlog_close_marker_replay: closed | closed_incomplete | retained |
 # retained_incomplete | answered | stale | noop.
 # shellcheck disable=SC2034 # Output global, read by the sourcing caller.
 FM_BACKLOG_CLOSE_REPLAY_RESULT=
+
+# shellcheck source=bin/fm-agent-notify-lib.sh disable=SC1091
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-agent-notify-lib.sh"
 
 # Bounded execution is fm-timeout-lib.sh's alone; source it rather than
 # re-deriving a deadline here. It is stateless, so the memoisation reason this
@@ -434,6 +439,7 @@ fm_backlog_row_probe() {  # <data-dir> <id>
   FM_BACKLOG_ROW_RESULT=error
   FM_BACKLOG_ROW_STATE=
   FM_BACKLOG_ROW_HOLD_KIND=
+  FM_BACKLOG_ROW_KIND=
   FM_BACKLOG_ROW_ERROR=
   fm_backlog_source_present "$data" "$authorized_data"
   source_status=$?
@@ -463,6 +469,7 @@ fm_backlog_row_probe() {  # <data-dir> <id>
   held=$(printf '%s\n' "$out" | sed -n 's/^  held: *//p' | head -1)
   blocked=$(printf '%s\n' "$out" | sed -n 's/^  blocked: *//p' | head -1)
   hold_kind=$(printf '%s\n' "$out" | sed -n 's/^  hold_kind: *//p' | head -1)
+  FM_BACKLOG_ROW_KIND=$(printf '%s\n' "$out" | sed -n 's/^  kind: *//p' | head -1)
   if [ -z "$state" ]; then
     FM_BACKLOG_ROW_ERROR="tasks-axi show $id returned no state"
     return 1
@@ -500,7 +507,10 @@ fm_backlog_mutate() {  # <data-dir> <verb> <id> [flag...]
     out=$(cd "$FM_BACKLOG_AXI_ROOT" 2>/dev/null && fm_tasks_axi "$verb" "$id" "$@" 2>&1)
   fi
   command_status=$?
-  [ "$command_status" -ne 0 ] || return 0
+  if [ "$command_status" -eq 0 ]; then
+    case "$verb" in start|reopen) fm_backlog_invalidate_completion "$data" "$id" ;; esac
+    return 0
+  fi
   FM_BACKLOG_TRANSITION_ERROR=$(printf '%s\n' "$out" | sed -n '1p')
   if [ -z "$FM_BACKLOG_TRANSITION_ERROR" ]; then
     if fm_tasks_axi_timeout_expired "$command_status" && [ -n "${FM_TASKS_AXI_TIMEOUT:-}" ]; then
@@ -531,7 +541,7 @@ fm_backlog_pr_note_label() {  # <url>
 }
 
 fm_backlog_done() {  # <data-dir> <id> [flag...]
-  local data=$1 id=$2 arg label previous_arg=''
+  local data=$1 id=$2 arg label previous_arg='' previous_state='' previous_hold=''
   local -a done_args=()
   shift 2
   for arg in "$@"; do
@@ -543,7 +553,38 @@ fm_backlog_done() {  # <data-dir> <id> [flag...]
     fi
     previous_arg=$arg
   done
+  if fm_backlog_row_probe "$data" "$id"; then
+    previous_state=${FM_BACKLOG_ROW_STATE%% *}
+    previous_hold=$FM_BACKLOG_ROW_HOLD_KIND
+  fi
   fm_backlog_mutate "$data" "done" "$id" "${done_args[@]+"${done_args[@]}"}"
+  local done_status=$?
+  [ "$done_status" -eq 0 ] || return "$done_status"
+  if [ -n "$previous_state" ] && [ "$previous_state" != 'done' ] && [ "$previous_hold" != captain ]; then
+    fm_backlog_record_completion "$data" "$id" ''
+  fi
+  fm_notify_landed "$data" "$id" "${done_args[@]+"${done_args[@]}"}"
+}
+
+# Preserve the observed success instant at the owner of the close, after the
+# backend confirms a new Done transition. Replay/backfill never invents a time.
+# Optional receipt failure is visible and cannot undo an authoritative close.
+# bin/fm_delivery.py owns the receipt binding and its reader validation.
+fm_backlog_record_completion() {  # <data-dir> <id> <canonical-task-json>
+  local data=$1 id=$2 row=$3 root dir
+  dir=${BASH_SOURCE[0]%/*}
+  root=$(fm_backlog_root "$data") || return 0
+  printf '%s' "$row" | FM_HOME="$root" python3 "$dir/fm_delivery.py" record-completion --task "$id" --data "$data" \
+    || printf 'warning: completion time not recorded for %s; retained history will use its canonical date\n' "$id" >&2
+}
+
+fm_backlog_invalidate_completion() {  # <data-dir> <id>
+  local root dir
+  dir=${BASH_SOURCE[0]%/*}
+  [ -e "$1/$2/completion.json" ] || return 0
+  root=$(fm_backlog_root "$1") || return 0
+  FM_HOME="$root" python3 "$dir/fm_delivery.py" invalidate-completion --task "$2" \
+    || printf 'warning: previous completion time could not be invalidated for %s\n' "$2" >&2
 }
 
 fm_backlog_row_artifact_supported() {

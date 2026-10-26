@@ -7,6 +7,7 @@ This is the authoritative current contract for the "no turn ends blind" primary 
 The predicate lives in `bin/fm-turnend-guard.sh`.
 Primary scope lives in `bin/fm-primary-scope-lib.sh`, shared with the native session-start adapters in [`sessionstart-nudge.md`](sessionstart-nudge.md).
 Harness hook files adapt each enabled primary harness integration's turn-end mechanism to that shared predicate.
+Codex's experimental [native Stop owner](configuration.md#codex-native-supervision) is also enforced by this existing entrypoint before its default loop allowance; configuration owns that opt-in exception.
 
 Related PreToolUse guards deny unsafe commands before execution rather than detecting a blind turn end afterward.
 Their separate owners are [`arm-pretool-check.md`](arm-pretool-check.md), [`cd-guard.md`](cd-guard.md), and [`subagent-guard.md`](subagent-guard.md).
@@ -167,6 +168,11 @@ A cycle the extension never restores is loud once the beacon passes grace.
 Under every persistent-watcher harness a live identity-matched watcher with a fresh beacon is still required, so the pull guard keeps the same strict semantics there.
 Its banner names the true failing condition, either a missing live watcher process or a genuinely stale beacon with its real age.
 It keys the once-per-episode dedup on that condition rather than the beacon mtime.
+
+During a presented wake's unacknowledged handling phase, the pull guard emits a bounded handling notice instead of that banner when the lock is unheld and both the beacon and handling marker remain within grace.
+It names the pending handling, acknowledgement, and supervision-resume obligations without changing the strict health verdict or the turn-end guard.
+A fresh beacon alone, downtime marker, aged handling marker, or unhealthy held lock still alarms.
+The [Codex supervision protocol](supervision-protocols/codex.md) owns its active-turn continuation and post-final limit; a live bounded checkpoint is not evidence of a native callback.
 
 ### Away and quiet mode daemon ownership
 

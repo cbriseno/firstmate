@@ -3,6 +3,9 @@
 # is simply a task waiting on the captain", its completion gate, its recorded
 # answers, the record-divergence guard over its two records, and the legacy
 # compatibility for pre-collapse decision identities.
+# Use --intake-cas or FM_CAPTAIN_HOLD_TEST_INTAKE_CAS=1 for the atomic intake
+# and its directly affected legacy lifecycle cases, without the full suite.
+# FM_CAPTAIN_HOLD_TEST_INTAKE_CAS=core selects only the atomic intake cases.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -1752,6 +1755,79 @@ SH
 # reserved at the one keyed-answer intake, so no channel and no card-declared
 # close mode can turn it into a close or a release, and the obligation to verify
 # survives as a durable request instead of evaporating with the wake.
+test_reconcile_requests_wake_the_owner_and_retry() {
+  local home parent role out request before show rc count
+  for role in main secondmate; do
+    home=$(make_home "reconcile-owner-$role")
+    if [ "$role" = secondmate ]; then
+      parent=$(make_home reconcile-owner-parent)
+      printf 'reconcile-owner-mate\n' > "$home/.fm-secondmate-home"
+      printf 'schema=fm-secondmate-parent.v1\nroute=local\nparent_home=%s\n' "$parent" > "$home/.fm-secondmate-parent"
+    fi
+    run_captain "$home" hold review-call --title "Review current premise" --reason "premise needs review" --repo sample >/dev/null || fail "could not create $role hold"
+    run_captain "$home" bind review-board >/dev/null || fail "could not bind $role source"
+    printf 'review-call\tfirst note\n' | run_captain "$home" reconcile-requests --source-id review-board --source board >/dev/null || fail "$role reconcile failed"
+    request="$home/state/reconcile-requests/review-call.request"
+    assert_present "$request" "$role request not durable"
+    count=$(awk -F '\t' '$3 == "check" && $4 == "captain-reconcile:review-call" {n++} END {print n+0}' "$home/state/.wake-queue" 2>/dev/null || true)
+    [ "$count" = 1 ] || fail "$role reconcile did not publish exactly one owner wake (count=$count)"
+    before=$(cat "$request")
+    printf 'review-call\tchanged retry note\n' | run_captain "$home" reconcile-requests --source-id review-board --source retry >/dev/null || fail "$role retry failed"
+    [ "$(cat "$request")" = "$before" ] || fail "retry changed original request"
+    [ "$(wc -l < "$home/state/.wake-queue" | tr -d ' ')" = 1 ] || fail "retry duplicated owner wake"
+    show=$(tasks_in "$home" show review-call --full)
+    assert_contains "$show" 'held: yes' "reconcile released $role hold"
+    assert_not_contains "$show" 'Resolution recorded by' "reconcile wrote a decision"
+    # A filesystem failure on the queue append, including when run as root.
+    mv "$home/state/.wake-queue" "$home/state/queue.saved"
+    mkdir "$home/state/.wake-queue"
+    out=$(printf 'review-call\n' | run_captain "$home" reconcile-requests --source-id review-board --source retry 2>&1) && rc=0 || rc=$?
+    [ "$rc" -ne 0 ] || fail "append failure reported success"
+    assert_contains "$out" 'owner wake failed; retry this request' "append failure hidden"
+    [ "$(cat "$request")" = "$before" ] || fail "append failure lost request"
+    rmdir "$home/state/.wake-queue"
+    : > "$home/state/.wake-queue"
+    printf 'review-call\n' | run_captain "$home" reconcile-requests --source-id review-board --source retry >/dev/null || fail "append recovery failed"
+    [ "$(wc -l < "$home/state/.wake-queue" | tr -d ' ')" = 1 ] || fail "recovery duplicated pending wake"
+    # Normal answers retain their own wake and retire the pending request.
+    printf 'review-call\tproceed\tProceed\trelease\n' | run_captain "$home" answers --source board >/dev/null || fail "normal answer regressed"
+    assert_absent "$request" "normal answer retained reconcile request"
+    show=$(tasks_in "$home" show review-call --full)
+    assert_contains "$show" 'held: no' "normal answer did not release"
+    assert_contains "$(cat "$home/state/.wake-queue")" 'captain-answer:review-call:1' "normal answer lost wake"
+    pass "$role reconcile wake, retry, changed note, failure/recovery and normal answer"
+  done
+}
+
+test_reconcile_retry_after_public_ack() {
+  local home before out err sequence generation show
+  home=$(make_home reconcile-after-ack)
+  run_captain "$home" hold review-call --title "Review premise" --reason "premise needs review" --repo sample >/dev/null || fail "could not create ACK fixture hold"
+  run_captain "$home" bind review-board >/dev/null || fail "could not bind ACK fixture source"
+  printf 'review-call\tfirst note\n' | run_captain "$home" reconcile-requests --source-id review-board --source board >/dev/null || fail "could not create ACK fixture request"
+  before=$(cat "$home/state/reconcile-requests/review-call.request")
+  out="$home/drain.out"
+  err="$home/drain.err"
+  PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
+    FM_DATA_OVERRIDE="$home/data" FM_CONFIG_OVERRIDE="$home/config" \
+    bash "$ROOT/bin/fm-wake-drain.sh" > "$out" 2> "$err" || fail "public drain failed"
+  assert_contains "$(cat "$out")" 'check: captain-reconcile task=review-call' "drain did not present reconcile wake"
+  sequence=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation [A-Za-z0-9._-][A-Za-z0-9._-]*$/\1/p' "$err")
+  generation=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through [0-9][0-9]* --recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' "$err")
+  [ -n "$sequence" ] && [ -n "$generation" ] || fail "drain omitted ACK boundary"
+  PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
+    FM_DATA_OVERRIDE="$home/data" FM_CONFIG_OVERRIDE="$home/config" \
+    bash "$ROOT/bin/fm-wake-drain.sh" --ack-through "$sequence" --recovery-generation "$generation" >/dev/null || fail "public ACK failed"
+  [ ! -s "$home/state/.wake-queue" ] || fail "ACK did not consume reconcile wake"
+  printf 'review-call\tchanged retry note\n' | run_captain "$home" reconcile-requests --source-id review-board --source retry >/dev/null || fail "retry after ACK failed"
+  [ "$(cat "$home/state/reconcile-requests/review-call.request")" = "$before" ] || fail "ACK/retry changed original request"
+  [ "$(awk -F '\t' '$3 == "check" && $4 == "captain-reconcile:review-call" {n++} END {print n+0}' "$home/state/.wake-queue")" = 1 ] || fail "retry after ACK did not publish exactly one wake"
+  show=$(tasks_in "$home" show review-call --full)
+  assert_contains "$show" 'held: yes' "ACK/retry released the hold"
+  assert_not_contains "$show" 'Resolution recorded by' "ACK/retry recorded a decision"
+  pass "public drain/ACK permits reconcile retry without changing the held request"
+}
+
 test_reconcile_never_closes_through_the_keyed_answer_intake() {
   local home out rc show list
   home=$(make_home reconcile-intake)
@@ -4761,6 +4837,286 @@ EOF
   pass "an answered captain call archived to a user-configured location still satisfies the completion gate"
 }
 
+# Focused public-intake regressions; all backlog, request, queue, and parent
+# records are inside this suite's disposable homes. No notification config is
+# installed, so these transitions cannot reach the operator's notification path.
+intake_snapshot() {  # <home>
+  find "$1/data" "$1/state" -type f -exec cksum {} \; | LC_ALL=C sort
+}
+
+expect_intake_refusal() {  # <home> <exit> <error> <reason-or-empty> <command...>
+  local home=$1 expected_rc=$2 error=$3 reason=$4 before after rc=0
+  shift 4
+  before=$(intake_snapshot "$home")
+  run_captain "$home" "$@" > "$home/refused.out" 2> "$home/refused.err" || rc=$?
+  assert_equals "$expected_rc" "$rc" "guarded intake returned the wrong refusal status"
+  jq -e --arg error "$error" --arg reason "$reason" \
+    '.error == $error and (if $reason == "" then true else .reason == $reason end)' \
+    "$home/refused.err" >/dev/null || fail "guarded intake did not expose its stable error: $(cat "$home/refused.err")"
+  after=$(intake_snapshot "$home")
+  assert_equals "$before" "$after" "refused intake changed backlog/body/archive/request/queue state"
+}
+
+# shellcheck disable=SC2016  # Literal shell syntax in answers must survive.
+test_expected_identity_intakes() {
+  local home identity current show capabilities before key mode
+  home=$(make_home identity-intakes)
+  capabilities=$(run_captain "$home" capabilities --json) || fail "capabilities failed"
+  printf '%s' "$capabilities" | jq -e '
+    .schema == "fm-captain-hold.capabilities.v1" and .guarded_input == "single-row"
+    and .expected_identity == ["answer", "answers", "reconcile-requests"]
+  ' >/dev/null || fail "capabilities did not advertise the atomic intake contract"
+  [ ! -e "$home/state/reconcile-requests" ] || fail "capabilities created request state"
+  printf 'Keep café, $(literal), and an exact second line.\nSecond line.\n' > "$home/decision.txt"
+  FM_CAPTAIN_HOLD_NOW=2026-06-01T12:00:00Z run_captain "$home" hold cas-work \
+    --title "Choose work" --reason "choose" >/dev/null || fail "cannot seed guarded work"
+  identity=$(run_captain "$home" open cas-work --identity) || fail "cannot read guarded identity"
+  assert_equals '2026-06-01T12:00:00Z#0' "$identity" "open returned an unexpected lifecycle identity"
+  run_captain "$home" answer cas-work --decision-file "$home/decision.txt" --release \
+    --expected-identity "$identity" >/dev/null || fail "equal identity rejected the direct freeform answer"
+  show=$(tasks_in "$home" show cas-work --full)
+  assert_contains "$show" 'Resolution mode: released' "guarded release did not record its mode"
+  assert_contains "$show" 'Keep café, $(literal), and an exact second line.' "guarded freeform lost the answer"
+  expect_intake_refusal "$home" 3 identity-conflict not-open answer cas-work \
+    --decision-file "$home/decision.txt" --release --expected-identity "$identity"
+
+  # Re-hold at the SAME timestamp deliberately: the canonical answer count,
+  # rather than the clock alone, must distinguish the two lifecycles.
+  FM_CAPTAIN_HOLD_NOW=2026-06-01T12:00:00Z run_captain "$home" hold cas-work \
+    --reason "choose again" >/dev/null || fail "cannot re-hold guarded work"
+  current=$(run_captain "$home" open cas-work --identity) || fail "cannot read re-held identity"
+  assert_equals '2026-06-01T12:00:00Z#1' "$current" "release/re-hold lost the lifecycle count"
+  run_captain "$home" bind cas-board >/dev/null || fail "cannot bind guarded reconcile source"
+  printf 'cas-work\tcheck this again\n' | run_captain "$home" reconcile-requests \
+    --source-id cas-board --source board --expected-identity "$current" >/dev/null \
+    || fail "equal identity rejected a reconcile request"
+  show=$(tasks_in "$home" show cas-work --full)
+  assert_contains "$show" 'hold_kind: captain' "guarded reconcile released the call"
+  assert_contains "$show" 'state: queued' "guarded reconcile closed the call"
+  assert_equals "$current" "$(run_captain "$home" open cas-work --identity)" \
+    "guarded reconcile recorded an answer"
+  before=$(intake_snapshot "$home")
+  printf 'cas-work\tcheck this again\n' | run_captain "$home" reconcile-requests \
+    --source-id cas-board --source board --expected-identity "$current" >/dev/null \
+    || fail "pending guarded reconcile retry failed"
+  assert_equals "$before" "$(intake_snapshot "$home")" "pending reconcile retry duplicated durable state"
+  for mode in 'done' release; do
+    printf 'cas-work\tKeep this exact freeform answer; café\tLabel\t%s\n' "$mode" \
+      | expect_intake_refusal "$home" 3 identity-conflict mismatch answers --source board --expected-identity "$identity"
+  done
+  expect_intake_refusal "$home" 3 identity-conflict mismatch answer cas-work \
+    --decision-file "$home/decision.txt" --expected-identity "$identity"
+  printf 'cas-work\trecheck changed call\n' | expect_intake_refusal "$home" 3 identity-conflict mismatch \
+    reconcile-requests --source-id cas-board --source board --expected-identity "$identity"
+
+  # A valid first row followed by another row (even an invalid one) cannot
+  # partially apply. Empty and malformed guarded selections also fail closed.
+  for key in cas-work invalid/key; do
+    printf 'cas-work\tgo\t\n%s\tgo\t\n' "$key" \
+      | expect_intake_refusal "$home" 2 invalid-guarded-input '' answers --source board --expected-identity "$current"
+    printf 'cas-work\n%s\n' "$key" | expect_intake_refusal "$home" 2 invalid-guarded-input '' \
+      reconcile-requests --source-id cas-board --source board --expected-identity "$current"
+  done
+  printf '' | expect_intake_refusal "$home" 2 invalid-guarded-input '' answers --source board --expected-identity "$current"
+  printf 'cas-work\tgo\tlabel\tdone\textra\n' \
+    | expect_intake_refusal "$home" 2 invalid-guarded-input '' answers --source board --expected-identity "$current"
+  printf 'cas-work\treconcile\t\trelease\n' \
+    | expect_intake_refusal "$home" 2 invalid-guarded-input '' answers --source board --expected-identity "$current"
+  printf 'cas-work\tnote\textra\n' | expect_intake_refusal "$home" 2 invalid-guarded-input '' \
+    reconcile-requests --source-id cas-board --source board --expected-identity "$current"
+  expect_intake_refusal "$home" 3 identity-conflict absent answer absent-call \
+    --decision-file "$home/decision.txt" --expected-identity "$current"
+  printf 'absent-call\tgo\t\n' | expect_intake_refusal "$home" 3 identity-conflict absent \
+    answers --source board --expected-identity "$current"
+  printf 'absent-call\n' | expect_intake_refusal "$home" 3 identity-conflict absent \
+    reconcile-requests --source-id cas-board --source board --expected-identity "$current"
+
+  printf 'cas-work\tShip with café and $(literal); keep words.\tCustom freeform\tdone\n' \
+    | run_captain "$home" answers --source board --expected-identity "$current" >/dev/null \
+    || fail "equal identity rejected a keyed freeform answer"
+  show=$(tasks_in "$home" show cas-work --full)
+  assert_contains "$show" 'state: done' "guarded keyed answer did not close its call"
+  assert_contains "$show" 'Ship with café and $(literal); keep words.' "guarded keyed answer changed freeform text"
+  assert_absent "$home/state/reconcile-requests/cas-work.request" "guarded answer did not retire its reconcile request"
+  printf 'cas-work\tShip with café and $(literal); keep words.\tCustom freeform\tdone\n' \
+    | expect_intake_refusal "$home" 3 identity-conflict not-open answers --source board --expected-identity "$current"
+  printf 'cas-work\n' | expect_intake_refusal "$home" 3 identity-conflict not-open \
+    reconcile-requests --source-id cas-board --source board --expected-identity "$current"
+  # The exact unguarded keyed replay still succeeds as before.
+  printf 'cas-work\tShip with café and $(literal); keep words.\tCustom freeform\tdone\n' \
+    | run_captain "$home" answers --source board >/dev/null || fail "legacy exact replay changed"
+  pass "atomic identity guards accept current calls and refuse stale/replayed/batched intakes without durable effects"
+}
+
+test_expected_identity_secondmate() {
+  local parent mate channel identity before
+  parent=$(make_home cas-parent)
+  mate=$(make_home cas-mate)
+  printf 'cas-mate\n' > "$mate/.fm-secondmate-home"
+  printf 'schema=fm-secondmate-parent.v1\nroute=local\nparent_home=%s\n' "$parent" > "$mate/.fm-secondmate-parent"
+  channel="$parent/state/cas-mate.status"
+  run_captain "$mate" hold cas-mate-call --title "Mate choice" --reason choose >/dev/null \
+    || fail "cannot seed mate identity call"
+  identity=$(run_captain "$mate" open cas-mate-call --identity) || fail "cannot read mate identity"
+  before=$(cat "$channel")
+  printf 'cas-mate-call\tgo\t\n' | expect_intake_refusal "$mate" 3 identity-conflict mismatch \
+    answers --source board --expected-identity 'stale#0'
+  assert_equals "$before" "$(cat "$channel")" "identity refusal published a parent resolution"
+  run_captain "$mate" bind mate-board >/dev/null || fail "cannot bind mate board"
+  printf 'cas-mate-call\n' | expect_intake_refusal "$mate" 3 identity-conflict mismatch \
+    reconcile-requests --source-id mate-board --source board --expected-identity 'stale#0'
+  assert_equals "$before" "$(cat "$channel")" "reconcile refusal changed parent state"
+  printf 'cas-mate-call\n' | run_captain "$mate" reconcile-requests --source-id mate-board \
+    --source board --expected-identity "$identity" >/dev/null || fail "mate guarded reconcile failed"
+  assert_equals "$before" "$(cat "$channel")" "reconcile answered the parent decision"
+  printf 'cas-mate-call\tgo\t\trelease\n' | run_captain "$mate" answers --source board \
+    --expected-identity "$identity" >/dev/null || fail "mate guarded release failed"
+  assert_grep 'resolved [key=captain-hold-cas-mate-call-1]' "$channel" "mate guarded answer did not resolve its parent key"
+  before=$(cat "$channel")
+  printf 'cas-mate-call\tgo\t\trelease\n' | expect_intake_refusal "$mate" 3 identity-conflict not-open \
+    answers --source board --expected-identity "$identity"
+  assert_equals "$before" "$(cat "$channel")" "mate guarded replay republished the parent decision"
+  pass "secondmate guarded answers route only accepted transitions to the parent"
+}
+
+test_expected_identity_waits_for_control_lock() {
+  local home identity real_sleep
+  home=$(make_home cas-lock)
+  FM_CAPTAIN_HOLD_NOW=2026-06-01T12:00:00Z run_captain "$home" hold cas-locked \
+    --title "Lock choice" --reason choose >/dev/null || fail "cannot seed lock call"
+  identity=$(run_captain "$home" open cas-locked --identity) || fail "cannot read lock identity"
+  printf 'Close the old call.\n' > "$home/decision.txt"
+  real_sleep=$(command -v sleep)
+  cat > "$home/fakebin/tasks-axi" <<'SH'
+#!/usr/bin/env bash
+if [ "${FM_TEST_CAS_TRACK:-}" = 1 ] && [ "${1:-}" = show ]; then
+  : > "$FM_HOME/first-read"
+fi
+exec "$REAL_TASKS_AXI" "$@"
+SH
+  cat > "$home/fakebin/sleep" <<'SH'
+#!/usr/bin/env bash
+if [ "${FM_TEST_CAS_TRACK:-}" = 1 ] && [ "${1:-}" = 0.1 ]; then
+  : > "$FM_HOME/waiting-for-control"
+fi
+exec "$FM_TEST_CAS_SLEEP" "$@"
+SH
+  chmod +x "$home/fakebin/tasks-axi" "$home/fakebin/sleep"
+  (
+    export FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data"
+    # shellcheck source=bin/fm-wake-lib.sh
+    . "$ROOT/bin/fm-wake-lib.sh"
+    local lock="$home/state/.control-cas-locked.lock" pid rc=0
+    fm_lock_acquire_wait "$lock" || fail "cannot acquire fixture task control"
+    FM_TEST_CAS_TRACK=1 FM_TEST_CAS_SLEEP="$real_sleep" run_captain "$home" answer cas-locked --decision-file "$home/decision.txt" \
+      --expected-identity "$identity" > "$home/lock.out" 2> "$home/lock.err" &
+    pid=$!
+    wait_for_test_file "$home/waiting-for-control" "$pid" \
+      || { fm_lock_release "$lock"; wait "$pid"; fail "intake never reached the contested task control lock"; }
+    if [ -e "$home/first-read" ]; then
+      fm_lock_release "$lock"
+      wait "$pid"
+      fail "intake read the lifecycle before acquiring task control"
+    fi
+    # This fixture holds the SAME production lock while another lifecycle
+    # becomes canonical; the waiting intake must observe it after handoff.
+    tasks_in "$home" update cas-locked --body 'Captain hold set: 2026-06-02T12:00:00Z' >/dev/null \
+      || { fm_lock_release "$lock"; wait "$pid"; fail "cannot change fixture lifecycle under control"; }
+    fm_lock_release "$lock" || fail "cannot release fixture task control"
+    wait "$pid" || rc=$?
+    assert_equals 3 "$rc" "intake did not compare the lifecycle after acquiring control"
+    jq -e '.error == "identity-conflict" and .reason == "mismatch"' "$home/lock.err" >/dev/null \
+      || fail "lock handoff did not return an identity conflict"
+    # The holder's temporary lock records are deliberately excluded here.
+    assert_equals '2026-06-02T12:00:00Z#0' "$(run_captain "$home" open cas-locked --identity)" \
+      "waiting intake changed the newer lifecycle"
+    assert_absent "$home/state/.wake-queue" "waiting stale intake queued a wake"
+  ) || fail "atomic task control handoff failed"
+  pass "identity comparison observes canonical state under the transition's task control lock"
+}
+
+test_expected_identity_backend_failures() {
+  local home identity mode intake before rc expected_rc capabilities
+  home=$(make_home cas-read-errors)
+  run_captain "$home" hold cas-read --title "Read choice" --reason choose >/dev/null \
+    || fail "cannot seed backend read fixture"
+  identity=$(run_captain "$home" open cas-read --identity) || fail "cannot read backend fixture identity"
+  run_captain "$home" bind read-board >/dev/null || fail "cannot bind backend read fixture"
+  printf 'Read failure must never answer.\n' > "$home/decision.txt"
+  cat > "$home/fakebin/tasks-axi" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_CAS_CALL_LOG"
+if [ "${1:-}" = show ] && [ "${2:-}" = cas-read ]; then
+  case "${FM_TEST_CAS_READ:-}" in
+    failure) printf 'code: UNAVAILABLE\nerror: synthetic unreadable canonical task\n'; exit 1 ;;
+    timeout) sleep 10; exit 124 ;;
+  esac
+fi
+exec "$REAL_TASKS_AXI" "$@"
+SH
+  chmod +x "$home/fakebin/tasks-axi"
+  # Discovery must work without creating a home or invoking the backend at all.
+  capabilities=$(FM_HOME="$home/absent-home" FM_STATE_OVERRIDE="$home/absent-home/state" \
+    FM_DATA_OVERRIDE="$home/absent-home/data" FM_TEST_CAS_CALL_LOG="$home/backend.calls" \
+    PATH="$home/fakebin:$PATH" bash "$ROOT/bin/fm-captain-hold.sh" capabilities --json) \
+    || fail "capabilities requires a configured home or backend"
+  printf '%s' "$capabilities" | jq -e '.expected_identity | index("answers") != null' >/dev/null \
+    || fail "discovery omitted guarded answers"
+  assert_absent "$home/absent-home" "capabilities created home/state directories"
+  assert_absent "$home/backend.calls" "capabilities invoked tasks-axi"
+  for mode in failure timeout; do
+    expected_rc=2
+    [ "$mode" != timeout ] || expected_rc=124
+    for intake in answer answers reconcile-requests; do
+      before=$(intake_snapshot "$home")
+      rc=0
+      case "$intake" in
+        answer)
+          FM_TEST_CAS_READ="$mode" FM_TEST_CAS_CALL_LOG="$home/backend.calls" FM_BACKLOG_ROW_TIMEOUT_SECS=1 \
+            run_captain "$home" answer cas-read --decision-file "$home/decision.txt" \
+              --expected-identity "$identity" > "$home/backend.out" 2> "$home/backend.err" || rc=$?
+          ;;
+        answers)
+          printf 'cas-read\tgo\t\n' | FM_TEST_CAS_READ="$mode" FM_TEST_CAS_CALL_LOG="$home/backend.calls" \
+            FM_BACKLOG_ROW_TIMEOUT_SECS=1 run_captain "$home" answers --source board \
+              --expected-identity "$identity" > "$home/backend.out" 2> "$home/backend.err" || rc=$?
+          ;;
+        reconcile-requests)
+          printf 'cas-read\n' | FM_TEST_CAS_READ="$mode" FM_TEST_CAS_CALL_LOG="$home/backend.calls" \
+            FM_BACKLOG_ROW_TIMEOUT_SECS=1 run_captain "$home" reconcile-requests --source-id read-board \
+              --source board --expected-identity "$identity" > "$home/backend.out" 2> "$home/backend.err" || rc=$?
+          ;;
+      esac
+      assert_equals "$expected_rc" "$rc" "$intake changed backend $mode into a conflict/absence/success"
+      assert_equals "$before" "$(intake_snapshot "$home")" "$intake mutated durable state after backend $mode"
+      assert_no_grep identity-conflict "$home/backend.err" "$intake mislabeled backend $mode as a stale call"
+      if [ "$mode" = timeout ]; then
+        assert_grep 'read bound' "$home/backend.err" "$intake hid the backend read timeout"
+      fi
+    done
+  done
+  pass "capabilities is read-only and guarded backend failures/timeouts retain their status without mutation"
+}
+
+if [ "${1:-}" = --intake-cas ] || [ "${FM_CAPTAIN_HOLD_TEST_INTAKE_CAS:-}" = 1 ] \
+  || [ "${FM_CAPTAIN_HOLD_TEST_INTAKE_CAS:-}" = core ]; then
+  test_expected_identity_intakes
+  test_expected_identity_secondmate
+  test_expected_identity_waits_for_control_lock
+  test_expected_identity_backend_failures
+  if [ "${FM_CAPTAIN_HOLD_TEST_INTAKE_CAS:-}" != core ]; then
+    test_answer_records_and_closes
+    test_release_frees_held_work
+    test_reconcile_requests_wake_the_owner_and_retry
+    test_reconcile_never_closes_through_the_keyed_answer_intake
+  fi
+  exit 0
+fi
+
+test_expected_identity_intakes
+test_expected_identity_secondmate
+test_expected_identity_waits_for_control_lock
+test_expected_identity_backend_failures
 test_hold_reason_round_trips_awkward_characters
 test_hold_origins_precede_backend_holds
 test_historical_self_inventory_has_workable_repair
@@ -4784,6 +5140,8 @@ test_secondmate_hold_stays_in_authoritative_home
 test_secondmate_home_publishes_holds_and_answers
 test_secondmate_reconcile_publishes_before_request_retirement
 test_bound_channel_answers_close_at_answer_time
+test_reconcile_requests_wake_the_owner_and_retry
+test_reconcile_retry_after_public_ack
 test_reconcile_never_closes_through_the_keyed_answer_intake
 test_normal_answers_retire_pending_reconcile_requests
 test_reconcile_closes_with_evidence_or_keeps_the_call_open

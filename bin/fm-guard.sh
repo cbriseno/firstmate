@@ -27,9 +27,11 @@
 # later guarded commands in the same episode print a one-line reminder instead.
 # Episode state lives only under state/.guard-watcher-stale-banner (volatile,
 # bounded). Independent alarms (queued wakes, worktree tangle) are never
-# suppressed by that dedup. Normal wake handling (watcher briefly down between a
-# wake and the next supervision resume) stays inside the grace window and stays
-# silent. The queued-wakes warning counts only the rows the calling actor can
+# suppressed by that dedup. A presented, unacknowledged handling episode within
+# grace gets a notice instead of the down banner while the lock is unheld and
+# the beacon is fresh. This is not a healthy verdict or a turn-end exemption;
+# the banner returns when either bound expires. The queued-wakes warning
+# counts only the rows the calling actor can
 # itself present or retire (fm_wake_actor_pending_count), so it is never an
 # instruction to run a drain with nothing to present. A row reserved by a live
 # supervision-branch grant is never a drain instruction for main; instead of
@@ -56,6 +58,7 @@ WATCH="$SCRIPT_DIR/fm-watch.sh"
 GRACE=${FM_GUARD_GRACE:-300}
 queue_pending=false
 queue_branch_held=false
+handling_pending=false
 READ_ONLY=${FM_GUARD_READ_ONLY:-0}
 case "$READ_ONLY" in 1|true|TRUE|yes|YES) READ_ONLY=1 ;; *) READ_ONLY=0 ;; esac
 CONTINUE_LINE=${FM_GUARD_CONTINUE_LINE:-This is a supervision warning only; the guarded operation WILL still run.}
@@ -205,12 +208,30 @@ if [ -s "$FM_WAKE_QUEUE" ]; then
   fi
 fi
 
+# The drain changes the existing recovery episode to handling before presenting
+# rows. This is a bounded presentation phase, not proof of live supervision or
+# a post-final callback. Keep the strict verdict and turn-end guard unchanged.
+# A fresh beacon alone, a downtime episode, or a held unhealthy lock cannot
+# select this notice; a forgotten handling phase still alarms after grace.
+if [ "$READ_ONLY" -eq 0 ] && "$queue_pending" \
+  && [ "$watcher_down_reason" = no-watcher ] \
+  && fm_watcher_lock_unheld "$STATE" \
+  && fm_recovery_marker_read "$STATE/.watcher-down"; then
+  case "$FM_RECOVERY_MARKER_TOKEN" in
+    pending:handling:*|announced:handling:*)
+      [ "$(fm_path_age "$STATE/.watcher-down")" -ge "$GRACE" ] || handling_pending=true
+      ;;
+  esac
+fi
+
 # No fresh watcher with tasks in flight is the dangerous state: emit a prominent,
 # bordered banner FIRST so it reads as an alarm, not a buried stderr line. Later
 # calls in the same episode get a one-line reminder only. The supervision branch
 # actor neither sees nor advances an episode (header).
 if [ "$GUARD_ACTOR" = branch ]; then
   :
+elif "$handling_pending"; then
+  echo 'NOTICE: presented wakes await handling and acknowledgement; no live watcher holds the lock. Finish handling, use the printed WAKE_ACK_REQUIRED command, then resume the supervision cycle before ending the turn.' >&2
 elif [ "$watcher_healthy" = false ]; then
   episode_key=$(fm_guard_stale_episode_key "$watcher_down_reason")
   episode_key=${episode_key%$'\n'}
@@ -283,6 +304,8 @@ fi
 if "$queue_pending"; then
   if [ "$READ_ONLY" -eq 1 ]; then
     echo "WARNING: queued wakes pending - left untouched because this session lacks verified fleet-lock ownership." >&2
+  elif "$handling_pending"; then
+    : # The notice above names the current handling obligation, not a new drain.
   elif [ "$GUARD_ACTOR" != branch ]; then
     echo "WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else." >&2
   fi

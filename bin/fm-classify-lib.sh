@@ -2222,9 +2222,10 @@ window_to_task() {
 # --resolve-key closes must not each force a captain-facing wake solely because
 # each one appended a status line, while a worker-authored line that is not in
 # this ledger still signals.
-# fm_wake_signal_seen_current (bin/fm-wake-lib.sh) is the ONLY consumer. The
-# ledger decides whether growth wakes this home and nothing else: it never
-# removes a line from presentation, so the drain's signal annotation and its
+# fm_wake_signal_seen_current (bin/fm-wake-lib.sh) uses this ledger to decide
+# whether growth wakes this home. bin/fm-card-time-lib.sh also excludes these
+# owned bytes from authored-progress time. It never removes a line from
+# presentation, so the drain's signal annotation and its
 # UNREAD STATUS section both still print these bytes.
 # The ledger does not use lag verbs to hide a worker `resolved` line; only
 # bytes this home itself recorded as owned are ever treated as owned.
@@ -2256,6 +2257,26 @@ status_home_appends_path() {  # <status-file>
   printf '%s/.%s.home-appends' "$dir" "${base%.status}"
 }
 
+# GNU stat includes a local UTC offset in its high-resolution birth identity.
+# Compare legacy identities by the same instant when only TZ changed, retaining
+# device, inode, and fractional precision. Unknown formats still require exact
+# equality. This is file ownership evidence, never an event timestamp.
+status_file_identity_matches() {  # <recorded-identity> <current-identity>
+  [ "$1" != "$2" ] || return 0
+  perl -MTime::Local=timegm -e '
+    sub canonical {
+      my ($v) = @_;
+      return $v unless $v =~ /\A(strong:\d+:\d+:)(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(\.\d+)? ([+-])(\d{2})(\d{2})\z/;
+      my ($prefix,$y,$m,$d,$h,$min,$s,$frac,$sign,$oh,$om) = ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11);
+      my $epoch = eval { timegm($s,$min,$h,$d,$m-1,$y) };
+      return $v if $@;
+      $epoch -= ($sign eq "+" ? 1 : -1) * ($oh * 3600 + $om * 60);
+      return $prefix . $epoch . ($frac // "");
+    }
+    exit(canonical($ARGV[0]) eq canonical($ARGV[1]) ? 0 : 1);
+  ' -- "$1" "$2"
+}
+
 status_home_appends_ranges() {  # <status-file> -> start<TAB>end lines
   local f=$1 path ident data first rest line start end extra
   path=$(status_home_appends_path "$f")
@@ -2268,7 +2289,7 @@ status_home_appends_ranges() {  # <status-file> -> start<TAB>end lines
   [ "$rest" != "$data" ] || return 0
   line=${rest%%$'\n'*}
   case "$line" in ident=*) ;; *) return 0 ;; esac
-  [ "${line#ident=}" = "$ident" ] || return 0
+  status_file_identity_matches "${line#ident=}" "$ident" || return 0
   case "$rest" in
     *$'\n'*) rest=${rest#*$'\n'} ;;
     *) return 0 ;;

@@ -14,6 +14,8 @@ test_selected_harness_block_only() {
   assert_contains "$out" "SUPERVISION OPERATING INSTRUCTIONS - primary harness: codex" "codex heading missing"
   assert_contains "$out" "Mode: Codex foreground checkpoint." "codex snippet missing"
   assert_contains "$out" "bin/fm-watch-checkpoint.sh" "codex checkpoint helper missing"
+  assert_contains "$out" 'There is no verified post-final native wake adapter' 'codex promises an unproved callback'
+  assert_contains "$out" 'Keep the turn active' 'codex has no supported active-turn continuation'
   assert_not_contains "$out" "Mode: Claude Stop-hook-owned supervision." "renderer printed the claude snippet too"
   assert_not_contains "$out" "Mode: Pi extension background wake." "renderer printed the pi snippet too"
   pass "renderer prints exactly the selected harness block"
@@ -29,7 +31,7 @@ test_supervision_host_protocol_on_a_claude_home_unless_off() {
   mkdir -p "$home/state" "$config"
   : > "$config/supervision-host-off"
   plain=$(FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness claude)
-  assert_not_contains "$plain" "Supervision host" "a claude home opted out by config/supervision-host-off rendered the host protocol"
+  assert_not_contains "$plain" "- Supervision host: on;" "a claude home opted out by config/supervision-host-off rendered the host protocol"
   rm -f "$config/supervision-host-off"
   hosted=$(FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness claude)
   : > "$config/supervision-host"
@@ -42,10 +44,10 @@ test_supervision_host_protocol_on_a_claude_home_unless_off() {
   [ "$(printf '%s\n' "$hosted" | grep -vF -e '- Supervision host: on;' | head -n "$(printf '%s\n' "$plain" | wc -l)")" = "$plain" ] \
     || fail "the host protocol changed the claude block it should only append to"
   other=$(FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness pi)
-  assert_not_contains "$other" "Supervision host" "a pi primary rendered the host protocol"
+  assert_not_contains "$other" "- Supervision host: on;" "a pi primary rendered the host protocol"
   rm -f "$config/supervision-host"
   other=$(FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness pi)
-  assert_not_contains "$other" "Supervision host" "a pi primary without config/supervision-host rendered the host protocol"
+  assert_not_contains "$other" "- Supervision host: on;" "a pi primary without config/supervision-host rendered the host protocol"
   pass "renderer adds the supervision-host protocol on a claude home unless config/supervision-host-off opts it out, leaving the claude block intact"
 }
 
@@ -61,7 +63,7 @@ test_supervision_host_protocol_on_every_arm_owner() {
   for harness in claude cursor opencode omp grok codex; do
     : > "$config/supervision-host-off"
     plain=$(FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness "$harness")
-    assert_not_contains "$plain" "Supervision host" "$harness: a home opted out by config/supervision-host-off rendered the host protocol"
+    assert_not_contains "$plain" "- Supervision host: on;" "$harness: a home opted out by config/supervision-host-off rendered the host protocol"
     assert_not_contains "$plain" "__FM_" "$harness: a placeholder leaked into the rendered block"
     if [ "$harness" != claude ]; then
       rm -f "$config/supervision-host" "$config/supervision-host-off"
@@ -108,6 +110,8 @@ test_unknown_fallback() {
   out=$("$RENDER" --harness not-real)
   assert_contains "$out" "primary harness: unknown" "unknown heading missing"
   assert_contains "$out" "Mode: Unknown harness fallback." "unknown fallback snippet missing"
+  assert_contains "$out" 'does not prove a post-final wake' 'unknown harness implies unverified continuation'
+  assert_contains "$out" 'report that supervision will stop' 'unsupported continuation limit stays invisible'
   pass "renderer falls back to unknown.md for unverified harness names"
 }
 

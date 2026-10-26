@@ -22,15 +22,17 @@
 # Usage:
 #   fm-captain-hold.sh hold <task-id> --reason <reason> \
 #     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD]
-#   fm-captain-hold.sh answer <task-id> --decision-file <path> [--release]
-#   fm-captain-hold.sh answers [<legacy-origin> | --any-origin] --source <provenance>   (keyed answers on stdin)
-#   fm-captain-hold.sh reconcile-requests --source-id <source-id> --source <provenance>   (task ids on stdin)
+#   fm-captain-hold.sh answer <task-id> --decision-file <path> [--release] [--expected-identity <identity>]
+#   fm-captain-hold.sh answers [<legacy-origin> | --any-origin] --source <provenance> [--expected-identity <identity>]   (keyed answers on stdin)
+#   fm-captain-hold.sh reconcile-requests --source-id <source-id> --source <provenance> [--expected-identity <identity>]   (task ids on stdin)
+#   fm-captain-hold.sh capabilities --json
 #   fm-captain-hold.sh bind <source-id> [<legacy-origin> | --any-origin]
 #   fm-captain-hold.sh unbind <source-id>
 #   fm-captain-hold.sh binding <source-id>
 #   fm-captain-hold.sh complete <origin-id> (--none | <task-id>...)
 #   fm-captain-hold.sh verify <origin-id>
 #   fm-captain-hold.sh open <task-id> [--identity] [--distinguish-absent]
+#   fm-captain-hold.sh resolved <task-id> <occurrence>
 #   fm-captain-hold.sh diverged
 #   fm-captain-hold.sh reconcile list
 #   fm-captain-hold.sh reconcile close <task-id> --evidence-file <path>
@@ -97,13 +99,44 @@
 # keeps closing its rows; `--any-origin` and the stored `(any)` marker mean
 # what an absent origin means and are accepted for the same reason.
 #
+# OPTIONAL ATOMIC LIFECYCLE GUARD.
+# `--expected-identity` on answer, answers, and reconcile-requests requires the
+# exact identity printed by `open <task-id> --identity`. The canonical backlog
+# must still carry that open captain hold while the existing task control lock
+# protects both comparison and transition. No report or caller-supplied record
+# is authority. Conflict exits 3 and writes one stderr JSON object:
+# {"error":"identity-conflict","reason":"mismatch"}, with reason `not-open`
+# for a closed/unheld task or `absent` for an unknown task. It changes no body,
+# hold, resolution, reconcile request, parent channel, notification, or wake.
+# Backend errors remain failures (exit 2), and read timeouts remain exit 124.
+# A guarded retry after a successful close/release is a conflict, including an
+# exact answer retry; unguarded legacy replay behavior is unchanged.
+# With the flag, answers and reconcile-requests accept exactly one nonempty
+# input row, read the whole input before acting, and reject empty, malformed,
+# or multiple rows with exit 2 and stderr {"error":"invalid-guarded-input"}.
+# Guarded answers require an exact task-id key and no concrete legacy-origin;
+# their answer must be nonempty, with at most the documented four TSV fields.
+# Guarded reconcile rows have a task id and at most one optional note field.
+# No row of an invalid batch is applied. The source binding is still required
+# for reconcile, which never answers or closes a call.
+# `capabilities --json` is read-only, needs no configured home or tasks-axi,
+# and returns {"schema":"fm-captain-hold.capabilities.v1",
+# "expected_identity":["answer","answers","reconcile-requests"],
+# "guarded_input":"single-row"}. Clients can require this before guarded intake.
+#
 # RECONCILE IS RESERVED AT THIS INTAKE, NOT FILTERED IN A CHANNEL.
 # The exact answer value `reconcile` means "go re-check reality", never "the
 # captain answered". `answers` matches it before it reads the close mode,
 # visibly refuses it, and never passes it to `answer`, so no channel and no
 # card-declared mode can turn it into a close, release, or request. A separate
 # `reconcile-requests` intake verifies a captured source's binding before it
-# records a durable request under `state/reconcile-requests/`.
+# records a durable request under `state/reconcile-requests/`, then wakes its
+# owning home through the durable queue. Pending retries share one wake; the
+# original request timestamp and provenance survive retries, including changed
+# notes. After acknowledgement a retry may notify again. A queue failure keeps
+# the request and fails visibly so the same selection can retry. No hold is
+# released and no resolution is recorded. Like answer wakes, this requires an
+# active supervision cycle and cannot start a native turn after a final reply.
 #
 # `reconcile` is the verify-then-decide half. Both outcomes require the pending
 # request created by the captain's board selection. `close` is the moot outcome:
@@ -195,6 +228,9 @@
 #
 # `diverged` is the read-only guard over the seam between the two records of
 # one captain call. See "record divergence" beside command_diverged below.
+# `resolved` is a read-only notification cancellation predicate: exit 0 only
+# for the exact newest resolution count after its canonical close/release has
+# settled, 1 otherwise. It does not accept a merely written, unfinished answer.
 #
 # Resolution records: the block written into the body names this script, the
 # decision digest, and a `Resolution mode:` of answered, released, repaired, or
@@ -214,7 +250,23 @@
 # The hold or answer is already durable in the backlog, so a channel that
 # cannot be written is reported as `actionable:` on stderr rather than undoing
 # the record; bin/fm-inactive-reconcile.sh's diagnostics name a broken binding.
+# After an answer, wake_answer_owner queues a check for this home's supervisor,
+# including in a main home with no parent channel. The queue carries only the
+# task and resolution occurrence, never the answer text. Pending retries are
+# deduplicated under the queue lock; a retry after acknowledgement may notify
+# again. A failed append leaves the answer intact and fails visibly so the same
+# answer can be retried. This is durable delivery to an active supervision
+# cycle, not a native callback capable of starting a turn after a final reply.
 set -eu
+
+# Capability discovery must remain cheap and read-only even without a home;
+# loading the wake library below would initialize its state directory.
+if [ "${1:-}" = capabilities ]; then
+  [ "$#" -eq 2 ] && [ "$2" = --json ] \
+    || { printf 'usage: fm-captain-hold.sh capabilities --json\n' >&2; exit 2; }
+  printf '%s\n' '{"schema":"fm-captain-hold.capabilities.v1","expected_identity":["answer","answers","reconcile-requests"],"guarded_input":"single-row"}'
+  exit 0
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
@@ -240,6 +292,8 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 # shellcheck source=bin/fm-parent-channel-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-parent-channel-lib.sh"
+# shellcheck source=bin/fm-agent-notify-lib.sh
+. "$SCRIPT_DIR/fm-agent-notify-lib.sh"
 
 PARENT_HOLD_PUBLISHED=0
 publish_parent_hold() {  # <task-id> <occurrence> <verb> <note>
@@ -251,6 +305,22 @@ publish_parent_hold() {  # <task-id> <occurrence> <verb> <note>
     0|1) PARENT_HOLD_PUBLISHED=1 ;;
     *) printf 'actionable: task %s is held for the captain in this home but that did not reach the parent channel (rc=%s)\n' "$id" "$rc" >&2 ;;
   esac
+  # This is the explicit captain-hold transition, never an internal blocker.
+  # Resolutions need no historical cutoff: they must cancel even older opens.
+  fm_notify_enabled || return 0
+  local hold_at blocked until
+  blocked=$(show_field_value "${TASK_SHOW_OUTPUT:-}" blocked)
+  until=$(show_field_value "${TASK_SHOW_OUTPUT:-}" hold_until)
+  if [ "$verb" = needs-decision ]; then
+    [ "$blocked" != yes ] || return 0
+    case "$until" in
+      [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9])
+        [[ "$until" > "$(date -u +%Y-%m-%d)" ]] && return 0 ;;
+    esac
+  fi
+  hold_at=$(body_hold_set_timestamp "$(show_field_value "${TASK_SHOW_OUTPUT:-}" body)")
+  if [ "$verb" = resolved ]; then hold_at=$(date -u +%Y-%m-%dT%H:%M:%SZ); fi
+  [ -z "$hold_at" ] || fm_notify_call "$id" "$occurrence" "$verb" "$hold_at"
 }
 
 CAPTAIN_META_LOCK=
@@ -295,6 +365,29 @@ validate_one_line() {  # <label> <value>
   case "$value" in
     *$'\n'*|*$'\r'*) fail "$label must be one line" ;;
   esac
+}
+
+identity_conflict() {  # <mismatch|not-open|absent>
+  printf '{"error":"identity-conflict","reason":"%s"}\n' "$1" >&2
+  exit 3
+}
+
+invalid_guarded_input() {
+  printf '{"error":"invalid-guarded-input"}\n' >&2
+  exit 2
+}
+
+# Consume the entire guarded batch before any row can cause a mutation.
+GUARDED_ROW=''
+read_guarded_row() {
+  local row count=0
+  while IFS= read -r row || [ -n "$row" ]; do
+    [ -n "$row" ] || invalid_guarded_input
+    count=$((count + 1))
+    [ "$count" -eq 1 ] || invalid_guarded_input
+    GUARDED_ROW=$row
+  done
+  [ "$count" -eq 1 ] || invalid_guarded_input
 }
 
 acquire_task_control_lock() {  # <task-id>
@@ -785,6 +878,35 @@ body_hold_set_timestamp() {  # <decoded-task-body>
     | head -1
 }
 
+hold_lifecycle_identity() {  # <shown-task-body>
+  printf '%s#%s\n' \
+    "$(body_hold_set_timestamp "$(decode_shown_value "$1")")" \
+    "$(resolution_record_count "$1")"
+}
+
+# Called only with this task's control lock held; leave the same canonical row
+# in TASK_SHOW_OUTPUT for the transition, without a second unlocked precheck.
+guard_expected_identity() {  # <task-id> <expected-identity>
+  local id=$1 expected=$2 status=0 show state
+  [ "$CAPTAIN_CONTROL_LOCK_HELD" = 1 ] && [ "$CAPTAIN_CONTROL_LOCK" = "$STATE/.control-$id.lock" ] \
+    || fail "identity comparison requires task control for $id"
+  task_show "$id" || status=$?
+  if [ "$status" -ne 0 ]; then
+    if printf '%s\n' "$TASK_SHOW_OUTPUT" | grep -q '^code: NOT_FOUND$'; then
+      identity_conflict absent
+    fi
+    printf 'fm-captain-hold: cannot read the canonical captain call %s\n' "$id" >&2
+    exit 2
+  fi
+  show=$TASK_SHOW_OUTPUT
+  state=$(show_field "$show" state)
+  [ -n "$state" ] || { printf 'fm-captain-hold: canonical task %s has no state\n' "$id" >&2; exit 2; }
+  [ "$state" != "done" ] && [ "$(show_field_value "$show" hold_kind)" = captain ] \
+    || identity_conflict not-open
+  [ "$(hold_lifecycle_identity "$(show_field "$show" body)")" = "$expected" ] \
+    || identity_conflict mismatch
+}
+
 write_hold_set_stamp() {  # <task-id> <shown-body> <timestamp> <preserve-existing-0-or-1>
   local id=$1 body=$2 hold_set=$3 preserve=$4 existing new_body tmp
   body=$(decode_shown_value "$body") \
@@ -1252,12 +1374,14 @@ remove_interrupted_answer_stamp() {  # <task-id>
 
 command_answer() {
   local id=${1:-} decision_file='' release=0 show state hold_kind body outcome recorded_mode occurrence
+  local expected=''
   [ "$#" -ge 1 ] || { usage >&2; exit 2; }
   shift
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --decision-file) shift; decision_file=${1:-} ;;
       --release) release=1 ;;
+      --expected-identity) shift; expected=${1:-}; validate_one_line expected-identity "$expected" ;;
       *) usage >&2; exit 2 ;;
     esac
     shift
@@ -1266,7 +1390,11 @@ command_answer() {
   load_decision "$decision_file"
   acquire_task_control_lock "$id"
   require_tasks_axi
-  task_show "$id" || fail "captain-held task $id is absent from this home's configured backlog (data directory $DATA)"
+  if [ -n "$expected" ]; then
+    guard_expected_identity "$id" "$expected"
+  else
+    task_show "$id" || fail "captain-held task $id is absent from this home's configured backlog (data directory $DATA)"
+  fi
   show=$TASK_SHOW_OUTPUT
   state=$(show_field "$show" state)
   hold_kind=$(show_field_value "$show" hold_kind)
@@ -1460,13 +1588,45 @@ sanitize_reconcile_provenance() {
   printf '%s' "$1" | tr '\n\r\t' '   ' | LC_ALL=C tr -d '\000-\037\177' | cut -c1-1024
 }
 
+# New guarded callers never enter the legacy replay shortcut, which can publish
+# a wake without calling answer. The existing transition owns the only lock.
+command_guarded_answers() {  # <origin> <source> <expected-identity>
+  local origin=$1 source=$2 expected=$3 row rest key answer label mode='' tmp rc=0 tab=$'\t' release_flag=''
+  [ -z "$origin" ] || [ "$origin" = "$BINDING_ANY" ] || invalid_guarded_input
+  read_guarded_row
+  row=$GUARDED_ROW
+  key=${row%%"$tab"*}
+  case "$key" in ''|*[!A-Za-z0-9._-]*) invalid_guarded_input ;; esac
+  [ "${#key}" -le 128 ] || invalid_guarded_input
+  case "$row" in *"$tab"*) rest=${row#*"$tab"} ;; *) invalid_guarded_input ;; esac
+  answer=${rest%%"$tab"*}
+  case "$rest" in *"$tab"*) rest=${rest#*"$tab"} ;; *) invalid_guarded_input ;; esac
+  label=${rest%%"$tab"*}
+  case "$rest" in *"$tab"*) mode=${rest#*"$tab"} ;; esac
+  case "$mode" in *"$tab"*) invalid_guarded_input ;; esac
+  answer=$(sanitize_field "$answer")
+  label=$(sanitize_field "$label")
+  [ -n "$answer" ] && [ "$answer" != "$RECONCILE_VALUE" ] || invalid_guarded_input
+  case "$mode" in ''|done) ;; release) release_flag=--release ;; *) invalid_guarded_input ;; esac
+  tmp=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-keyed-decision.XXXXXX") || fail "cannot stage the captain decision"
+  keyed_decision_text "$source" "$key" "$answer" "$label" > "$tmp" \
+    || { rm -f -- "$tmp"; fail "cannot stage the captain decision for $key"; }
+  # shellcheck disable=SC2086  # Empty or one literal flag, including on Bash 3.2.
+  bash "$0" answer "$key" --decision-file "$tmp" $release_flag \
+    --expected-identity "$expected" </dev/null >/dev/null || rc=$?
+  rm -f -- "$tmp"
+  [ "$rc" -eq 0 ] || return "$rc"
+  printf 'closed: %s\nanswers: closed=1 skipped=0\n' "$key"
+}
+
 command_answers() {
   local origin='' source='' row rest key answer label mode id show state hold_kind body digest legacy_digest legacy_key
   local recorded_digest recorded_mode occurrence tmp err closed=0 skipped=0 reason release_flag tab=$'\t'
-  local resolve_rc
+  local resolve_rc expected=''
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --source) shift; source=${1:-} ;;
+      --expected-identity) shift; expected=${1:-}; validate_one_line expected-identity "$expected" ;;
       --any-origin) origin=$BINDING_ANY ;;
       --*) usage >&2; exit 2 ;;
       *)
@@ -1482,6 +1642,10 @@ command_answers() {
   [ -n "$source" ] || fail "--source provenance is required so the durable decision records where the answer came from"
   source=$(sanitize_field "$source")
   require_tasks_axi
+  if [ -n "$expected" ]; then
+    command_guarded_answers "$origin" "$source" "$expected"
+    return $?
+  fi
   tmp=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-keyed-decision.XXXXXX") || fail "cannot stage the captain decision"
   err=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-keyed-decision-err.XXXXXX") \
     || { rm -f -- "$tmp"; fail "cannot stage the captain decision diagnostics"; }
@@ -1663,14 +1827,41 @@ publish_parent_resolution_then_retire() {  # <task-id> <occurrence> <note>
     fail "could not publish the answered captain-held task $id to its parent"
   fi
   reconcile_request_retire "$id"
+  wake_answer_owner "$id" "$occurrence"
+}
+
+wake_answer_owner() {  # <task-id> <resolution-occurrence>
+  local id=$1 occurrence=$2 key rc=0
+  key="captain-answer:$id:$occurrence"
+  fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK" || fail "answer recorded for $id but owner wake lock failed; retry this answer"
+  if ! fm_wake_queued_carries_locked check "$key" 'check: captain-answer '; then
+    fm_wake_append_locked check "$key" \
+      "check: captain-answer task=$id occurrence=$occurrence; owner=firstmate; read the durable resolution with bin/fm-tasks-axi.sh show $id --full, act or relay through fm-send --resolve-key, then acknowledge this wake" || rc=$?
+  fi
+  fm_lock_release "$FM_WAKE_QUEUE_LOCK" || rc=1
+  [ "$rc" -eq 0 ] || fail "answer recorded for $id but owner wake failed; retry this answer"
+}
+
+wake_reconcile_owner() {  # <task-id>
+  local id=$1 key rc=0
+  key="captain-reconcile:$id"
+  fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK" || fail "reconcile request recorded for $id but owner wake lock failed; retry this request"
+  if ! fm_wake_queued_carries_locked check "$key" 'check: captain-reconcile '; then
+    fm_wake_append_locked check "$key" \
+      "check: captain-reconcile task=$id; owner=firstmate; read bin/fm-captain-hold.sh reconcile list, verify the premise, then use reconcile close --evidence-file or reconcile note --note-file; preserve the hold pending verification, never treat Reconcile as an answer; acknowledge after handling" || rc=$?
+  fi
+  fm_lock_release "$FM_WAKE_QUEUE_LOCK" || rc=1
+  [ "$rc" -eq 0 ] || fail "reconcile request recorded for $id but owner wake failed; retry this request"
 }
 
 command_reconcile_requests() {
   local source_id='' source='' origin row id note provenance show show_status=0 created=0 skipped=0 tab=$'\t'
+  local expected=''
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --source-id) shift; source_id=${1:-} ;;
       --source) shift; source=${1:-} ;;
+      --expected-identity) shift; expected=${1:-}; validate_one_line expected-identity "$expected" ;;
       *) usage >&2; exit 2 ;;
     esac
     shift
@@ -1680,6 +1871,24 @@ command_reconcile_requests() {
   origin=$(read_binding "$source_id") || fail "cannot verify the binding for source $source_id"
   [ -n "$origin" ] || fail "source $source_id is not bound; no reconcile requests were created"
   require_tasks_axi
+  if [ -n "$expected" ]; then
+    read_guarded_row
+    row=$GUARDED_ROW
+    id=${row%%"$tab"*}
+    note=''
+    case "$row" in *"$tab"*) note=${row#*"$tab"} ;; esac
+    case "$id" in ''|*[!A-Za-z0-9._-]*) invalid_guarded_input ;; esac
+    [ "${#id}" -le 128 ] || invalid_guarded_input
+    case "$note" in *"$tab"*) invalid_guarded_input ;; esac
+    acquire_task_control_lock "$id"
+    guard_expected_identity "$id" "$expected"
+    provenance=$source
+    [ -z "$note" ] || provenance="$source; captain note: $(sanitize_field "$note")"
+    reconcile_request_record "$id" "$provenance" || fail "cannot record the reconcile request for $id"
+    wake_reconcile_owner "$id"
+    printf 'reconcile: %s\nreconcile-requests: created=1 skipped=0\n' "$id"
+    return 0
+  fi
   while IFS= read -r row; do
     id=${row%%"$tab"*}
     note=''
@@ -1711,6 +1920,7 @@ command_reconcile_requests() {
       provenance=$source
       [ -z "$note" ] || provenance="$source; captain note: $(sanitize_field "$note")"
       if reconcile_request_record "$id" "$provenance"; then
+        wake_reconcile_owner "$id"
         printf 'reconcile: %s\n' "$id"
         created=$((created + 1))
       else
@@ -2169,9 +2379,7 @@ command_open() {  # <task-id> [--identity] [--distinguish-absent]
         }
         show=$TASK_SHOW_OUTPUT
         shown_body=$(show_field "$show" body)
-        printf '%s#%s\n' \
-          "$(body_hold_set_timestamp "$(decode_shown_value "$shown_body")")" \
-          "$(resolution_record_count "$shown_body")"
+        hold_lifecycle_identity "$shown_body"
       fi
       return 0
     fi
@@ -2185,6 +2393,25 @@ command_open() {  # <task-id> [--identity] [--distinguish-absent]
   exit 2
 }
 
+command_resolved() {  # <task-id> <occurrence>
+  [ "$#" -eq 2 ] || { usage >&2; exit 2; }
+  local id=$1 occurrence=$2 show body state mode
+  validate_slug task-id "$id"
+  case "$occurrence" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$occurrence" -gt 0 ] || return 1
+  require_tasks_axi
+  task_show "$id" || return 1
+  show=$TASK_SHOW_OUTPUT
+  body=$(show_field "$show" body)
+  body_has_resolution_record "$body" || return 1
+  [ "$(resolution_record_count "$body")" -eq "$occurrence" ] || return 1
+  mode=$(recorded_resolution_mode "$body") || return 1
+  case "$mode" in answered|released|repaired|reconciled|routed|declined) ;; *) return 1 ;; esac
+  state=$(show_field "$show" state)
+  [ "$state" != 'done' ] || return 0
+  [ "$mode" = released ] && [ "$(show_field_value "$show" hold_kind)" != captain ]
+}
+
 case "${1:-}" in
   hold) shift; command_hold "$@" ;;
   answer) shift; command_answer "$@" ;;
@@ -2196,6 +2423,7 @@ case "${1:-}" in
   complete) shift; command_complete "$@" ;;
   verify) shift; command_verify "$@" ;;
   open) shift; command_open "$@" ;;
+  resolved) shift; command_resolved "$@" ;;
   diverged) shift; command_diverged "$@" ;;
   reconcile) shift; command_reconcile "$@" ;;
   -h|--help) usage ;;

@@ -2291,6 +2291,50 @@ seed_working_child() {  # <mate-home> <id> <doing> [repo]
   printf 'working: %s\n' "$doing" > "$mate/state/$id.status"
 }
 
+test_underway_dependencies_match_gate_format() {
+  local home fakebin json canonical
+  home=$(make_home underway-dependencies)
+  : > "$home/data/secondmates.md"
+  cat > "$home/data/backlog.md" <<'EOF'
+## In flight
+- [ ] dependent - Cleanup waits blocked-by: prep blocked-by: review (repo: sample) (kind: ship)
+- [ ] independent - Independent work (repo: sample) (kind: ship)
+- [ ] satisfied - Finished dependency blocked-by: finished (repo: sample) (kind: ship)
+
+## Queued
+- [ ] gate - Queued cleanup blocked-by: prep blocked-by: review (repo: sample) (kind: ship)
+
+## Done
+- [x] finished - Already complete (repo: sample) (kind: ship)
+EOF
+  local id
+  for id in dependent independent satisfied unrecorded; do
+    mkdir -p "$home/projects/$id"
+    fm_write_meta "$home/state/$id.meta" \
+      "window=firstmate:fm-$id" "worktree=$home/projects/$id" "project=sample" \
+      "harness=claude" "kind=ship" "mode=local-only"
+    record_claude_state "$home/state" "$id" busy
+    printf 'working: fixture work\n' > "$home/state/$id.status"
+  done
+  fakebin=$(make_fakebin "$home")
+  canonical=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+  printf '%s' "$canonical" | jq -e '
+    (.tasks[] | select(.id == "dependent") | .backlog.unresolved_blocker_ids == ["prep","review"])
+    and (.tasks[] | select(.id == "independent") | .backlog.unresolved_blocker_ids == [])
+    and (.tasks[] | select(.id == "satisfied") | .backlog.unresolved_blocker_ids == [])
+    and (.tasks[] | select(.id == "unrecorded") | .backlog == null)
+  ' >/dev/null || fail "canonical fixture dependencies differ: $canonical"
+  json=$(run "$home" "$fakebin" --json)
+  printf '%s' "$json" | jq -e '
+    (.gates[] | select(.id == "gate") | .blocked_by == "prep,review")
+    and (.in_flight[] | select(.id == "dependent") | .blocked_by == "prep,review" and .state == "working")
+    and (.in_flight[] | select(.id == "independent") | .blocked_by == "-")
+    and (.in_flight[] | select(.id == "satisfied") | .blocked_by == "-")
+    and (.in_flight[] | select(.id == "unrecorded") | .blocked_by == "-")
+  ' >/dev/null || fail "Underway dependencies missing or inconsistent with gates: $json"
+  pass "Underway transports unresolved dependencies using the existing gate string contract"
+}
+
 test_working_captain_holds_keep_their_bucket_surfaces() {
   local home mate fakebin id summary json expanded
   home=$(make_home working-hold-buckets)
@@ -3358,6 +3402,103 @@ test_a_remote_home_without_any_ledger_is_explicitly_unreadable_without_remote_co
   pass "a missing remote ledger stays explicitly unreadable without remote summary computation"
 }
 
+# The wire export is checked through the producer and projection together,
+# including the same structured-home summary used by local and remote readers.
+test_card_time_preserves_source_precision_and_lifecycle() {
+  local home fb json summary again start end
+  home=$(make_home card-time)
+  fb=$(make_fakebin "$home/fake")
+  write_fixture "$home"
+  cat >> "$home/data/backlog.md" <<'EOF'
+- [x] dated-local - Local delivery local main (done 2026-10-23T12:34:56-06:00)
+- [x] invalid-date - Invalid completion local main (done 2026-02-30)
+- [x] historical-done - Historical compatibility row (done 2026-10-23)
+EOF
+  cat >> "$home/data/backlog.md" <<'EOF'
+
+## Queued
+- [ ] filed - Filed work (since 2026-10-01)
+- [ ] no-time - No historical timestamp
+- [ ] ask - Current question (hold: decide) (hold-kind: captain) (since 2026-01-01)
+  Captain hold set: 2026-10-24T12:34:56Z
+- [ ] legacy-ask - Legacy current hold (hold: decide) (hold-kind: captain) (since 2026-01-01)
+  Captain hold set: 2026-10-24
+- [ ] unknown-ask - Unstamped current hold (hold: decide) (hold-kind: captain) (since 2026-10-24)
+EOF
+  printf 'spawn_gen=attempt-current\nspawned_at=2026-10-01T00:00:00Z\n' >> "$home/state/ship-task.meta"
+  printf 'working [at=1791000000]: authored progress\n' > "$home/state/ship-task.status"
+  start=$(wc -c < "$home/state/ship-task.status")
+  printf 'working [at=1792000000]: transport receipt with arbitrary prose\n' >> "$home/state/ship-task.status"
+  end=$(wc -c < "$home/state/ship-task.status")
+  bash -c '. "$1/bin/fm-wake-lib.sh"; . "$1/bin/fm-classify-lib.sh"; status_home_appends_record "$2" "$3" "$4"' \
+    _ "$ROOT" "$home/state/ship-task.status" "$start" "$end" || fail 'recording fixture receipt ownership failed'
+  printf 'poll [at=1792500000]: checking\n' >> "$home/state/ship-task.status"
+  printf 'spawn_gen=scout-current\nspawned_at=2026-10-01T00:00:00Z\n' >> "$home/state/scout-x.meta"
+  printf 'done [at=1791000100]: report ready\n' > "$home/state/scout-x.status"
+  json=$(PATH="$fb:$PATH" FM_HOME="$home" NET_LOG="$home/net.log" FM_BEARINGS_NOW=2026-10-24T18:00:00Z \
+    "$BEARINGS" --json --all-decisions --all-queued --all-landed) || fail 'card time snapshot failed'
+  printf '%s' "$json" | jq -e '
+    (.gates[] | select(.id == "filed") | .card_time == {kind:"filed",value:"2026-10-01",precision:"date",source:"backlog.since"})
+    and (.gates[] | select(.id == "no-time") | .card_time == null)
+    and (.decisions_open[] | select(.id == "ask") | .card_time == {kind:"asked",value:"2026-10-24T12:34:56Z",precision:"second",source:"backlog.hold_set"})
+    and (.decisions_open[] | select(.id == "legacy-ask") | .card_time.precision == "date" and .card_time.value == "2026-10-24")
+    and (.decisions_open[] | select(.id == "unknown-ask") | .card_time == null)
+    and (.in_flight[] | select(.id == "ship-task") | .card_time.value == (1791000000 | strftime("%Y-%m-%dT%H:%M:%SZ"))
+         and .card_time.kind == "updated" and .card_time.attempt == "attempt-current")
+    and (.in_flight[] | select(.id == "scout-x") | .card_time.kind == "done_report")
+    and (.landed[] | select(.id == "dated-local") | .card_time.value == "2026-10-23T12:34:56-06:00" and .card_time.precision == "second")
+    and (.landed[] | select(.id == "invalid-date") | .card_time == null)
+    and (.landed[] | select(.id == "historical-done") | .card_time == null)
+    and (.landed[] | select(.id == "done-a") | .card_time.precision == "date" and .card_time.value == "2026-07-10")
+  ' >/dev/null || fail "card time source/precision semantics were lost: $json"
+  if [ -n "${FM_CARD_TIME_FIXTURE_EXPORT:-}" ]; then
+    printf '%s\n' "$json" > "$FM_CARD_TIME_FIXTURE_EXPORT"
+  fi
+  again=$(TZ=Pacific/Auckland PATH="$fb:$PATH" FM_HOME="$home" NET_LOG="$home/net.log" FM_BEARINGS_NOW=2026-10-25T18:00:00Z \
+    "$BEARINGS" --json --all-decisions --all-queued --all-landed)
+  assert_equals "$(printf '%s' "$json" | jq -cS '[.gates[],.decisions_open[],.in_flight[],.landed[]] | map({id,card_time}) | sort_by(.id)')" \
+    "$(printf '%s' "$again" | jq -cS '[.gates[],.decisions_open[],.in_flight[],.landed[]] | map({id,card_time}) | sort_by(.id)')" \
+    'repeated observation or timezone rewrote historical events'
+  summary=$(PATH="$fb:$PATH" FM_HOME="$home" NET_LOG="$home/net.log" "$ROOT/bin/fm-fleet-snapshot.sh" --secondmate-home-summary)
+  printf '%s' "$summary" | jq -e '
+    (.active_children[] | select(.id == "ship-task") | .card_time.kind == "updated")
+    and (.decisions_open[] | select(.id == "ask") | .card_time.value == "2026-10-24T12:34:56Z")
+    and (.queued[] | select(.id == "filed") | .card_time.kind == "filed")
+    and (.landed[] | select(.id == "dated-local") | .card_time.precision == "second")
+  ' >/dev/null || fail "structured-home summary lost card time: $summary"
+  # A new attempt cannot inherit older done/progress; unstamped new work also
+  # cannot borrow a previous stamp. These are authored transitions, not polls.
+  printf 'working: new work without a historical clock\n' >> "$home/state/ship-task.status"
+  printf 'working [at=1791000200]: back to implementation\n' >> "$home/state/scout-x.status"
+  json=$(PATH="$fb:$PATH" FM_HOME="$home" NET_LOG="$home/net.log" "$BEARINGS" --json)
+  printf '%s' "$json" | jq -e '
+    (.in_flight[] | select(.id == "ship-task") | .card_time == null)
+    and (.in_flight[] | select(.id == "scout-x") | .card_time.kind == "updated")
+  ' >/dev/null || fail "new work retained stale done report or borrowed a clock: $json"
+  printf 'spawned_at=2026-11-01T00:00:00Z\n' > "$home/new-boundary"
+  sed '/^spawned_at=/d' "$home/state/scout-x.meta" > "$home/new-meta"
+  cat "$home/new-boundary" >> "$home/new-meta"
+  mv "$home/new-meta" "$home/state/scout-x.meta"
+  json=$(PATH="$fb:$PATH" FM_HOME="$home" NET_LOG="$home/net.log" "$BEARINGS" --json)
+  printf '%s' "$json" | jq -e '.in_flight[] | select(.id == "scout-x") | .card_time == null' >/dev/null \
+    || fail 'a new lifecycle borrowed earlier progress'
+  sed '/^spawned_at=/d; /^status_start_bytes=/d' "$home/state/scout-x.meta" > "$home/new-meta"
+  printf 'spawned_at=2026-10-03T04:03:20Z\nstatus_start_bytes=%s\n' "$(wc -c < "$home/state/scout-x.status" | tr -d '[:space:]')" >> "$home/new-meta"
+  mv "$home/new-meta" "$home/state/scout-x.meta"
+  json=$(PATH="$fb:$PATH" FM_HOME="$home" NET_LOG="$home/net.log" "$BEARINGS" --json)
+  printf '%s' "$json" | jq -e '.in_flight[] | select(.id == "scout-x") | .card_time == null' >/dev/null \
+    || fail 'same-second relaunch inherited an earlier declaration'
+  printf 'working [at=1791000200]: same-second new attempt declaration\n' >> "$home/state/scout-x.status"
+  json=$(PATH="$fb:$PATH" FM_HOME="$home" NET_LOG="$home/net.log" "$BEARINGS" --json)
+  printf '%s' "$json" | jq -e '.in_flight[] | select(.id == "scout-x") | .card_time.kind == "updated" and .card_time.original_value == 1791000200' >/dev/null \
+    || fail 'same-second new declaration lost its original timestamp'
+  pass 'optional card times retain authoritative precision, ownership, and lifecycle across polls and timezone changes'
+}
+
+test_card_time_preserves_source_precision_and_lifecycle
+[ "${1:-}" != --card-time-only ] || exit 0
+
+test_underway_dependencies_match_gate_format
 test_task_teardown_during_metadata_capture_does_not_abort_snapshot
 test_current_state_uses_captured_status_observation
 test_relaunched_task_does_not_inherit_reused_endpoint_state

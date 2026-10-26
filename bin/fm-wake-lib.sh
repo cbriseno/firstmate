@@ -459,6 +459,12 @@ fm_watcher_supervision_verdict() {
   if fm_watcher_healthy "$state" "$watch" "$grace" "$home"; then
     # shellcheck disable=SC2034 # Read by callers after the function returns.
     FM_WATCHER_VERDICT_OK=true
+  elif [ "$model" = persistent ] \
+    && FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_STATE_OVERRIDE="$state" \
+      "$FM_WAKE_LIB_DIR/fm-codex-stop-autoarm.sh" --handling >/dev/null 2>&1; then
+    # Only the opt-in Codex binding can explain this queue-to-handling gap.
+    # No receipt ever acknowledges the durable events on the model's behalf.
+    FM_WATCHER_VERDICT_OK=true
   elif [ "$fresh" = true ]; then
     if [ "$model" = extension ] && fm_watcher_lock_unheld "$state" \
       && fm_extension_owns_supervision "$state" "$root"; then

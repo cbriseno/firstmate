@@ -106,6 +106,11 @@ case "$HARNESS" in
   *) HARNESS=unknown; SNIPPET="$DOC_DIR/unknown.md" ;;
 esac
 [ -f "$SNIPPET" ] || SNIPPET="$DOC_DIR/unknown.md"
+codex_native=0
+if [ "$HARNESS" = codex ] && "$SCRIPT_DIR/fm-codex-stop-autoarm.sh" --capable >/dev/null 2>&1; then
+  SNIPPET="$DOC_DIR/codex-native.md"
+  codex_native=1
+fi
 HOST_SNIPPET=
 grok_arm='bin/fm-watch-arm.sh'
 case "$HARNESS" in
@@ -118,6 +123,7 @@ case "$HARNESS" in
     fi
     ;;
 esac
+[ "$codex_native" -eq 0 ] || HOST_SNIPPET=
 
 checkpoint_seconds=${FM_CODEX_WATCH_CHECKPOINT:-180}
 pi_ext="$FM_ROOT/.pi/extensions/fm-primary-pi-watch.ts"
@@ -238,7 +244,11 @@ ordinary_wake_line() {
       printf '%s\n' '- Ordinary wake: the Stop-owned auto-arm (bin/fm-claude-stop-autoarm.sh) already owns watcher continuity; drain and handle the wake, and do not arm another cycle yourself.'
       ;;
     codex)
-      printf '%s\n' '- Ordinary wake: take the next foreground bin/fm-watch-checkpoint.sh checkpoint as directed below.'
+      if [ "$codex_native" -eq 1 ]; then
+        printf '%s\n' '- Ordinary wake: drain, handle and ACK; the native Stop hook owns the next watcher cycle.'
+      else
+        printf '%s\n' '- Ordinary wake: take the next foreground bin/fm-watch-checkpoint.sh checkpoint as directed below.'
+      fi
       ;;
     pi|pi-signed)
       printf '%s\n' '- Ordinary wake: the Pi extension already owns watcher continuity; do not arm another cycle.'

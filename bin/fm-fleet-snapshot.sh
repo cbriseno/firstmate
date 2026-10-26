@@ -46,6 +46,12 @@
 #     project it as a Charted Next gate stating why, and disclose it in
 #     omitted[]; --all-decisions reveals every captain hold available within the
 #     bounded snapshot.
+#   card_time/delivered_time on backlog rows and card_time on task/summary rows
+#     are optional event records owned by bin/fm-card-time-lib.sh.
+#     use a matching successful-owner completion receipt when retained; the
+#     receipt contract is bin/fm_delivery.py, otherwise dates stay date-only.
+#   declaration on task rows is the latest captured foreign status declaration,
+#     independently labeled historical; it never replaces current_state.
 #   tasks[]: one row per task metadata record captured at snapshot start, sorted
 #     by id. A record removed before capture is omitted. If a captured task's
 #     generation changes while observations run, its selected metadata remains
@@ -356,6 +362,11 @@ crew_state_json() {  # <id> [<captured-meta>] [<captured-status>]
     '{state:$state,source:$source,detail:$detail,raw:$raw}'
 }
 
+# shellcheck source=bin/fm-card-time-lib.sh disable=SC1091
+. "$SCRIPT_DIR/fm-card-time-lib.sh"
+# shellcheck source=bin/fm-flow-lib.sh disable=SC1091
+. "$SCRIPT_DIR/fm-flow-lib.sh"
+
 status_event_json() {  # <observed-status-log> [<contract-path>]
   local log=$1 path=${2:-$1} present=0 raw='' verb='' note='' epoch=null age=null
   if [ -f "$log" ]; then
@@ -393,7 +404,7 @@ backlog_json() (  # [<backlog-path>] - defaults to this home's $BACKLOG
   set -o pipefail
   # shellcheck disable=SC2094
   jq -Rn --arg path "$backlog" --arg today "$SNAPSHOT_TODAY" --arg now "$SNAPSHOT_NOW" \
-    --argjson age_days "$FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS" '
+    --argjson age_days "$FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS" "$FM_LANDED_JQ_DEFS$FM_CARD_TIME_JQ_DEFS"'
     def trim: gsub("^[[:space:]]+|[[:space:]]+$"; "");
     def timestamp_epoch($d):
       if ($d | type) != "string" then null
@@ -572,6 +583,7 @@ backlog_json() (  # [<backlog-path>] - defaults to this home's $BACKLOG
                else "live" end)
           | .captain_actionable = (.hold_bucket == "live")
         else . end)
+    | .records |= map(if .structured then . + {card_time:backlog_card_time, delivered_time:(if landed_record then delivered_card_time else null end)} else . end)
     | del(.section,.order)
   ' < "$backlog" | fm_hold_reason_decode_stream json
 )
@@ -645,6 +657,7 @@ prefetch_task_observations() {  # <meta> <id>
   snapshot_task_generation_is_current "$meta" "$id" || generation_current=0
   if [ "$generation_current" = 1 ]; then
     snapshot_capture_optional "$status_log" "$status_capture" || current_rc=1
+    status_home_appends_ranges "$status_log" > "$status_capture.ranges" || current_rc=1
     snapshot_mark_optional_present "$report_path" "$report_capture" || current_rc=1
   fi
 
@@ -747,7 +760,8 @@ task_json_lines() {
   local remote_host remote_root current_file endpoint_file observation_line index=0
   local pr pr_source event_json current_json endpoint_exists agent_alive meta_json status_json report_json worktree_json home_json
   local last_event_raw current_state current_source pending_decision blocked_event report_present=0 pr_from_status
-  local open_decisions_tsv open_decisions_json
+  local declaration_line declaration_verb declaration_note
+  local open_decisions_tsv open_decisions_json progress_json spawned_at status_start_bytes
 
   while [ "$index" -lt "$SNAPSHOT_TASK_META_COUNT" ]; do
     meta=${SNAPSHOT_TASK_METAS[index]}
@@ -764,6 +778,8 @@ task_json_lines() {
     home=$(meta_value "$meta" home)
     projects=$(meta_value "$meta" projects)
     spawn_gen=$(meta_value "$meta" spawn_gen)
+    spawned_at=$(meta_value "$meta" spawned_at)
+    status_start_bytes=$(meta_value "$meta" status_start_bytes)
     branch=$(meta_value "$meta" branch)
     remote_host=$(meta_value "$meta" remote_host)
     remote_root=$(meta_value "$meta" remote_root)
@@ -794,6 +810,10 @@ task_json_lines() {
       return 1
     }
     event_json=$(status_event_json "$status_log" "$STATE/$id.status")
+    progress_json=$(fm_card_time_progress_json "$status_log" "$status_log.ranges" "$spawn_gen" "$spawned_at" "$status_start_bytes")
+    declaration_line=$(fm_card_time_latest_declaration "$status_log" "$status_log.ranges" "$status_start_bytes")
+    status_line_verb "$declaration_line" declaration_verb
+    declaration_note=$(status_line_note "$declaration_line")
     last_event_raw=$(printf '%s' "$event_json" | jq -r '.last_event.raw // ""')
     read -r current_state current_source < <(
       printf '%s' "$current_json" | jq -r '[.state // "", .source // ""] | @tsv'
@@ -877,6 +897,8 @@ task_json_lines() {
       --arg agent_alive "$agent_alive" \
       --arg observed_at "$SNAPSHOT_NOW" \
       --arg last_event_raw "$last_event_raw" \
+      --arg declaration_verb "$declaration_verb" --arg declaration_note "$declaration_note" \
+      --argjson card_time "$progress_json" \
       --argjson current_state "$current_json" \
       --argjson meta_path "$meta_json" \
       --argjson status_log "$status_json" \
@@ -890,6 +912,10 @@ task_json_lines() {
       --argjson report_present "$(bool_json "$report_present")" \
       '{
         id:$id,
+        card_time:(if $card_time.kind == "done_report" and $current_state.state != "done" then null else $card_time end),
+        declaration:(if $declaration_verb == "" then null else
+          {state:$declaration_verb,note:$declaration_note,source:"status.declaration",
+           card_time:$card_time,current_state:false} end),
         kind:$kind,
         harness:($harness // ""),
         mode:($mode // ""),
@@ -979,7 +1005,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
     --argjson decisions_n "$FM_SNAPSHOT_SECONDMATE_DECISIONS" \
     --argjson landed_n "$FM_SNAPSHOT_SECONDMATE_LANDED_PER_HOME" \
     --slurpfile backlog "$1" \
-    --slurpfile tasks "$2" --slurpfile contributions "$CONTRIBUTIONS_JSON_FILE" "$FM_LANDED_JQ_DEFS"'
+    --slurpfile tasks "$2" --slurpfile contributions "$CONTRIBUTIONS_JSON_FILE" "$FM_LANDED_JQ_DEFS$FM_FLOW_JQ_DEFS"'
     ($backlog[0]) as $backlog
     | ($tasks[0]) as $tasks
     | def trunc($n):
@@ -1007,17 +1033,19 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
     | ([ $queued_all[]
          | select(.captain_actionable == true)
          | {id,key:.id,verb:"captain-hold",summary:(.title | trunc(160)),
+            flow:flow_context(.; null; null; "(main)"; $backlog.records; []),
             reason:(.hold_reason | trunc(160)),
             hold_until:(.hold_until // null),
             hold_bucket:(.hold_bucket // null),
-            hold_age_days:(.hold_age_days // null),source:"backlog"} ]) as $captain_holds_all
+            hold_age_days:(.hold_age_days // null),card_time,source:"backlog"} ]) as $captain_holds_all
     | ([ $backlog.records[]? | select(landed_record)
          | {id:(.id | trunc(120)),title:(.title | trunc(120)),
             kind:((.kind // null) | if . == null then null else trunc(40) end),
             hold_kind:((.hold_kind // null) | if . == null then null else trunc(40) end),
             pr_url:((.pr_url // null) | if . == null then null else trunc(500) end),
             report_path:((.report_path // null) | if . == null then null else trunc(500) end),
-            local_note:((.local_note // null) | if . == null then null else trunc(120) end),completion} ]
+            local_note:((.local_note // null) | if . == null then null else trunc(120) end),completion,
+            card_time:.delivered_time} ]
        | sort_by([(.completion.date // ""), .id]) | reverse) as $landed_all
     | ([ $tasks[] | select(.current_state.state == "unknown") ]) as $unknown_children
     | ([ $owned_in_flight[]
@@ -1057,9 +1085,10 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
          | $tasks[]
          | select(.id == $work.id and .current_state.state == "working")
          | {id,kind,state:.current_state.state,
+            flow:flow_context($work; .current_state; .declaration; "(main)"; $backlog.records; .hints.open_decisions),
             repo:(($work.repo // .project // null) | if . == null then null else trunc(120) end),
             name:(($work.title // null) | if . == null then null else trunc(70) end),
-            source:.current_state.source,
+            source:.current_state.source,card_time,
             doing:((.current_state.detail // "") | trunc(120))} ]) as $active_all
     | ($captain_holds_all
        + ([ $tasks[] as $t | ($t.hints.open_decisions // [])[]
@@ -1115,6 +1144,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
         decisions_open:$decisions_all[:$decisions_n],
         holds:$holds_all[:$queued_n],
         queued:([$queued_all[] | {id:(.id | trunc(120)),title:(.title | trunc(120)),
+          flow:flow_context(.; null; null; "(main)"; $backlog.records; []),
           blocked_by:((.blocked_by // null) | if . == null then null else trunc(120) end),
           blocked_by_ids:((.blocked_by_ids // []) | map(trunc(120))),
           unresolved_blocker_ids:((.unresolved_blocker_ids // []) | map(trunc(120))),
@@ -1122,7 +1152,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
           hold_reason:((.hold_reason // null) | if . == null then null else trunc(160) end),
           hold_kind:((.hold_kind // null) | if . == null then null else trunc(40) end),
           hold_until:((.hold_until // null) | if . == null then null else trunc(40) end),
-          hold_bucket:(.hold_bucket // null),
+          hold_bucket:(.hold_bucket // null),card_time,
           hold_age_days:(.hold_age_days // null),
           captain_actionable:(.captain_actionable // false),
           repo:((.repo // null) | if . == null then null else trunc(120) end),
@@ -1976,6 +2006,8 @@ scout_report_lines() {
 }
 
 BACKLOG_JSON=$(backlog_json) || { echo "fm-fleet-snapshot: backlog read failed" >&2; exit 1; }
+BACKLOG_TIMES=$(printf '%s' "$BACKLOG_JSON" | FM_HOME="$FM_HOME" python3 "$SCRIPT_DIR/fm_delivery.py" enrich-times) \
+  && BACKLOG_JSON=$BACKLOG_TIMES
 contribution_tasks_json() {
   local meta id merge_authority
   for meta in "$STATE"/*.meta; do

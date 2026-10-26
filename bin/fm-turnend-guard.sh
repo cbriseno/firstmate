@@ -50,7 +50,9 @@
 # Loop-guard, codex/Grok (default) mode: never block twice in the same turn.
 # Codex uses stop_hook_active and Grok uses stopHookActive; typed camel-case
 # takes precedence when both spellings are present. A true value means the
-# current stop attempt already follows a block, so this guard always allows it.
+# current stop attempt already follows a block, so the default guard allows it.
+# The explicit Codex native root delegates before this legacy loop allowance;
+# its Stop owner owns the required handoff check even after a previous block.
 # Passive harness adapters provide their own one-follow-up guard before calling
 # this script.
 # That bounds those harnesses to at most one forced continuation per turn -
@@ -166,6 +168,23 @@ command -v jq >/dev/null 2>&1 || exit 0
 # continuation path (docs/turnend-guard.md "Harness integrations").
 if [ "$CURSOR_MODE" -eq 0 ] && fm_hook_payload_is_foreign_host "$PAYLOAD"; then
   exit 0
+fi
+
+# The already-registered Stop entrypoint must enforce the same opt-in boundary
+# as the new shim. This does not establish that either definition was loaded.
+if [ "$CLAUDE_MODE" -eq 0 ] && [ "$CURSOR_MODE" -eq 0 ] \
+  && [ -f "$CONFIG/codex-native-supervision.json" ]; then
+  # shellcheck source=bin/fm-codex-native-lib.sh
+  . "$SCRIPT_DIR/fm-codex-native-lib.sh"
+  if fm_codex_native_required "$FM_ROOT" "$STATE" "$CONFIG" "$PAYLOAD" \
+    && fm_supervision_needed "$STATE"; then
+    native_status=0
+    printf '%s' "$PAYLOAD" | "$SCRIPT_DIR/fm-codex-stop-autoarm.sh" --guard || native_status=$?
+    case "$native_status" in
+      0|2) exit "$native_status" ;;
+      *) echo 'Codex native guard failed; keep this turn open and repair it while continuing foreground supervision.' >&2; exit 2 ;;
+    esac
+  fi
 fi
 
 STOP_HOOK_ACTIVE=$(printf '%s' "$PAYLOAD" | jq -r '
