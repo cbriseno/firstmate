@@ -1,0 +1,22 @@
+platform: linux
+backend: tmux
+unsupported: Linux requires GNU mkdir on PATH; see docs/platforms.md
+unsupported: Linux requires GNU timeout on PATH; see docs/platforms.md
+unsupported: Linux requires GNU cat on PATH; see docs/platforms.md
+available: bash
+available: git
+available: python3
+available: perl
+available: jq
+available: node
+available: gh
+available: gh-axi
+available: no-mistakes
+available: chrome-devtools-axi
+available: tasks-axi
+available: quota-axi
+available: tmux
+available: treehouse
+native-codex: optional Linux-only binding; no transport acceptance implied
+scope: prerequisite check only; bootstrap owns versions/auth and backend guides own live acceptance
+rc=1
