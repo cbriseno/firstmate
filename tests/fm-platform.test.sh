@@ -46,7 +46,7 @@ printf 'PASS: platform classifications and four fail-closed entry points (simula
 # without invoking a backend or changing the temporary operational home.
 TEST_KERNEL=Linux
 TEST_RELEASE=generic
-for tool in node gh gh-axi no-mistakes chrome-devtools-axi tasks-axi quota-axi tmux; do
+for tool in node gh gh-axi no-mistakes chrome-devtools-axi tasks-axi quota-axi tmux treehouse; do
   printf '#!/bin/sh\nexit 0\n' > "$TASK_TMP/fakebin/$tool"
   chmod +x "$TASK_TMP/fakebin/$tool"
 done

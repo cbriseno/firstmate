@@ -1043,8 +1043,8 @@ EOF
   fakebin=$(make_fakebin "$home")
   one=$(run "$home" "$fakebin" --json)
   two=$(run "$home" "$fakebin" --json)
-  printf '%s' "$one" | jq '.landed' > "$home/landed-first.json"
-  printf '%s' "$two" | jq '.landed' > "$home/landed-second.json"
+  printf '%s' "$one" | jq -S '.landed' > "$home/landed-first.json"
+  printf '%s' "$two" | jq -S '.landed' > "$home/landed-second.json"
   diff -u "$home/landed-first.json" "$home/landed-second.json" \
     || fail "the same structured state produced different recent-completion baselines"
   printf '%s' "$two" | jq -e '
