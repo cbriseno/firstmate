@@ -19,15 +19,30 @@ DRAIN="$ROOT/bin/fm-wake-drain.sh"
 TMP_ROOT=$(fm_test_tmproot fm-watch-wedge-cap-tests)
 
 ack_stopped_cycle() {  # <state>
-  local state=$1 err sequence generation
+  local state=$1 err sequence generation rc
   err="$state/.test-cycle-drain.err"
-  FM_STATE_OVERRIDE="$state" "$DRAIN" >/dev/null 2> "$err" || return 1
+  FM_STATE_OVERRIDE="$state" "$DRAIN" >/dev/null 2> "$err"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "ack_stopped_cycle: drain exited $rc: $(head -c 800 "$err")" >&2
+    return 1
+  fi
   sequence=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation [A-Za-z0-9._-][A-Za-z0-9._-]*$/\1/p' "$err")
   generation=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through [0-9][0-9]* --recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' "$err")
+  if [ -z "$sequence" ] || [ -z "$generation" ]; then
+    echo "ack_stopped_cycle: no WAKE_ACK_REQUIRED receipt: $(head -c 800 "$err")" >&2
+    rm -f "$err"
+    return 1
+  fi
   rm -f "$err"
-  [ -n "$sequence" ] && [ -n "$generation" ] || return 1
   FM_STATE_OVERRIDE="$state" "$DRAIN" --ack-through "$sequence" \
-    --recovery-generation "$generation"
+    --recovery-generation "$generation" 2> "$err"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "ack_stopped_cycle: acknowledgement refused rc=$rc: $(head -c 800 "$err")" >&2
+  fi
+  rm -f "$err"
+  return "$rc"
 }
 
 reap() { kill "$1" 2>/dev/null || true; wait "$1" 2>/dev/null || true; }
@@ -116,13 +131,13 @@ prime_and_ack() {
     FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" \
     FM_STALE_ESCALATE_SECS=999 FM_POLL=1 FM_SIGNAL_GRACE=1 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 FM_WEDGE_MAX_ESCALATIONS=$max \
-    "$WATCH" > "$out" &
+    "$WATCH" > "$out" 2> "$dir/watch.err" &
   pid=$!
   if ! wait_poll_cycle "$state" "$pid"; then
-    reap "$pid"; fail "priming watch failed: $(cat "$out")"
+    reap "$pid"; fail "priming watch failed: $(cat "$out") $(cat "$dir/watch.err")"
   fi
   reap "$pid"
-  ack_stopped_cycle "$state" || fail "priming ack failed"
+  ack_stopped_cycle "$state" || fail "priming ack failed; watcher stderr: $(head -c 800 "$dir/watch.err")"
 }
 
 # poll_wedge_round: drive one wedge poll, optionally with the given cap

@@ -147,7 +147,8 @@ def record_completion(home, task_id, data):
         raise ValueError('completion receipt needs the owning home data directory')
     text = sys.stdin.read()
     task = json.loads(text) if text.strip() else next(
-        (r for r in retained_history(home)['records'] if r['id'] == task_id), {})
+        (r for r in retained_history(home, include_non_deliveries=True)['records']
+         if r['id'] == task_id), {})
     task = task.get('task', task)
     if task.get('id') != task_id or task.get('state') != 'done':
         raise ValueError('completion response does not identify a closed task')
@@ -223,7 +224,7 @@ def invalidate_completion(home, task_id):
             os.unlink(temp)
 
 
-def retained_history(home):
+def retained_history(home, *, include_non_deliveries=False):
     result = dict(schema='fm-delivery-history.v1', home=str(home), complete=True,
                   sources=[], limitations=['Retained local records only; deleted records cannot be recovered.'],
                   retention={}, records=[])
@@ -278,6 +279,12 @@ def retained_history(home):
             except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
                 result['complete'] = False
                 result['sources'].append(dict(kind=source, path=path, available=False, reason=str(exc)))
+        # A successful close can be a non-delivery (for example an ops report).
+        # The receipt writer must validate that canonical row before deciding
+        # whether it has a delivery instant to record. Public history stays filtered.
+        if include_non_deliveries:
+            result['records'] = list(rows.values())
+            return result
         # Reuse the canonical landed selector instead of copying its delivery rules.
         jq = shutil.which('jq')
         if not jq:
@@ -466,7 +473,10 @@ def main():
             result, rc = explanation(home, args)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         result, rc = dict(ok=False, state='error', message=str(exc)), 1
-    print(json.dumps(result, ensure_ascii=False))
+    # Receipt mutations are silent on success. Their optional failure must not
+    # append another document to the authoritative tasks-axi response on stdout.
+    stream = sys.stderr if args.command in ('record-completion', 'invalidate-completion') else sys.stdout
+    print(json.dumps(result, ensure_ascii=False), file=stream)
     return rc
 
 

@@ -883,7 +883,7 @@ fi
 exit 0
 SH
   chmod +x "$fakebin/gh-axi"
-  for tool in dirname grep tail; do
+  for tool in dirname grep tail uname; do
     tool_path=$(command -v "$tool") || fail "test host must provide $tool"
     ln -s "$tool_path" "$fakebin/$tool"
   done

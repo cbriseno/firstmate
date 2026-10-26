@@ -26,6 +26,22 @@ fm_platform_require || exit 2
 fm_backend_validate "$backend" || exit 2
 printf 'backend: %s\n' "$backend"
 result=0
+# Directory claims, wake writes and checkpoint deadlines rely on GNU semantics
+# on Linux. A kernel classification alone cannot establish that tool contract.
+case "$(fm_platform_name)" in
+  linux|wsl2)
+    for tool in mkdir timeout cat; do
+      version=$("$tool" --version 2>/dev/null || true)
+      case "$version" in
+        *'(GNU coreutils)'*) printf 'available: GNU %s\n' "$tool" ;;
+        *)
+          printf 'unsupported: Linux requires GNU %s on PATH; see docs/platforms.md\n' "$tool"
+          result=1
+          ;;
+      esac
+    done
+    ;;
+esac
 for tool in bash git python3 perl jq node gh gh-axi no-mistakes chrome-devtools-axi tasks-axi quota-axi; do
   if command -v "$tool" >/dev/null 2>&1; then
     printf 'available: %s\n' "$tool"

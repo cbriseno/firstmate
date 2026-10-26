@@ -166,7 +166,10 @@ if [ "${1:-}" = --case ]; then
       run_owner --guard < "$CASE_HOME/repeat-payload" || fail 'default-off loop allowance changed'
       ;;
     handoff)
-      bash "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 90 > "$CASE_HOME/foreground.out" 2> "$CASE_HOME/foreground.err" &
+      # The bound must outlive every guard and displacement step below; the
+      # controlled event ends this checkpoint early. A 90s bound expired before
+      # the supervision-host step on slow runners.
+      bash "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 600 > "$CASE_HOME/foreground.out" 2> "$CASE_HOME/foreground.err" &
       foreground=$!
       wait_healthy
       rc=0
@@ -176,7 +179,7 @@ if [ "${1:-}" = --case ]; then
       printf '# legacy Stop with foreground only: exit=%s\n' "$rc"
       assert_equals 2 "$rc" 'legacy Stop allowed native root to finish with only a foreground checkpoint'
       guard_elapsed=$(($(date +%s) - guard_started))
-      printf '# native guard returned in %ss; foreground checkpoint bound=90s\n' "$guard_elapsed"
+      printf '# native guard returned in %ss; foreground checkpoint bound=600s\n' "$guard_elapsed"
       [ "$guard_elapsed" -lt 25 ] || fail "native guard exceeded its synchronous hook budget: ${guard_elapsed}s"
       assert_contains "$(cat "$CASE_HOME/legacy.err")" 'keep this turn open' 'missing foreground continuation instruction'
       for active in false true; do
@@ -218,7 +221,12 @@ if [ "${1:-}" = --case ]; then
       # This is another copied Bash process, not an installed Claude runtime.
       cp /bin/bash "$CASE_HOME/claude"
       "$CASE_HOME/claude" "$ROOT/bin/fm-turnend-guard.sh" < "$CASE_HOME/payload" || fail 'native requirement leaked to another harness'
-      FM_ROOT_OVERRIDE="$ROOT" run_owner --guard < "$CASE_HOME/payload" || fail 'native requirement leaked to crew worktree'
+      # CI checks out a primary repository; construct the linked-worktree
+      # boundary explicitly rather than assuming the suite's checkout is one.
+      fm_git_worktree "$CASE_HOME/fixture-repo" "$CASE_HOME/crew" fm/crew
+      : > "$CASE_HOME/crew/AGENTS.md"
+      ln -s "$ROOT/bin" "$CASE_HOME/crew/bin"
+      FM_ROOT_OVERRIDE="$CASE_HOME/crew" run_owner --guard < "$CASE_HOME/payload" || fail 'native requirement leaked to crew worktree'
       : > "$STATE/.afk"
       run_owner --guard < "$CASE_HOME/payload" || fail 'native requirement displaced away owner'
       rm "$STATE/.afk"

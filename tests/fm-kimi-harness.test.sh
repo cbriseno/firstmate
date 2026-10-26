@@ -24,8 +24,11 @@ JQ_BIN=$(command -v jq) || fail "test needs jq"
 BASE_PATH=${FM_TEST_BASE_PATH:-$PYTHON_BIN_DIR:/usr/bin:/bin:/usr/sbin:/sbin}
 
 task_inbox_export() {  # <home> <id>
-  local state
+  local state generation
   state=$(CDPATH='' cd -- "$1/state" && pwd -P) || fail "cannot resolve state dir $1/state"
+  generation=$(sed -n 's/^spawn_gen=//p' "$state/$2.meta")
+  [ -n "$generation" ] || fail "missing spawn generation for $2"
+  printf "export FM_NOTIFY_SPAWN_GEN='%s'; " "$generation"
   printf "export FM_TASK_INBOX='%s'; " "$state/$2.inbox"
 }
 
