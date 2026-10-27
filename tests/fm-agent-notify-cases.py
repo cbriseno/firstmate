@@ -30,11 +30,12 @@ def launch():
         service.stdin.close()
         assert service.wait(timeout=15) == 0
         service.stdout.close()
-    for mode in ("shared", "claude"):
+    for mode in ("shared", "claude", "claude-metadata"):
         binary = native
-        if mode == "claude":
+        if mode.startswith("claude"):
             binary = tmp / "claude"
-            binary.symlink_to(sys.executable)
+            if not binary.exists():
+                binary.symlink_to(sys.executable)
         subprocess.run([str(binary), __file__, mode, str(code), str(tmp), "app-server" if mode == "shared" else "cli"],
                        env=env, check=True)
     routing_launch(code, tmp)
@@ -287,7 +288,9 @@ def additional():
         worktree.mkdir()
         worker_sid = "fixture-claude-worker"
         transcript = home / (worker_sid + ".jsonl")
-        transcript.write_text(json.dumps({"sessionId": worker_sid, "cwd": str(worktree)}) + "\n")
+        # Current Claude Code leads with a cwd-less record; adoption must skip it.
+        transcript.write_text(json.dumps({"type": "last-prompt", "sessionId": worker_sid}) + "\n"
+                              + json.dumps({"sessionId": worker_sid, "cwd": str(worktree)}) + "\n")
         (home / "state/claude-worker.meta").write_text(f"endpoint_task_id=claude-worker\nkind=ship\nharness=claude\nspawn_gen=generation-1\nworktree={worktree}\n")
         env.update(FM_TASK_ID="claude-worker", FM_TASK_INBOX=str(home / "state/claude-worker.inbox"),
                    FM_NOTIFY_SPAWN_GEN="generation-1")
@@ -299,6 +302,140 @@ def additional():
         record = json.loads((tmp / "consumer.jsonl").read_text().splitlines()[-1])
         assert record["binding"]["role"] == "ship" and record["binding"]["session_id"] == worker_sid
         print("ok - Claude native process/transcript/lock and automatic worker hook adoption without manual bind")
+
+
+def claude_metadata():
+    """Current Claude transcripts lead with records that carry no cwd."""
+    code, tmp = map(Path, sys.argv[2:4])
+    home = tmp / "claude-metadata-home"
+    (home / "state").mkdir(parents=True)
+    (home / "bin").mkdir()
+    (home / "AGENTS.md").write_text("fixture\n")
+    subprocess.run(["git", "init", "-q", str(home)], check=True)
+    for name in (".lock", ".session-start-complete"):
+        (home / "state" / name).write_text(str(os.getpid()))
+    sid = "fixture-claude-metadata"
+    (home / "state/.lock-session").write_text(sid)
+    store = tmp / "claude-config"
+    project = store / "projects" / "-fixture-project"
+    project.mkdir(parents=True)
+    transcript = project / (sid + ".jsonl")
+    consumer = tmp / "metadata-consumer.py"
+    consumer.write_text("import sys\nsys.stdin.read()\n")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("FM_", "CODEX_", "CLAUDE_"))}
+    env.update(FM_HOME=str(home), FM_ROOT_OVERRIDE=str(home), CLAUDE_CODE_SESSION_ID=sid,
+               CLAUDE_PID=str(os.getpid()), CLAUDE_CONFIG_DIR=str(store))
+    # Shapes observed on Claude Code 2.1.309-2.1.311, without any content.
+    lead = [{"type": "last-prompt", "leafUuid": "fixture-leaf", "sessionId": sid},
+            {"type": "permission-mode", "permissionMode": "default", "sessionId": sid},
+            {"type": "file-history-snapshot", "messageId": "fixture-message", "snapshot": {}}]
+    conversation = {"type": "attachment", "sessionId": sid, "cwd": str(home), "uuid": "fixture-uuid"}
+    state = home / "state/agent-notify"
+    binding = state / ("claude-" + sid + ".json")
+    hook_payload = {"session_id": sid, "transcript_path": str(transcript), "hook_event_name": "Stop"}
+
+    def records(*rows, path=transcript):
+        path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+    def run(args, data="", expected=0, **extra):
+        completed = subprocess.run(args, input=data if isinstance(data, str) else json.dumps(data),
+                                   env={**env, **extra}, text=True, capture_output=True)
+        assert completed.returncode == expected, (args, completed.returncode, completed.stderr)
+        return completed
+
+    def bridge(*args, **kwargs):
+        return run(["bash", str(code / "bin/fm-agent-notify.sh"), "--home", str(home), *map(str, args)], **kwargs)
+
+    def register(data=hook_payload, **extra):
+        completed = run(["bash", str(code / "bin/fm-agent-notify-register.sh")], data=data, **extra)
+        assert completed.stdout == "" and completed.stderr == "", completed
+        return completed
+
+    def refused(reason, **kwargs):
+        assert reason in bridge("bind", "claude", expected=1, **kwargs).stderr
+        assert not binding.exists() and not (state / "root.json").exists()
+
+    register()  # Unconfigured homes stay inert.
+    assert not state.exists()
+    bridge("initialize", "--consumer", consumer)
+    # Fresh startup: SessionStart runs before Claude writes any transcript.
+    refused("no unique native Claude transcript")
+    records(*lead)
+    refused("has no working directory")
+    for wrong in ([{**lead[0], "sessionId": "another-session"}, conversation],
+                  [*lead, {key: value for key, value in conversation.items() if key != "sessionId"}],
+                  [*lead, {**conversation, "sessionId": "another-session"}]):
+        records(*wrong)
+        refused("session metadata mismatch")
+    records(*lead, conversation)
+    duplicate = store / "projects/-another-project" / transcript.name
+    duplicate.parent.mkdir()
+    duplicate.write_text(transcript.read_text())
+    refused("no unique native Claude transcript")
+    duplicate.unlink()
+    # Skipping cwd-less records leaves every supervisor proof in force.
+    refused("native hook and tool session disagree", data={**hook_payload, "session_id": "another-session"})
+    refused("no unique native Claude transcript", CLAUDE_CODE_SESSION_ID="another-session")
+    refused("no trusted Claude process ancestor", CLAUDE_PID=str(os.getppid()))
+    for path, replacement, reason in ((home / "state/.lock", "1", "does not own completed supervisor startup"),
+                                      (home / "state/.session-start-complete", "1", "does not own completed supervisor startup"),
+                                      (home / "state/.lock-session", "another-session", "lock session mismatch")):
+        saved = path.read_bytes()
+        path.write_text(replacement)
+        refused(reason)
+        path.write_bytes(saved)
+    # In-session bind with empty stdin resolves the session's own transcript.
+    assert bridge("bind", "claude").stdout.strip() == str(binding)
+    assert json.loads(binding.read_text())["proof"]["transcript_path"] == str(transcript)
+    assert json.loads((state / "root.json").read_text()) == {"provider": "claude", "session_id": sid}
+    bridge("accept-root")  # current_root revalidates through the recorded transcript.
+    # A resumed session reuses the native ID in a new process: revoke first.
+    proof = json.loads(binding.read_text())
+    binding.write_text(json.dumps({**proof, "proof": {**proof["proof"], "pid": 1}}))
+    assert "revoke first" in bridge("bind", "claude", expected=1).stderr
+    bridge("revoke", "claude")
+    assert not binding.exists()
+    bridge("bind", "claude")
+    print("ok - Claude transcript metadata skips cwd-less leading records; store lookup; resume needs revoke; proofs kept")
+
+    # The Stop retry binds once the transcript exists and is otherwise inert.
+    def unbind():
+        binding.unlink()
+        (state / "root.json").unlink()
+
+    unbind()
+    register({**hook_payload, "cursor_version": "fixture"})
+    register(FM_ROOT_OVERRIDE=str(tmp))
+    register(CLAUDE_CODE_SESSION_ID="")
+    saved = (home / "state/.lock-session").read_bytes()
+    (home / "state/.lock-session").write_text("another-session")
+    register()
+    assert not binding.exists()
+    (home / "state/.lock-session").write_bytes(saved)
+    register()
+    bound = binding.read_bytes()
+    assert json.loads(bound)["proof"]["transcript_path"] == str(transcript)
+    assert json.loads((state / "root.json").read_text()) == {"provider": "claude", "session_id": sid}
+    binding.write_text(json.dumps({**json.loads(bound), "proof": {**json.loads(bound)["proof"], "pid": 1}}))
+    stale = binding.read_bytes()
+    register()
+    assert binding.read_bytes() == stale  # Replacement stays an explicit revoke.
+    binding.write_bytes(bound)
+    assert run(["bash", str(code / "bin/fm-agent-notify-register.sh"), "--help"]).stdout.startswith("Usage:")
+    run(["bash", str(code / "bin/fm-agent-notify-register.sh"), "manual"], expected=2)
+    print("ok - Claude Stop registration retry binds an unbound root silently; inert unconfigured/foreign/out of scope/bound")
+
+    # Startup registration tries each present provider; only the lock owner wins.
+    script = '. "$1/bin/fm-agent-notify-lib.sh"; fm_notify_register'
+    unbind()
+    completed = run(["bash", "-c", script, "notify-test", str(code)], CODEX_THREAD_ID="inherited-thread")
+    assert completed.stderr == "" and binding.exists()
+    unbind()
+    transcript.unlink()
+    completed = run(["bash", "-c", script, "notify-test", str(code)], CODEX_THREAD_ID="inherited-thread")
+    assert "codex: no native Codex process ancestor" in completed.stderr
+    assert "claude: no unique native Claude transcript" in completed.stderr and not binding.exists()
+    print("ok - startup registration tries each present provider and names every refusal")
 
 
 def driver():
@@ -593,5 +730,7 @@ if __name__ == "__main__":
         service()
     elif len(sys.argv) > 1 and sys.argv[1] in ("shared", "claude"):
         additional()
+    elif len(sys.argv) > 1 and sys.argv[1] == "claude-metadata":
+        claude_metadata()
     else:
         launch()

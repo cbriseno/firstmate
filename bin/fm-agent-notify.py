@@ -13,7 +13,15 @@ is idempotent and never moves the cutoff. No historical scan or backfill occurs.
 with spawn's exact task inbox/generation. It takes NO supplied native session ID.
 Native metadata, process ancestry and launch/lock ownership must agree. A Codex
 app-server tool-local claim additionally requires equal CODEX_THREAD_ID and
-CODEX_SESSION_ID. Each authorized native hook then uses its genuine payload
+CODEX_SESSION_ID. Claude metadata is the first cwd-bearing record of the
+session's own transcript: the hook payload's transcript_path, or for an
+in-session command (empty stdin) the unique <sid>.jsonl in Claude's project
+store. Leading metadata-only records are skipped; any naming another session
+refuse. A fresh Claude startup writes that transcript only after its
+SessionStart hook, so startup registration cannot prove it there; the tracked
+Claude Stop entry bin/fm-agent-notify-register.sh retries the same bind once it
+exists. A resumed session reusing a bound native ID still needs revoke first.
+Each authorized native hook then uses its genuine payload
 session_id to select and revalidate that exact binding, including shared hook
 runtimes without tool-local environment. Unknown sessions keep ordinary behavior.
 Bindings in state/agent-notify/<provider>-<native-id>.json carry consumer fields
@@ -184,6 +192,54 @@ def ancestry():
         pid = int(row["ppid"])
 
 
+def stdin_payload():
+    """An in-session command may receive no payload at all; that means {}."""
+    text = "" if sys.stdin.isatty() else sys.stdin.read()
+    payload = json.loads(text) if text.strip() else {}
+    if not isinstance(payload, dict):
+        raise ValueError("native payload must be a JSON object")
+    return payload
+
+
+def claude_transcript(sid, payload, worker_hook):
+    # A hook payload names its own transcript. An in-session command has no
+    # payload path, so it takes the unique <sid>.jsonl in Claude's own project
+    # store, as Codex takes its unique session file.
+    if worker_hook or "transcript_path" in payload:
+        path = Path(payload.get("transcript_path", ""))
+    else:
+        store = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "projects"
+        paths = list(store.glob("*/" + sid + ".jsonl")) if store.is_absolute() else []
+        if len(paths) != 1:
+            raise ValueError("no unique native Claude transcript")
+        path = paths[0]
+    if not path.is_absolute() or path.stem != sid or not path.is_file():
+        raise ValueError("native Claude transcript required")
+    return path
+
+
+def claude_cwd(path, sid):
+    # Claude Code writes metadata-only records (last-prompt, mode,
+    # permission-mode, file-history-snapshot, ...) before its first
+    # conversation record, and only conversation records carry cwd. Skip them
+    # in a bounded leading read, but every record that names a session must
+    # name this one, including the first cwd-bearing record.
+    with path.open() as stream:
+        for index, line in enumerate(stream):
+            if index >= 256:
+                break
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if not isinstance(record, dict) or record.get("sessionId", sid) != sid:
+                raise ValueError("native Claude session metadata mismatch")
+            if "cwd" in record:
+                if "sessionId" not in record:
+                    raise ValueError("native Claude session metadata mismatch")
+                return record["cwd"]
+    raise ValueError("native Claude session metadata has no working directory")
+
+
 def native(provider, home, payload, worker_hook=False):
     key = "CODEX_THREAD_ID" if provider == "codex" else "CLAUDE_CODE_SESSION_ID"
     sid = slug(payload.get("session_id", "") if worker_hook else os.environ.get(key, ""))
@@ -212,6 +268,7 @@ def native(provider, home, payload, worker_hook=False):
             raise ValueError("shared hook alone cannot establish a new worker's launch ownership")
         if shared and os.environ.get("CODEX_SESSION_ID") != sid:
             raise ValueError("shared Codex runtime lacks matching tool-local session identity")
+        transcript = None
     else:
         pid = int(os.environ.get("CLAUDE_PID", "0"))
         runtime = next((r for p, r in chain if p == pid), None)
@@ -219,17 +276,11 @@ def native(provider, home, payload, worker_hook=False):
             # Native installer uses a version basename beneath a claude tree.
             if not runtime or "/claude/" not in runtime["args"].split()[0]:
                 raise ValueError("no trusted Claude process ancestor")
-        path = Path(payload.get("transcript_path", ""))
-        if not path.is_absolute() or path.stem != sid or not path.is_file():
-            raise ValueError("native Claude transcript required")
-        with path.open() as stream:
-            meta = next((json.loads(line) for line in stream
-                         if line.strip()), {})
-        if meta.get("sessionId") != sid:
-            raise ValueError("native Claude session metadata mismatch")
-        cwd = Path(meta["cwd"]).resolve(strict=True)
+        path = claude_transcript(sid, payload, worker_hook)
+        cwd = Path(claude_cwd(path, sid)).resolve(strict=True)
         shared = False
-    return sid, pid, runtime["lstart"], cwd, shared
+        transcript = str(path)
+    return sid, pid, runtime["lstart"], cwd, shared, transcript
 
 
 class Bridge:
@@ -267,10 +318,10 @@ class Bridge:
             if inbox.parent != self.home / "state" or inbox.suffix != ".inbox":
                 raise ValueError("no exact worker launch inbox")
             task = slug(inbox.stem)
-        sid, pid, started, cwd, shared = native(provider, self.home, payload, worker_hook)
+        sid, pid, started, cwd, shared, transcript = native(provider, self.home, payload, worker_hook)
         proof = {"pid": pid, "started": started, "shared": shared}
         if provider == "claude":
-            proof["transcript_path"] = payload["transcript_path"]
+            proof["transcript_path"] = transcript
         if task:
             slug(task)
             inbox = Path(os.environ.get("FM_TASK_INBOX", ""))
@@ -353,7 +404,7 @@ class Bridge:
 
     def current_root(self):
         path, root = self.root()
-        sid, pid, started, cwd, _ = native(root["provider"], self.home, root["proof"])
+        sid, pid, started, cwd, _, _ = native(root["provider"], self.home, root["proof"])
         if (os.environ.get("FM_TASK_ID") or sid != root["session_id"] or
                 pid != root["proof"]["pid"] or started != root["proof"]["started"] or cwd != self.home):
             raise ValueError("operation requires the bound native root session")
@@ -592,13 +643,11 @@ def main():
     if not bridge.config:
         return
     if args.command == "bind":
-        payload = json.load(sys.stdin) if not sys.stdin.isatty() else {}
-        print(bridge.bind(args.provider, payload))
+        print(bridge.bind(args.provider, stdin_payload()))
     elif args.command == "hook":
         bridge.hook(args.provider, json.load(sys.stdin))
     elif args.command == "revoke":
-        payload = json.load(sys.stdin) if not sys.stdin.isatty() else {}
-        sid, _, _, _, _ = native(args.provider, bridge.home, payload)
+        sid, _, _, _, _, _ = native(args.provider, bridge.home, stdin_payload())
         bridge.binding_path(args.provider, sid).unlink(missing_ok=True)
     elif args.command == "accept-root":
         bridge.current_root()
