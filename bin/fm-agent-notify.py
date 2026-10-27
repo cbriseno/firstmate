@@ -18,9 +18,11 @@ session's own transcript: the hook payload's transcript_path, or for an
 in-session command (empty stdin) the unique <sid>.jsonl in Claude's project
 store. Leading metadata-only records are skipped; any naming another session
 refuse. A fresh Claude startup writes that transcript only after its
-SessionStart hook, so startup registration cannot prove it there; the tracked
-Claude Stop entry bin/fm-agent-notify-register.sh retries the same bind once it
-exists; `bind --unless-valid` keeps that retry inert while this session's
+SessionStart hook, so startup registration cannot prove it there; native-root
+operations establish a missing or stale Claude root through the same bind
+before producing declarations or events. The tracked Claude Stop entry
+bin/fm-agent-notify-register.sh also retries once the transcript exists;
+`bind --unless-valid` keeps that retry inert while this session's
 recorded binding is still valid. Each authorized native hook then uses its
 genuine payload session_id to select and revalidate that exact binding,
 including shared hook runtimes without tool-local environment. Unknown
@@ -426,7 +428,13 @@ class Bridge:
         return path, binding
 
     def current_root(self):
-        path, root = self.root()
+        try:
+            path, root = self.root()
+        except (ValueError, OSError, KeyError, subprocess.SubprocessError):
+            if os.environ.get("FM_TASK_ID") or not os.environ.get("CLAUDE_CODE_SESSION_ID"):
+                raise
+            self.bind("claude", {})
+            path, root = self.root()
         sid, pid, started, cwd, _, _ = native(root["provider"], self.home, root["proof"])
         if (os.environ.get("FM_TASK_ID") or sid != root["session_id"] or
                 pid != root["proof"]["pid"] or started != root["proof"]["started"] or cwd != self.home):
@@ -527,6 +535,19 @@ class Bridge:
         slug(event["event_id"])
         event["version"] = 1
         path = self.state / "events" / (digest([event["kind"], event["task_id"], event["event_id"]]) + ".json")
+        try:
+            binding_path, root = self.current_root()
+        except (ValueError, OSError, KeyError, subprocess.SubprocessError):
+            if event["kind"] != "captain_call" or event.get("state") != "resolved":
+                raise
+            # Deck/services are not native root descendants. They may only
+            # cancel a resolution already committed by the hold owner.
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ("FM_ROOT_OVERRIDE", "FM_STATE_OVERRIDE", "FM_DATA_OVERRIDE")}
+            env["FM_HOME"] = str(self.home)
+            run(["bash", str(CODE / "fm-captain-hold.sh"), "resolved",
+                 event["task_id"], event["event_id"].removeprefix("hold:")], env=env)
+            binding_path, root = self.root()
         with self.locked():
             previous = read(path) if path.exists() else None
             resolved = event.get("state") == "resolved"
@@ -548,19 +569,6 @@ class Bridge:
                 self.present(event)
             historical = occurred is not None and occurred < self.config["since"]
             record = {"version": 1, "event": event, "accepted": historical}
-            try:
-                binding_path, root = self.current_root()
-            except (ValueError, OSError, KeyError, subprocess.SubprocessError):
-                if event["kind"] != "captain_call" or not resolved:
-                    raise
-                # Deck/services are not native root descendants. They may only
-                # cancel a resolution already committed by the hold owner.
-                env = {key: value for key, value in os.environ.items()
-                       if key not in ("FM_ROOT_OVERRIDE", "FM_STATE_OVERRIDE", "FM_DATA_OVERRIDE")}
-                env["FM_HOME"] = str(self.home)
-                run(["bash", str(CODE / "fm-captain-hold.sh"), "resolved",
-                     event["task_id"], event["event_id"].removeprefix("hold:")], env=env)
-                binding_path, root = self.root()
             write(path, record)
             if historical:
                 return

@@ -367,7 +367,15 @@ def claude_metadata():
     project.mkdir(parents=True)
     transcript = project / (sid + ".jsonl")
     consumer = tmp / "metadata-consumer.py"
-    consumer.write_text("import sys\nsys.stdin.read()\n")
+    log = tmp / "metadata-consumer.jsonl"
+    consumer.write_text('''import json,os,sys
+from pathlib import Path
+binding = Path(os.environ['AGENT_NOTIFY_FIRSTMATE_BINDING'])
+row = {'provider': sys.argv[2], 'payload': json.load(sys.stdin),
+       'binding': json.loads(binding.read_text())}
+with Path(__file__).with_suffix('.jsonl').open('a') as stream:
+    stream.write(json.dumps(row) + '\\n')
+''')
     env = {k: v for k, v in os.environ.items() if not k.startswith(("FM_", "CODEX_", "CLAUDE_"))}
     env.update(FM_HOME=str(home), FM_ROOT_OVERRIDE=str(home), CLAUDE_CODE_SESSION_ID=sid,
                CLAUDE_PID=str(os.getpid()), CLAUDE_CONFIG_DIR=str(store))
@@ -379,13 +387,15 @@ def claude_metadata():
     state = home / "state/agent-notify"
     binding = state / ("claude-" + sid + ".json")
     hook_payload = {"session_id": sid, "transcript_path": str(transcript), "hook_event_name": "Stop"}
+    fresh = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    call = ("call", "first-turn-call", 1, "open", "--at", fresh)
 
     def records(*rows, path=transcript):
         path.write_text("".join(json.dumps(row) + "\n" for row in rows))
 
     def run(args, data="", expected=0, **extra):
         completed = subprocess.run(args, input=data if isinstance(data, str) else json.dumps(data),
-                                   env={**env, **extra}, text=True, capture_output=True)
+                                   env={**env, **extra}, text=True, capture_output=True, timeout=30)
         assert completed.returncode == expected, (args, completed.returncode, completed.stderr)
         return completed
 
@@ -397,9 +407,12 @@ def claude_metadata():
         assert completed.stdout == "" and completed.stderr == "", completed
         return completed
 
-    def refused(reason, **kwargs):
+    def refused(reason, producer=True, **kwargs):
         assert reason in bridge("bind", "claude", expected=1, **kwargs).stderr
+        if producer:
+            assert reason in bridge(*call, expected=1, **kwargs).stderr
         assert not binding.exists() and not (state / "root.json").exists()
+        assert not log.exists() and not list((state / "events").glob("*.json"))
 
     register()  # Unconfigured homes stay inert.
     assert not state.exists()
@@ -420,7 +433,8 @@ def claude_metadata():
     refused("no unique native Claude transcript")
     duplicate.unlink()
     # Skipping cwd-less records leaves every supervisor proof in force.
-    refused("native hook and tool session disagree", data={**hook_payload, "session_id": "another-session"})
+    refused("native hook and tool session disagree", producer=False,
+            data={**hook_payload, "session_id": "another-session"})
     refused("no unique native Claude transcript", CLAUDE_CODE_SESSION_ID="another-session")
     refused("no trusted Claude process ancestor", CLAUDE_PID=str(os.getppid()))
     for path, replacement, reason in ((home / "state/.lock", "1", "does not own completed supervisor startup"),
@@ -430,6 +444,55 @@ def claude_metadata():
         path.write_text(replacement)
         refused(reason)
         path.write_bytes(saved)
+    records(*lead, {**conversation, "cwd": str(tmp)})
+    refused("not this primary supervisor")
+    records(*lead, conversation)
+    (home / ".fm-secondmate-home").touch()
+    refused("not this primary supervisor")
+    (home / ".fm-secondmate-home").unlink()
+    bridge(*call, expected=1, FM_TASK_ID="worker")
+    assert not binding.exists() and not (state / "root.json").exists() and not log.exists()
+
+    (home / "data").mkdir()
+    (home / ".tasks.toml").write_text('backend = "markdown"\n[markdown]\npath = "data/backlog.md"\narchive = "data/done-archive.md"\ndone_keep = 20\n')
+    (home / "data/backlog.md").write_text("## In flight\n\n## Queued\n\n## Done\n")
+    run(["bash", str(code / "bin/fm-tasks-axi.sh"), "add", "first-turn-result", "first turn result"])
+
+    def first_turn(*args, **kwargs):
+        assert not binding.exists() and not (state / "root.json").exists()
+        bridge(*args, **kwargs)
+        assert json.loads(binding.read_text())["proof"]["transcript_path"] == str(transcript)
+        assert json.loads((state / "root.json").read_text()) == {"provider": "claude", "session_id": sid}
+        assert json.loads((home / "config/agent-notify.json").read_text())["root_stop_accepted"] is False
+        binding.unlink()
+        (state / "root.json").unlink()
+
+    first_turn(*call, CODEX_THREAD_ID="inherited-thread")
+    first_turn("call", "first-turn-call", 1, "resolved", "--at", fresh)
+    first_turn("response", "first-turn-response", "request-1", "open", "--at", fresh)
+    first_turn("response", "first-turn-response", "request-1", "resolved", "--at", fresh)
+    first_turn("designate", "first-turn-result", "first-turn-outcome")
+    assert json.loads((home / "data/agent-notify/designate/first-turn-result.json").read_text())["outcome"] == "first-turn-outcome"
+    first_turn("initiative", "first-turn-initiative", "--requires", "first-turn-outcome")
+    first_turn("landed", "first-turn-result", data={"state": "done", "structured": True,
+               "completion": {"verb": "done"}, "local_note": "local main"})
+    first_turn("complete", "first-turn-initiative")
+    delivered = [json.loads(line) for line in log.read_text().splitlines()]
+    assert [row["payload"]["firstmate_event"]["kind"] for row in delivered] == [
+        "captain_call", "captain_call", "response_required", "response_required",
+        "deliverable_landed", "initiative_completed"]
+    assert [row["payload"]["firstmate_event"].get("state") for row in delivered[:4]] == ["open", "resolved", "open", "resolved"]
+    assert all(row["provider"] == "claude" and row["payload"]["hook_event_name"] == "FirstmateEvent"
+               and row["binding"]["session_id"] == sid and row["binding"]["role"] == "firstmate"
+               and row["binding"]["proof"]["pid"] == os.getpid() for row in delivered)
+    persisted = [json.loads(path.read_text()) for path in (state / "events").glob("*.json")]
+    assert len(persisted) == 4 and all(row["accepted"] for row in persisted)
+    bridge(*call)
+    bridge("complete", "first-turn-initiative")
+    assert len(log.read_text().splitlines()) == len(delivered)
+    binding.unlink()
+    (state / "root.json").unlink()
+    print("ok - first-turn Claude producers establish root before declarations/events; all proofs enforced; isolated delivery and dedup")
     # In-session bind with empty stdin resolves the session's own transcript.
     assert bridge("bind", "claude").stdout.strip() == str(binding)
     assert json.loads(binding.read_text())["proof"]["transcript_path"] == str(transcript)
@@ -495,7 +558,7 @@ def claude_metadata():
     unbind()
     transcript.unlink()
     completed = run(["bash", "-c", script, "notify-test", str(code)], CODEX_THREAD_ID="inherited-thread")
-    assert "codex: no native Codex process ancestor" in completed.stderr
+    assert "; codex: " in completed.stderr, completed.stderr
     assert "claude: no unique native Claude transcript" in completed.stderr and not binding.exists()
     print("ok - startup registration tries each present provider and names every refusal")
 
