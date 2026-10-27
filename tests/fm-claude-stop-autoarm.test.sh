@@ -1700,6 +1700,15 @@ printf 'supervision-host: watcher downtime could not be restored for the main ha
 exit 1
 SH
         ;;
+      outcome-last-task)
+        # The engine turn closed out the only task, then handed back its
+        # captain outcome: the fleet is now idle.
+        cat <<'SH'
+rm -f "$FM_HOME/state/task.meta"
+printf 'pending:downtime:fixture-generation\n' > "$FM_HOME/state/.watcher-down"
+printf 'supervision-host: branch-outcome: fixture rows 3\n'
+SH
+        ;;
       benign-refusal)
         cat <<'SH'
 printf 'acked:downtime:fixture-generation\n' > "$FM_HOME/state/.watcher-down"
@@ -1864,6 +1873,23 @@ test_host_stand_down_is_silent() {
   [ "$(wc -l < "$dir/state/host-ran" | tr -d ' ')" -eq 1 ] || fail "a host stand-down was retried"
   [ "$(epoch_outcome "$dir")" = clean ] || fail "a host stand-down must record outcome=clean, got: $(epoch_outcome "$dir")"
   pass "auto-arm: a host that stood down closes silently without a retry"
+}
+
+# The engine turn closed out the last task (a scout whose findings it recorded)
+# and handed back a captain outcome: the idle fleet must not swallow it.
+test_host_outcome_after_last_task_still_rewakes() {
+  local dir out status
+  dir=$(make_primary_dir "$TMP_ROOT/host-outcome-last-task")
+  mkdir -p "$dir/config"
+  rm -f "$dir/config/supervision-host-off"
+  : > "$dir/state/task.meta"
+  write_host_fixture "$dir" outcome-last-task
+  out=$(run_autoarm "$dir" 2>/dev/null); status=$?
+  assert_absent "$dir/state/task.meta" "the fixture must leave the fleet idle, or this case proves nothing"
+  expect_code 2 "$status" "a captain outcome handed back after the last task closed must rewake main"
+  assert_contains "$out" "supervision-host: branch-outcome: fixture rows 3" "the rewake must carry the host's outcome line"
+  [ "$(epoch_outcome "$dir")" = rewake ] || fail "the hand-back must record outcome=rewake, got: $(epoch_outcome "$dir")"
+  pass "auto-arm: a host hand-back still rewakes main after its own turn emptied the fleet"
 }
 
 # Main already drained and acknowledged the wake, so the rewake is refused on a
@@ -2042,6 +2068,7 @@ test_host_handback_beside_a_quiet_record_carries_no_away_note
 test_plain_arm_banner_keeps_its_wake_line_cap
 test_host_handback_carries_every_host_line
 test_host_stand_down_is_silent
+test_host_outcome_after_last_task_still_rewakes
 test_host_benign_rewake_refusal_opens_no_failure_episode
 test_host_lost_handback_notifies_once_per_episode
 test_host_lost_announced_handback_notifies_once_per_episode
