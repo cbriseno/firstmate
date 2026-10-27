@@ -641,7 +641,53 @@ with (root/'consumer.jsonl').open('a') as f: f.write(json.dumps(row)+'\\n')
     for name in (".lock", ".session-start-complete"):
         (home / "state" / name).write_text(str(os.getpid()) + "\n")
     assert hook("SessionStart")["binding"] is None
-    cmd("accept-root", expected=1)  # A hook never auto-claims a supervisor.
+    state = home / "state/agent-notify"
+    binding_path = state / "codex-fixture-root.json"
+    # Codex SessionStart has a payload SID but no tool-local session variables.
+    script = '. "$1/bin/fm-agent-notify-lib.sh"; fm_notify_register'
+    startup = subprocess.run(["bash", "-c", script, "notify-test", str(code)],
+                             env={**env, "CODEX_THREAD_ID": "", "CODEX_SESSION_ID": ""},
+                             input=json.dumps({"session_id": "fixture-root"}),
+                             text=True, capture_output=True, check=True)
+    assert startup.stdout == startup.stderr == ""
+    assert not binding_path.exists() and not (state / "root.json").exists()
+    before = len(records())
+    first_call = ("call", "first-turn-call", 1, "open", "--at", fresh)
+    for name in (".lock", ".session-start-complete"):
+        marker = home / "state" / name
+        saved = marker.read_bytes()
+        marker.write_text("1")
+        cmd(*first_call, expected=1)
+        marker.write_bytes(saved)
+    for extra in ({"FM_TASK_ID": "worker"}, {"CODEX_THREAD_ID": "another-session"}):
+        cmd(*first_call, expected=1, more_env=extra)
+    assert not binding_path.exists() and not (state / "root.json").exists()
+    assert not list((state / "events").glob("*.json")) and len(records()) == before
+    # The first producer must bind through every native proof without
+    # accepting root Stop.
+    cmd(*first_call)
+    first = records()[-1]
+    assert first["provider"] == "codex" and first["payload"]["hook_event_name"] == "FirstmateEvent"
+    assert first["payload"]["firstmate_event"]["kind"] == "captain_call"
+    assert first["binding"]["role"] == "firstmate" and first["binding"]["session_id"] == "fixture-root"
+    assert first["binding"]["proof"]["pid"] == os.getpid()
+    assert json.loads((state / "root.json").read_text()) == {"provider": "codex", "session_id": "fixture-root"}
+    assert json.loads((home / "config/agent-notify.json").read_text()) == initial
+    persisted = list((state / "events").glob("*.json"))
+    assert len(persisted) == 1 and json.loads(persisted[0].read_text())["accepted"]
+    cmd(*first_call)
+    assert len(records()) == before + 1
+    # Recovery also handles stale proof and an inherited other-harness marker.
+    with running() as pid:
+        bound = json.loads(binding_path.read_text())
+        bound["proof"].update(pid=pid, started=NEVER_STARTED)
+        binding_path.write_text(json.dumps(bound))
+        cmd("response", "first-turn-response", "request-1", "open", "--at", fresh,
+            more_env={"CLAUDE_CODE_SESSION_ID": "inherited-session"})
+    assert records()[-1]["binding"]["proof"]["pid"] == os.getpid()
+    binding_path.unlink()
+    (state / "root.json").unlink()
+    print("ok - first-turn Codex producers recover skipped startup and stale roots; proofs, isolated delivery and dedup")
     binding_path = Path(cmd("bind", "codex"))
     assert json.loads(binding_path.read_text())["role"] == "firstmate"
     assert hook()["binding"] is None  # Root Stop filter not accepted.

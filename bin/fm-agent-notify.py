@@ -18,9 +18,12 @@ session's own transcript: the hook payload's transcript_path, or for an
 in-session command (empty stdin) the unique <sid>.jsonl in Claude's project
 store. Leading metadata-only records are skipped; any naming another session
 refuse. A fresh Claude startup writes that transcript only after its
-SessionStart hook, so startup registration cannot prove it there; native-root
-operations establish a missing or stale Claude root through the same bind
-before producing declarations or events. The tracked Claude Stop entry
+SessionStart hook, so startup registration cannot prove it there. Codex
+SessionStart may lack the tool-local session variables required by bind.
+Native-root operations establish a missing or stale Codex or Claude root
+through the same bind before producing declarations or events. Each present
+provider is tried; only the native process owning completed startup can bind.
+The tracked Claude Stop entry
 bin/fm-agent-notify-register.sh also retries once the transcript exists;
 `bind --unless-valid` keeps that retry inert while this session's
 recorded binding is still valid. Each authorized native hook then uses its
@@ -431,10 +434,22 @@ class Bridge:
         try:
             path, root = self.root()
         except (ValueError, OSError, KeyError, subprocess.SubprocessError):
-            if os.environ.get("FM_TASK_ID") or not os.environ.get("CLAUDE_CODE_SESSION_ID"):
+            if os.environ.get("FM_TASK_ID"):
                 raise
-            self.bind("claude", {})
-            path, root = self.root()
+            reasons = []
+            for provider, key in (("codex", "CODEX_THREAD_ID"), ("claude", "CLAUDE_CODE_SESSION_ID")):
+                if not os.environ.get(key):
+                    continue
+                try:
+                    self.bind(provider, {})
+                    path, root = self.root()
+                    break
+                except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
+                    reasons.append(f"{provider}: {error}")
+            else:
+                if reasons:
+                    raise ValueError("; ".join(reasons)) from None
+                raise
         sid, pid, started, cwd, _, _ = native(root["provider"], self.home, root["proof"])
         if (os.environ.get("FM_TASK_ID") or sid != root["session_id"] or
                 pid != root["proof"]["pid"] or started != root["proof"]["started"] or cwd != self.home):
