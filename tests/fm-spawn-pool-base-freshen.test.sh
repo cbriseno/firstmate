@@ -409,6 +409,56 @@ test_direct_pr_and_scout_refresh_before_launch() {
   pass "direct-PR ships and scouts both refresh stale pooled worktrees before launch"
 }
 
+test_local_only_starts_from_the_landed_local_branch() {
+  local rec id out status origin_tip landed
+  id='pool-local-only-r14'
+  rec=$(make_case local-landed "$id")
+  read_case_record "$rec"
+  origin_tip=$(git -C "$PROJECT_DIR" ls-remote origin refs/heads/main | cut -f1)
+
+  # Remote newer than the local branch: the fetched tip still wins.
+  out=$(run_spawn "$id" --mode local-only --yolo off)
+  status=$?
+  expect_code 0 "$status" "a local-only spawn behind its remote should launch"$'\n'"$out"
+  [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$origin_tip" ] \
+    || fail "a local-only spawn whose local branch is behind the remote did not start at the remote tip"
+
+  # A local landing (bin/fm-merge-local.sh) leaves the local branch ahead.
+  git -C "$PROJECT_DIR" merge --quiet --ff-only "$origin_tip"
+  printf 'landed locally\n' > "$PROJECT_DIR/landed.txt"
+  git -C "$PROJECT_DIR" add landed.txt
+  git -C "$PROJECT_DIR" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' commit -qm landed
+  landed=$(git -C "$PROJECT_DIR" rev-parse main)
+
+  id='pool-local-only-pr-r14'
+  fm_test_spawn_brief "$HOME_DIR" "$id"
+  out=$(run_spawn "$id" --mode direct-PR --yolo off)
+  status=$?
+  expect_code 0 "$status" "a direct-PR spawn should launch"$'\n'"$out"
+  [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$origin_tip" ] \
+    || fail "a direct-PR spawn started from unpublished local commits instead of the remote tip"
+
+  id='pool-local-only-ship-r14'
+  fm_test_spawn_brief "$HOME_DIR" "$id"
+  out=$(run_spawn "$id" --mode local-only --yolo off)
+  status=$?
+  expect_code 0 "$status" "a local-only ship after a local landing should launch"$'\n'"$out"
+  [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$landed" ] \
+    || fail "a local-only ship started from the remote tip and lost the locally landed commit"
+
+  printf -- '- %s [local-only] - fixture (added 2026-10-27)\n' "$(basename "$PROJECT_DIR")" > "$HOME_DIR/data/projects.md"
+  id='pool-local-only-scout-r14'
+  fm_test_spawn_brief "$HOME_DIR" "$id"
+  git -C "$POOL_DIR" checkout --quiet --detach "$origin_tip"
+  out=$(run_spawn "$id" --scout)
+  status=$?
+  expect_code 0 "$status" "a scout of a local-only project should launch"$'\n'"$out"
+  [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$landed" ] \
+    || fail "a scout of a local-only project read the remote tip instead of the landed local branch"
+  assert_present "$POOL_DIR/landed.txt" "the local-only scout copy is missing the landed file"
+  pass "local-only ships and scouts start from the landed local branch; other modes keep the remote tip"
+}
+
 test_dirty_pool_refuses_without_discarding_work() {
   local rec id out status before
   id='pool-dirty-refusal-r4'
@@ -1188,6 +1238,7 @@ test_prose_base_branch_line_is_ignored
 test_scout_base_branch_refused_on_gerrit_forge
 test_non_main_default_branch_refreshes_before_branching
 test_direct_pr_and_scout_refresh_before_launch
+test_local_only_starts_from_the_landed_local_branch
 test_dirty_pool_refuses_without_discarding_work
 test_unresolved_remote_default_refuses_pool
 test_unreachable_origin_refuses_stale_pool_base
