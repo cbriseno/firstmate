@@ -314,7 +314,11 @@
 #   Only after this isolation check, every fresh ship or scout requires a clean
 #   task worktree. When an origin configuration is detected, spawn fetches it,
 #   resolves the current remote default branch (or uses --base-branch, described
-#   above), and resets to its tip. When none is detected, spawn skips that remote freshness check and launches from the
+#   above), and resets to its tip. A local-only ship, or a scout of a project the
+#   registry marks local-only, resets instead to the local branch of that name
+#   when it already contains the fetched tip, because local-only work lands on
+#   that local branch (bin/fm-merge-local.sh) and never reaches the remote.
+#   When none is detected, spawn skips that remote freshness check and launches from the
 #   clean worktree's current HEAD. Relaunch reuses the recorded worktree without
 #   fetching or resetting its base. An unreachable detected origin, unresolved
 #   default branch, or non-clean worktree refuses a fresh spawn rather than
@@ -4059,8 +4063,8 @@ spawn_worktree_has_origin_config() { # <worktree>
   return 1
 }
 
-freshen_spawn_worktree_base() { # <worktree> [<base-branch>]
-  local worktree=$1 base=${2:-} default target expected actual status
+freshen_spawn_worktree_base() { # <worktree> [<base-branch>] [<lands-locally>]
+  local worktree=$1 base=${2:-} lands_locally=${3:-0} default target expected actual status landed
   status=$(git -C "$worktree" -c core.quotePath=false status --porcelain) || {
     echo "error: could not inspect pooled worktree '$worktree' before refreshing its base" >&2
     return 1
@@ -4105,6 +4109,14 @@ freshen_spawn_worktree_base() { # <worktree> [<base-branch>]
     echo "error: '$target' is not a commit for pooled worktree '$worktree'; refusing to launch from a potentially stale base" >&2
     return 1
   }
+  # Local-only work lands on the local branch (bin/fm-merge-local.sh), so a
+  # local branch that already contains the fetched tip is the newer base.
+  if [ "$lands_locally" = 1 ] \
+    && landed=$(git -C "$worktree" rev-parse --verify --quiet "refs/heads/$default^{commit}" 2>/dev/null) \
+    && git -C "$worktree" merge-base --is-ancestor "$expected" "$landed"; then
+    target="refs/heads/$default"
+    expected=$landed
+  fi
   if ! git -C "$worktree" reset --hard "$target" >/dev/null; then
     echo "error: could not reset pooled worktree '$worktree' to '$target'; refusing to launch from a potentially stale base" >&2
     return 1
@@ -5312,7 +5324,13 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   fi
 fi
 if [ "$RELAUNCH" -eq 0 ] && [ "$KIND" != secondmate ]; then
-  freshen_spawn_worktree_base "$WT" "$BASE_BRANCH" || exit 1
+  LANDS_LOCALLY=0
+  if [ "$KIND" = ship ]; then
+    [ "$MODE" != local-only ] || LANDS_LOCALLY=1
+  elif [ "$("$FM_ROOT/bin/fm-project-mode.sh" "$(basename "$PROJ_ABS")" 2>/dev/null | cut -d' ' -f1)" = local-only ]; then
+    LANDS_LOCALLY=1
+  fi
+  freshen_spawn_worktree_base "$WT" "$BASE_BRANCH" "$LANDS_LOCALLY" || exit 1
 fi
 
 # Re-assert the durable task copy after either treehouse acquisition or endpoint
