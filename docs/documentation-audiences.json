@@ -24,16 +24,6 @@
     "operator-example"
   ],
   "readmeSetupTargets": [
-    "docs/configuration.md",
-    "docs/wedge-alarm.md",
-    "docs/tmux-backend.md",
-    "docs/herdr-backend.md",
-    "docs/zellij-backend.md",
-    "docs/orca-backend.md",
-    "docs/cmux-backend.md",
-    "docs/paseo-backend.md",
-    "docs/rex-backend.md",
-    "docs/remote-secondmates.md",
     "docs/platforms.md",
     "docs/public-export.md"
   ],
@@ -48,10 +38,6 @@
     },
     {
       "source": "CONTRIBUTING.md",
-      "target": "docs/documentation-audiences.md"
-    },
-    {
-      "source": "README.md",
       "target": "docs/documentation-audiences.md"
     },
     {

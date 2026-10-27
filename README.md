@@ -11,6 +11,6 @@ It is not an official upstream release or an endorsed project.
 - Retained delivery history and follow-up questions about completed work, with guarded request handling.
 - Task and delivery timestamps that preserve known precision and leave unknown times unknown.
 - Optional notification event routing through an Agent Notify bridge, configured separately for each private operational home.
-- [Platform setup](docs/platforms.md), [configuration](docs/configuration.md), and the backend guides for [tmux](docs/tmux-backend.md), [Herdr](docs/herdr-backend.md), [Zellij](docs/zellij-backend.md), [Orca](docs/orca-backend.md), [cmux](docs/cmux-backend.md), [Paseo](docs/paseo-backend.md), and [Rex](docs/rex-backend.md) cover prerequisites and differences per platform, and a [reviewed public-export workflow](docs/public-export.md) shares generic changes without importing private operator history; [wedge alarms](docs/wedge-alarm.md), [remote secondmates](docs/remote-secondmates.md), and the [documentation guide](docs/documentation-audiences.md) cover the remaining areas.
+- [Platform setup](docs/platforms.md) for Linux, macOS and the Windows WSL2 route, including the read-only prerequisite doctor, and a [reviewed public-export workflow](docs/public-export.md) that shares generic changes without importing private operator history.
 
 The original [MIT license and copyright notice](LICENSE) and inherited commit history are preserved.
