@@ -62,8 +62,8 @@
 # An open away-return catch-up is disclosed the same way, as a single action-free
 # (return-catchup) gate row naming the blockers left to clear or the reason the
 # catch-up was retained. Reporting is not ordinary captain work, so the gate never
-# suppresses the digest; an ACTIVE away window still refuses, because the right
-# answer there is to run the return first. bin/fm-afk-return.sh owns the gate.
+# suppresses the digest, including during active away. The passive posture and
+# unchanged action boundary are owned by bin/fm-afk-return.sh snapshot-posture.
 #
 # The landed section merges this home's Done with the canonical snapshot's
 # secondmate_landed roll-up (fm-fleet-snapshot.sh), so merges a secondmate managed -
@@ -179,10 +179,14 @@ Opt-in surfaces: --fields bodies|paths|actions|endpoints, --all-in-flight,
   --all-secondmates, --all-landed, --all-reports, --all-queued, --all-recorded-prs,
   --all-unhealthy, --all-pr-repos, --include-prs (adds candidate_prs).
 Raise FM_BEARINGS_PR_LIMIT to expand per-repository open-PR results.
-Optional flow on in_flight/gates/decisions_open preserves full reasons, dependency titles/owners,
-and the next coordination step (bin/fm-flow-lib.sh).
+Optional flow preserves reasons/dependencies and owner-authored presentation
+(bin/fm-flow-lib.sh; writer: fm-tasks-axi.sh presentation). Absent human text is
+null. execution is registered meta only; run_step is expiring validation
+evidence, separate from native_activity (unknown without verified native proof).
 supervisor reports an explicit bounded declaration, never model/process liveness
 (bin/fm-supervisor-activity.sh); expired/missing declarations are unknown.
+posture is the passive fm-afk-return.sh snapshot-posture projection; reading
+during away/catch-up never returns the user or authorizes ordinary work.
 EOF
 }
 
@@ -221,31 +225,12 @@ done
 
 command -v jq >/dev/null 2>&1 || { echo "fm-bearings-snapshot: jq not found" >&2; exit 1; }
 
-# The shared read-only away-return owner is consulted, not obeyed. An active
-# away window still refuses here: the correct answer to a bearings request then
-# is to run the return first. Return CATCH-UP is different - the captain is
-# back and asking for the picture, so the catch-up posture is reported as
-# content (a Charted Next gate row) and collection continues. bin/fm-afk-return.sh
-# owns both the gate format and the branch distinction; bearings reproduces
-# neither. Acting on the fleet still waits for its `check`.
-RETURN_CATCHUP=null
-GUARD_RC=0
-GUARD_ERR=$("$SCRIPT_DIR/fm-afk-return.sh" guard 2>&1 >/dev/null) || GUARD_RC=$?
-if [ "$GUARD_RC" -ne 0 ] && [ "$GUARD_RC" -ne 4 ]; then
-  [ -z "$GUARD_ERR" ] || printf '%s\n' "$GUARD_ERR" >&2
-  exit "$GUARD_RC"
-fi
-if [ "$GUARD_RC" -eq 4 ]; then
-  CATCHUP_LINE=$("$SCRIPT_DIR/fm-afk-return.sh" catchup-summary) || CATCHUP_LINE=""
-  CATCHUP_BLOCKERS=${CATCHUP_LINE%%$'\t'*}
-  case "$CATCHUP_BLOCKERS" in ''|*[!0-9]*) CATCHUP_BLOCKERS=0 ;; esac
-  CATCHUP_REASON=""
-  case "$CATCHUP_LINE" in *"$(printf '\t')"*) CATCHUP_REASON=${CATCHUP_LINE#*$'\t'} ;; esac
-  RETURN_CATCHUP=$(jq -n --argjson blockers "$CATCHUP_BLOCKERS" --arg reason "$CATCHUP_REASON" \
-    '{pending:true,blockers:$blockers,reason:$reason}')
-fi
-
+# Projection permission is explicit and separate from action authorization.
+# The posture owner performs only reads; its ordinary-work guard is unchanged.
 NOW=${FM_BEARINGS_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
+POSTURE=$(FM_SNAPSHOT_NOW="$NOW" bash "$SCRIPT_DIR/fm-afk-return.sh" snapshot-posture) || exit $?
+RETURN_CATCHUP=$(printf '%s' "$POSTURE" | jq -c '.return_catchup') || exit 1
+
 if [ "$ALL_LANDED" = 1 ] || [ "$ALL_SECONDMATES" = 1 ]; then
   if [ "$ALL_LANDED" = 1 ]; then
     SNAP=$(FM_SNAPSHOT_NOW="$NOW" FM_SNAPSHOT_SECONDMATES=0 FM_SNAPSHOT_SECONDMATE_LANDED_PER_HOME=0 "$FLEET" --json) || exit $?
@@ -370,6 +355,7 @@ case "$BEARINGS_TODAY" in
 esac
 MODEL=$(printf '%s' "$SNAP" | jq \
   --argjson supervisor "$SUPERVISOR" \
+  --argjson posture "$POSTURE" \
   --arg home "$HOME_LABEL" \
   --arg now "$NOW" \
   --arg today "$BEARINGS_TODAY" \
@@ -450,7 +436,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   def flow_owner($owner):
     if . == null then null else .owner=$owner | .dependencies |= map(.owner=$owner) end;
   def as_gate($owner; $records):
-    {id, title:(.title | trunc(60)),
+    flow_registration($now) + {id, title:(.title | trunc(60)),
      flow:((.flow // flow_context(.; null; null; $owner; $records; [])) | flow_owner($owner)),
      blocked_by:compact_blockers,
      reason:(hold_gate_reason | trunc(40)), owner:$owner,
@@ -469,6 +455,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   | (($fl | index("endpoints")) != null) as $f_endpoints
   | ([ .backlog.records[] | select(landed_record)
        | {id, title, kind, hold_kind, pr_url, report_path, local_note, completion,
+          flow:flow_context(.; null; null; "(main)"; []; []),
           card_time:(.delivered_time // delivered_card_time),home:"(main)", home_id:"(main)"} ]) as $main_done
   | ((.secondmate_landed.records) // []) as $mate_done
   | ($main_done + $mate_done) as $all_landed_rows
@@ -529,7 +516,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
        | select(.kind != "secondmate")
        | select(.backlog.current_role != "program")
        | select(.backlog.current_role != "held" or .current_state.state == "working")
-       | {id, kind, card_time:(.card_time // null),
+       | flow_registration($now) + {id, kind, card_time:(.card_time // null),
         state: .current_state.state,
         flow:flow_context(.backlog; .current_state; .declaration; "(main)"; $canonical.backlog.records; .hints.open_decisions),
         repo:(.backlog.repo // .project // null),
@@ -541,7 +528,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
       } ]
      + [ $secondmate_views[] as $m
          | $m.active_children[]?
-         | {id:($m.id + "/" + .id),
+         | flow_registration($now) + {id:($m.id + "/" + .id),
             kind:(.kind // "secondmate"),card_time:(.card_time // null),
             state:(.state // "working"),
             flow:((.flow // null) | flow_owner($m.id)),
@@ -554,7 +541,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
          | . as $record
          | select(.structured and .hold_bucket != null)
          | select(($all_decisions == 1) or live_captain_call)
-         | {id,key:.id,verb:"captain-hold",
+         | flow_registration($now) + {id,key:.id,verb:"captain-hold",
             flow:flow_context(.; null; null; "(main)"; $canonical.backlog.records; []),
             summary:hold_summary(.title; .hold_reason),owner:"(main)",
             card_time:(.card_time // backlog_card_time)} ]
@@ -563,7 +550,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
               | select(.source == "backlog" and .verb == "captain-hold")
               | select(($all_decisions == 1) or live_captain_call)
               | . as $call
-              | {id:($m.id + "/" + .id),key,verb,
+              | flow_registration($now) + {id:($m.id + "/" + .id),key,verb,
                  flow:((.flow // ([$m.queued[]? | select(.id == $call.id)][0].flow) // null) | flow_owner($m.id)),
                  summary:hold_summary((.summary // .id);
                                       (.reason // "captain decision pending")),owner:$m.id,card_time:(.card_time // null)} ]
@@ -574,7 +561,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
                             | select(.source == "backlog" and .verb == "captain-hold")
                             | .id]
                          | index($id) | not)
-                | {id:($m.id + "/" + .id),key:.id,verb:"captain-hold",
+                | flow_registration($now) + {id:($m.id + "/" + .id),key:.id,verb:"captain-hold",
                    flow:((.flow // null) | flow_owner($m.id)),
                    summary:hold_summary((.title // .id);
                                         (.hold_reason // "captain decision pending")),owner:$m.id,card_time:(.card_time // null)} ])[] ]) as $decisions_all
@@ -669,6 +656,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
            captain_omitted:([$measured[].captain_omitted] | add // 0),
            captain:[$measured[] as $h | $h.captain[]? | . + {owner:$h.owner}]}),
       supervisor:$supervisor,
+      posture:$posture,
       in_flight: (if $all_in_flight == 1 then $in_flight_all else $in_flight_all[:$in_flight_n] end),
       secondmates: (if $all_secondmates == 1 then $secondmates_all else $secondmates_all[:$secondmates_n] end),
       secondmate_reconcile: [ (.secondmate_current.records // [])[]
@@ -676,6 +664,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
         | {id, spawn_gen:(.spawn_gen // null), host:(.host // null), kind:(.reconcile_inventory.kind // null), ids:((.reconcile_inventory.ids // []) | map(select(type == "string")) | sort)} ],
       decisions_open: (if $all_decisions == 1 then $decisions_all else $decisions_all[:$decisions_n] end),
       landed: ($done | map({id, what:(.title | trunc(70)),
+                            flow:(.home_id as $owner | ((.flow // null) | flow_owner($owner))),
                             artifact:(landed_artifact // "-"),owner:.home_id,
                             card_time:(.card_time // delivered_card_time)})),
       gates: ($return_catchup_gate

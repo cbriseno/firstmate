@@ -56,6 +56,20 @@
 # receipt through fm-backlog-transition-lib.sh; retries retain the old instant.
 # start/reopen invalidate that receipt. Receipt failures warn without changing
 # a successful backend result; unavailable proof retains date-only history.
+#
+# Home-owned presentation extension (not a tasks-axi backend mutation):
+#   presentation <id> [--json]                         Read the saved declaration.
+#   presentation <id> --summary TEXT [--waiting-for TEXT] [--next-action TEXT]
+#   presentation <id> --presentation-file /path/to/object.json
+#   presentation <id> --clear
+# Optional fields are summary, waiting_for, next_action: plain text (1..2000
+# characters) or null; summary is best kept within 280 characters. Writes patch
+# only supplied fields, empty text clears one field, --clear clears all three.
+# File input is the same partial object; unknown keys/types are rejected.
+# The existing backlog owner verifies the exact task before writing private
+# data/<id>/presentation.json atomically. This is an authored declaration with
+# its own source/time, never a status transition, liveness signal or refresh
+# heartbeat. Reads never renew it; unknown fields remain null. No wake is sent.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -86,6 +100,17 @@ case "${1:-}" in
   -h|--help)
     usage
     exit 0
+    ;;
+  presentation)
+    shift
+    case "${1:-}" in
+      -h|--help) usage; exit 0 ;;
+      ''|-*) fail 'presentation requires a task id; use --help' ;;
+    esac
+    presentation_id=$1
+    shift
+    export FM_HOME
+    exec python3 "$SCRIPT_DIR/fm_delivery.py" presentation --task "$presentation_id" --data "$DATA" "$@"
     ;;
 esac
 

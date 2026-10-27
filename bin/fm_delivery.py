@@ -429,15 +429,115 @@ def activity(home, args):
                     age_seconds=None, current_model_activity='unknown', reason=str(exc))
 
 
+PRESENTATION_FIELDS = ('summary', 'waiting_for', 'next_action')
+
+
+def presentation_fields(value):
+    if not isinstance(value, dict) or set(value) - set(PRESENTATION_FIELDS):
+        raise ValueError('presentation accepts only summary, waiting_for, next_action')
+    for text in value.values():
+        if text is not None and (not isinstance(text, str) or not text.strip()
+                                 or len(text) > 2000 or any(ord(c) < 32 or ord(c) == 127 for c in text)):
+            raise ValueError('presentation fields must be null or plain text of 1..2000 characters')
+    return value
+
+
+def presentation_path(home, task_id, data=None):
+    if not isinstance(task_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', task_id):
+        raise ValueError('invalid presentation task identity')
+    base = os.path.abspath(data) if data else str(home / 'data')
+    parts = parts_in_home(home, base)
+    return '/'.join(parts + [task_id, 'presentation.json'])
+
+
+def read_presentation(home, task_id, data=None):
+    empty = dict.fromkeys(PRESENTATION_FIELDS)
+    try:
+        path = presentation_path(home, task_id, data)
+        value = json.loads(read_text(home, path, 32768))
+        if not isinstance(value, dict):
+            raise ValueError('presentation declaration must be an object')
+        if (value.get('schema') != 'fm-task-presentation.v1' or value.get('home') != str(home)
+                or value.get('id') != task_id or value.get('source') != 'task.owner.declaration'):
+            raise ValueError('invalid presentation declaration identity')
+        fields = presentation_fields(value['presentation'])
+        dt.datetime.strptime(value['observed_at'], '%Y-%m-%dT%H:%M:%SZ')
+        return dict(presentation=dict(empty, **fields),
+                    evidence=dict(source=value['source'], observed_at=value['observed_at'],
+                                  current_state=False, path=path, available=True))
+    except FileNotFoundError:
+        return dict(presentation=empty, evidence=None)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return dict(presentation=empty, evidence=dict(available=False, reason=str(exc), current_state=False))
+
+
+def presentation(home, args):
+    path = presentation_path(home, args.task, args.data)
+    patch = {key: getattr(args, key) or None for key in PRESENTATION_FIELDS
+             if getattr(args, key) is not None}
+    if args.presentation_file:
+        if patch or args.clear:
+            raise ValueError('--presentation-file cannot be combined with field flags or --clear')
+        with open(args.presentation_file, encoding='utf-8') as stream:
+            patch = presentation_fields(json.load(stream))
+    if args.clear:
+        if patch:
+            raise ValueError('--clear cannot be combined with field flags')
+        patch = dict.fromkeys(PRESENTATION_FIELDS)
+    if not patch:
+        return dict(id=args.task, **read_presentation(home, args.task, args.data))
+    presentation_fields(patch)
+    # Ask the existing backlog owner; a data directory or old meta alone is
+    # not an extant task. The wrapper retains its configured backend/addressing.
+    probe = subprocess.run(['bash', str(BIN / 'fm-tasks-axi.sh'), 'show', args.task],
+                           env=dict(os.environ, FM_HOME=str(home)), capture_output=True,
+                           text=True, timeout=15)
+    ids = [line[len('  id: '):].strip() for line in probe.stdout.splitlines() if line.startswith('  id: ')]
+    identity = json.loads(ids[0]) if ids and ids[0].startswith('"') else (ids[0] if ids else None)
+    if probe.returncode or len(ids) != 1 or identity != args.task:
+        raise ValueError('presentation write needs an exact task from the backlog owner')
+    folder = home
+    for part in parts_in_home(home, path)[:-1]:
+        folder = folder / part
+        if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+            raise ValueError('unsafe presentation task directory')
+        folder.mkdir(exist_ok=True)
+    lock = os.open(folder / '.presentation.lock', os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        current = read_presentation(home, args.task, args.data)
+        if current['evidence'] and current['evidence'].get('available') is False:
+            raise ValueError('invalid existing declaration; repair it before updating')
+        value = dict(schema='fm-task-presentation.v1', home=str(home), id=args.task,
+                     presentation=dict(current['presentation'], **patch), source='task.owner.declaration',
+                     observed_at=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+        fd, temp = tempfile.mkstemp(prefix='.presentation.', dir=folder)
+        try:
+            with os.fdopen(fd, 'w') as stream:
+                json.dump(value, stream, ensure_ascii=False)
+                stream.write('\n')
+            os.replace(temp, home / path)
+        finally:
+            if os.path.exists(temp):
+                os.unlink(temp)
+    finally:
+        os.close(lock)
+    return dict(id=args.task, **read_presentation(home, args.task, args.data))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['history', 'explain', 'activity', 'record-completion', 'enrich-times', 'invalidate-completion'])
+    parser.add_argument('command', choices=['history', 'explain', 'activity', 'presentation', 'record-completion', 'enrich-times', 'invalidate-completion'])
     parser.add_argument('--json', action='store_true')
     parser.add_argument('--task')
     parser.add_argument('--request-id')
     parser.add_argument('--status', action='store_true')
     parser.add_argument('--state', choices=['coordinating', 'waiting', 'idle'])
     parser.add_argument('--summary')
+    parser.add_argument('--waiting-for', dest='waiting_for')
+    parser.add_argument('--next-action', dest='next_action')
+    parser.add_argument('--presentation-file')
+    parser.add_argument('--clear', action='store_true')
     parser.add_argument('--ttl', type=int, default=300)
     parser.add_argument('--data')
     args = parser.parse_args()
@@ -447,6 +547,8 @@ def main():
             result, rc = retained_history(home), 0
         elif args.command == 'activity':
             result, rc = activity(home, args), 0
+        elif args.command == 'presentation':
+            result, rc = presentation(home, args), 0
         elif args.command == 'record-completion':
             record_completion(home, args.task, args.data)
             return 0
@@ -461,6 +563,9 @@ def main():
             retained = {r['id']: r for r in retained_history(home)['records']
                         if r['id'] in missing and r['source'] == 'archive'} if missing else {}
             for task in result['records']:
+                authored = read_presentation(home, task.get('id'), args.data)
+                task['presentation'] = authored['presentation']
+                task['presentation_evidence'] = authored['evidence']
                 receipt = completion_receipt(home, task)
                 if receipt:
                     task['delivered_time'] = receipt

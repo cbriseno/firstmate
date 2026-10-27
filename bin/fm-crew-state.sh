@@ -25,6 +25,12 @@
 # heartbeat:
 #
 #   state: <working|parked|done|blocked|paused|failed|unknown> · source: <run-step|pane|status-log|remote-endpoint|none> · <detail>
+# Optional `<id> --json` returns the same state/source/detail/raw plus run_step.
+# run_step is null unless the existing run attribution proves a full validation
+# record. It retains phase (validation or ci), raw run state, id and source,
+# observed_at (this read, not the run event), and a 60-second observation TTL.
+# Consumers expire it rather than treating a cached read as continuing activity.
+# Neither form establishes native model execution. The default line is unchanged.
 #
 # Logic, in order:
 #   1. Resolve worktree + backend target + kind from state/<id>.meta. A meta
@@ -187,7 +193,10 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 . "$SCRIPT_DIR/fm-dod-lib.sh"
 
 ID=${1:-}
-[ -n "$ID" ] || { echo "usage: fm-crew-state.sh <id>" >&2; exit 2; }
+[ -n "$ID" ] || { echo "usage: fm-crew-state.sh <id> [--json]" >&2; exit 2; }
+case "${2:-}" in ''|--json) ;; *) echo 'usage: fm-crew-state.sh <id> [--json]' >&2; exit 2 ;; esac
+OUTPUT_FORMAT=${2:-text}
+RUN_STEP_JSON=null
 
 # Fleet snapshot composition supplies its captured metadata path here so every
 # state read resolves the same task generation selected by that snapshot.
@@ -220,7 +229,13 @@ SEP=' · '
 emit() {  # <state> <source> [detail]
   local line="state: $1${SEP}source: $2"
   [ -n "${3:-}" ] && line="$line${SEP}$3"
-  printf '%s\n' "$line"
+  if [ "$OUTPUT_FORMAT" = --json ]; then
+    jq -cn --arg state "$1" --arg source "$2" --arg detail "${3:-}" --arg raw "$line" \
+      --argjson run_step "$RUN_STEP_JSON" \
+      '{state:$state,source:$source,detail:$detail,raw:$raw,run_step:$run_step}'
+  else
+    printf '%s\n' "$line"
+  fi
   exit 0
 }
 
@@ -1289,6 +1304,15 @@ if [ "$HAVE_RUN" = 1 ]; then
   esac
 
   [ -z "$SELECTED_RUN_ID" ] || RUN_DETAIL="$RUN_DETAIL${SEP}run: $SELECTED_RUN_ID"
+  if [ "$OUTPUT_FORMAT" = --json ] && [ "$RUN_SOURCE" != coarse ] \
+    && [ "$RUN_STATE" != unknown ] && [ -z "$RUN_DEAD_DAEMON" ]; then
+    step_phase=validation
+    if [ "$RUN_STATUS" = ci ] || [ "$CI_STEP_STATUS" = running ]; then step_phase=ci; fi
+    RUN_STEP_JSON=$(jq -cn --arg phase "$step_phase" --arg state "$(strip_quotes "$(nm_field status)")" \
+      --arg id "$(strip_quotes "$(nm_field id)")" --arg observed "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '{phase:$phase,state:$state,run_id:($id | if . == "" then null else . end),
+        observed_at:$observed,source:"no-mistakes.attributed-run",ttl_seconds:60}')
+  fi
   emit "$RUN_STATE" run-step "$RUN_DETAIL"
 fi
 

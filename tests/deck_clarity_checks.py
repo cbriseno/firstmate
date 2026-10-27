@@ -166,6 +166,42 @@ class Clarity(unittest.TestCase):
         self.assertEqual(stale['summary'], 'Coordino UI y datos.')
         self.run_cli('fm-supervisor-activity.sh', '--state', 'waiting', '--summary', 'test', '--ttl', '901', good=(1,))
 
+    def test_passive_snapshot_preserves_away_and_action_guard(self):
+        state = self.home / 'state'
+        flag, gate = state / '.afk', state / '.afk-return-catchup'
+        for mode, expected_rc in [('attended', 0), ('away', 3), ('catchup', 4), ('quiet', 3)]:
+            with self.subTest(mode=mode):
+                if mode in ('away', 'quiet'):
+                    flag.write_text(mode + '\n1793076000\n')
+                else:
+                    flag.unlink(missing_ok=True)
+                if mode == 'catchup':
+                    gate.write_text('blocker\tdemo\towner\tRefresh fixture credentials\n')
+                else:
+                    gate.unlink(missing_ok=True)
+                before = {str(p.relative_to(self.home)): p.read_bytes()
+                          for p in self.home.rglob('*') if p.is_file()}
+                posture = self.value('fm-afk-return.sh', 'snapshot-posture')
+                self.assertEqual(posture['mode'], mode)
+                self.assertEqual(posture['ordinary_work_allowed'], expected_rc == 0)
+                self.run_cli('fm-afk-return.sh', 'guard', good=(expected_rc,))
+                snapshot = self.value('fm-bearings-snapshot.sh', '--json')
+                self.assertEqual(snapshot['posture']['mode'], mode)
+                self.assertEqual(snapshot['posture']['ordinary_work_allowed'], expected_rc == 0)
+                self.assertEqual(any(r['id'] == '(return-catchup)' for r in snapshot['gates']), mode == 'catchup')
+                self.run_cli('fm-afk-return.sh', 'guard', good=(expected_rc,))
+                after = {str(p.relative_to(self.home)): p.read_bytes()
+                         for p in self.home.rglob('*') if p.is_file()}
+                self.assertEqual(before, after)
+
+    def test_passive_snapshot_handles_durable_away_without_daemon_flag(self):
+        self.run_cli('fm-afk-contract.sh', 'enter', '--words', 'Continue the existing work.')
+        self.assertFalse((self.home / 'state/.afk').exists())
+        before = (self.home / 'state/.afk-contract').read_bytes()
+        self.assertEqual(self.value('fm-bearings-snapshot.sh', '--json')['posture']['mode'], 'away')
+        self.run_cli('fm-afk-return.sh', 'guard', good=(3,))
+        self.assertEqual(before, (self.home / 'state/.afk-contract').read_bytes())
+
     def test_public_snapshot_has_full_reason_and_dependency_context(self):
         reason = 'Espera técnica con motivo completo: ' + 'detalle ' * 30
         (self.home / 'data/backlog.md').write_text(
@@ -203,6 +239,139 @@ class Clarity(unittest.TestCase):
         # summary consumed by local and remote secondmate ledger transports.
         summary = self.value('fm-fleet-snapshot.sh', '--secondmate-home-summary', env=env)
         self.assertIn('flow', next(v for v in summary['queued'] if v['id'] == 'free'))
+        self.assertEqual(free['presentation'], dict(summary=None, waiting_for=None, next_action=None))
+        self.assertIsNone(free['next_action'])
+
+    def test_presentation_owner_patch_clear_and_read_without_refresh(self):
+        (self.home / 'data/backlog.md').write_text('## Queued\n- [ ] demo - Preparación (kind: ship)\n')
+        missing = self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--json')
+        self.assertEqual(missing['presentation'], dict(summary=None, waiting_for=None, next_action=None))
+        authored = self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--summary', 'La corrección ya conserva los avisos.',
+                              '--waiting-for', 'Un evento interno genuino.', '--json')
+        self.assertEqual(authored['presentation']['summary'], 'La corrección ya conserva los avisos.')
+        self.assertIsNone(authored['presentation']['next_action'])
+        self.assertEqual(authored['evidence']['source'], 'task.owner.declaration')
+        path = self.home / 'data/demo/presentation.json'
+        before = path.read_bytes()
+        self.assertEqual(self.value('fm-tasks-axi.sh', 'presentation', 'demo'), authored)
+        self.assertEqual(path.read_bytes(), before)
+        snap = self.value('fm-bearings-snapshot.sh', '--json')
+        row = next(v for v in snap['gates'] if v['id'] == 'demo')
+        self.assertEqual(row['flow']['presentation'], authored['presentation'])
+        self.assertEqual(row['flow']['presentation_evidence'], authored['evidence'])
+        self.assertIsNone(row['execution'])
+        self.assertEqual(row['native_activity']['state'], 'unknown')
+        summary = self.value('fm-fleet-snapshot.sh', '--secondmate-home-summary')
+        self.assertEqual(summary['queued'][0]['flow']['presentation'], authored['presentation'])
+        patched = self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--next-action', 'Revisar ese resultado.')
+        self.assertEqual(patched['presentation']['summary'], authored['presentation']['summary'])
+        self.assertEqual(patched['presentation']['next_action'], 'Revisar ese resultado.')
+        self.assertIsNone(self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--waiting-for', '')['presentation']['waiting_for'])
+        self.assertEqual(self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--clear')['presentation'], missing['presentation'])
+        relative = subprocess.run(['bash', str(ROOT / 'bin/fm-tasks-axi.sh'), 'presentation', 'demo',
+                                   '--summary', 'Mismo propietario desde otra carpeta.'],
+                                  cwd=self.tmp.name, env=dict(self.env, FM_DATA_OVERRIDE='home/data'),
+                                  text=True, capture_output=True, timeout=15)
+        self.assertEqual(relative.returncode, 0, relative.stdout + relative.stderr)
+        self.assertEqual(json.loads(path.read_text())['presentation']['summary'], 'Mismo propietario desde otra carpeta.')
+        self.assertFalse((self.home / 'home').exists())
+
+    def test_presentation_rejects_unknown_task_bad_types_and_aliases(self):
+        (self.home / 'data/backlog.md').write_text('## Queued\n- [ ] demo - Preparación (kind: ship)\n')
+        self.run_cli('fm-tasks-axi.sh', 'presentation', 'absent', '--summary', 'Invalid', good=(1,))
+        self.run_cli('fm-tasks-axi.sh', 'presentation', '../demo', '--summary', 'Invalid', good=(1,))
+        payload = Path(self.tmp.name) / 'presentation.json'
+        for value in ({'summary': 12}, {'native_state': 'working'}, {'summary': 'bad\ntext'}, {'summary': 'x' * 2001}):
+            payload.write_text(json.dumps(value))
+            self.run_cli('fm-tasks-axi.sh', 'presentation', 'demo', '--presentation-file', str(payload), good=(1,))
+        payload.write_text(json.dumps(dict(summary='Una declaración concreta.', waiting_for=None)))
+        self.assertEqual(self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--presentation-file', str(payload))['presentation']['summary'], 'Una declaración concreta.')
+        saved = self.home / 'data/demo/presentation.json'
+        other = Path(self.tmp.name) / 'outside.json'
+        other.write_text(saved.read_text())
+        saved.unlink()
+        saved.symlink_to(other)
+        before = other.read_bytes()
+        self.run_cli('fm-tasks-axi.sh', 'presentation', 'demo', '--summary', 'Bad alias', good=(1,))
+        self.assertEqual(other.read_bytes(), before)
+        snapshot = self.value('fm-bearings-snapshot.sh', '--json')
+        flow = next(v['flow'] for v in snapshot['gates'] if v['id'] == 'demo')
+        self.assertIsNone(flow['presentation']['summary'])
+        self.assertFalse(flow['presentation_evidence']['available'])
+        saved.unlink()
+        saved.write_text('[]')
+        invalid = self.value('fm-tasks-axi.sh', 'presentation', 'demo')
+        self.assertFalse(invalid['evidence']['available'])
+        self.assertEqual(invalid['presentation'], dict(summary=None, waiting_for=None, next_action=None))
+
+    def test_registered_executor_is_not_current_native_activity(self):
+        (self.home / 'data/backlog.md').write_text(
+            '## In flight\n- [ ] demo - Trabajo registrado (kind: ship)\n'
+            '## Queued\n- [ ] free - Sin asignar (kind: ship)\n')
+        (self.home / 'state/demo.meta').write_text('window=fixture:fm-demo\nbackend=tmux\nharness=codex\n'
+                                                  'kind=ship\nmode=local-only\nspawn_gen=exact-generation\n'
+                                                  'worktree=' + str(self.home / 'projects') + '\n')
+        (self.home / 'state/demo.status').write_text('working [at=1793076000]: Declaración antigua\n')
+        fakebin = Path(self.tmp.name) / 'bin'
+        fakebin.mkdir()
+        (fakebin / 'tmux').write_text('#!/usr/bin/env bash\necho "no server running" >&2\nexit 1\n')
+        (fakebin / 'tmux').chmod(0o755)
+        env = dict(self.env, PATH=str(fakebin) + ':' + self.env['PATH'])
+        snapshot = self.value('fm-bearings-snapshot.sh', '--json', env=env)
+        row = next(v for v in snapshot['in_flight'] if v['id'] == 'demo')
+        self.assertEqual(row['execution']['crew_id'], 'demo')
+        self.assertEqual(row['execution']['harness'], 'codex')
+        self.assertEqual(row['execution']['endpoint_identity'], 'fixture:fm-demo')
+        self.assertEqual(row['execution']['spawn_gen'], 'exact-generation')
+        self.assertEqual(row['execution']['assignment_state'], 'registered')
+        self.assertEqual(row['execution']['role'], 'ship')
+        self.assertEqual(row['state'], 'unknown')
+        self.assertEqual(row['native_activity'], dict(state='unknown', verified=False, observed_at=None, source=None, identity=None))
+        self.assertIsNone(row['run_step'])
+        self.assertIsNone(row['flow']['presentation']['summary'])
+        self.assertIsNone(row['flow']['next_action'])
+        canonical = self.value('fm-fleet-snapshot.sh', '--json', env=env)
+        task = canonical['tasks'][0]
+        self.assertEqual(task['declaration']['state'], 'working')
+        self.assertEqual(task['current_state']['state'], 'unknown')
+        self.assertEqual({k: v for k, v in task['execution'].items() if k != 'observed_at'},
+                         {k: v for k, v in row['execution'].items() if k != 'observed_at'})
+
+    def test_cached_validation_observation_expires_without_changing_native_state(self):
+        mate = Path(self.tmp.name) / 'mate'
+        for part in ('state', 'data', 'config', 'projects', 'bin'):
+            (mate / part).mkdir(parents=True, exist_ok=True)
+        (mate / 'AGENTS.md').write_text('# Fixture\n')
+        (mate / '.fm-secondmate-home').write_text('mate\n')
+        (mate / 'data/backlog.md').write_text('## In flight\n## Queued\n## Done\n')
+        summary = self.value('fm-fleet-snapshot.sh', '--secondmate-home-summary', env=dict(self.env, FM_HOME=str(mate)))
+        summary['active_children'] = [dict(id='demo', kind='ship', state='working', name='Validación', doing='validating (running)',
+                                           run_step=dict(phase='validation', state='running', run_id='fixture-run',
+                                                         observed_at='2026-10-27T05:00:00Z',
+                                                         source='no-mistakes.attributed-run', ttl_seconds=60))]
+        summary['counts']['active_children'] = 1
+        summary['state'] = 'active_child_work'
+        (mate / 'state/home-summary.json').write_text(json.dumps(summary))
+        (self.home / 'data/secondmates.md').write_text(
+            '- mate - fixture (home: ' + str(mate) + '; scope: fixture; projects: fixture; added 2026-10-27)\n')
+        for now, expected, age in [('2026-10-27T05:00:30Z', 'running', 30),
+                                   ('2026-10-27T05:01:00Z', 'unknown', 60),
+                                   ('2026-10-27T04:59:59Z', 'unknown', -1)]:
+            with self.subTest(now=now):
+                snap = self.value('fm-bearings-snapshot.sh', '--json',
+                                  env=dict(self.env, FM_SNAPSHOT_SECONDMATES='20', FM_BEARINGS_NOW=now))
+                row = next(v for v in snap['in_flight'] if v['id'] == 'mate/demo')
+                step = row['run_step']
+                self.assertEqual(step['state'], expected)
+                self.assertEqual(step['age_seconds'], age)
+                self.assertEqual(step['declared_state'], 'running')
+                self.assertEqual(step['observed_at'], '2026-10-27T05:00:00Z')
+                self.assertEqual(row['native_activity']['state'], 'unknown')
+        summary['active_children'][0]['run_step']['ttl_seconds'] = 'not-a-duration'
+        (mate / 'state/home-summary.json').write_text(json.dumps(summary))
+        snap = self.value('fm-bearings-snapshot.sh', '--json',
+                          env=dict(self.env, FM_SNAPSHOT_SECONDMATES='20', FM_BEARINGS_NOW='2026-10-27T05:00:30Z'))
+        self.assertEqual(next(v for v in snap['in_flight'] if v['id'] == 'mate/demo')['run_step']['state'], 'unknown')
 
     def test_owner_completion_time_and_replay_reopen(self):
         if not shutil.which('tasks-axi') or not shutil.which('node'):
@@ -260,8 +429,10 @@ class Clarity(unittest.TestCase):
         self.run_cli('fm-tasks-axi.sh', 'done', 'demo', '--note', 'local main', '--json')
         result = self.history()['records'][0]
         self.assertEqual(result['card_time']['precision'], 'second')
+        self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--summary', 'La mejora quedó integrada.')
         snapshot = self.value('fm-bearings-snapshot.sh', '--json')
         self.assertEqual(snapshot['landed'][0]['card_time'], result['card_time'])
+        self.assertEqual(snapshot['landed'][0]['flow']['presentation']['summary'], 'La mejora quedó integrada.')
         # An already closed legacy row has no observed owner transition to time.
         (self.home / 'data/backlog.md').write_text('## Done\n- [x] legacy - Viejo local main (kind: ship) (done 2026-10-23)\n')
         self.run_cli('fm-tasks-axi.sh', 'done', 'legacy', '--note', 'local main', '--json')

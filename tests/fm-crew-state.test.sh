@@ -843,6 +843,13 @@ test_active_run_is_authoritative() {
   assert_contains "$out" "state: working" "active run -> working"
   assert_contains "$out" "source: run-step" "active run -> run-step source"
   assert_contains "$out" "validating (running)" "active run reports the step"
+  out=$(PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" bash "$CREW_STATE" feat-a --json)
+  printf '%s' "$out" | jq -e '.state == "working" and .source == "run-step"
+    and .run_step.phase == "validation" and .run_step.state == "running"
+    and .run_step.run_id == "01RUN" and .run_step.ttl_seconds == 60
+    and .run_step.source == "no-mistakes.attributed-run"
+    and (.run_step.observed_at | fromdateiso8601) > 0' >/dev/null \
+    || fail "JSON validation observation did not retain its source and time: $out"
   pass "active run-step is authoritative"
 }
 
@@ -1237,6 +1244,9 @@ test_top_level_ci_checks_green_surfaces_done() {
   assert_contains "$out" "source: run-step" "top-level ci green -> run-step source"
   assert_contains "$out" "checks green" "top-level ci green detail mentions checks green"
   assert_not_contains "$out" "state: working" "top-level ci green must not stay working"
+  out=$(PATH="$d/fakebin:$PATH" FM_STATE_OVERRIDE="$d/state" bash "$CREW_STATE" feat-topcigreen --json)
+  printf '%s' "$out" | jq -e '.state == "done" and .run_step.phase == "ci" and .run_step.state == "ci"' >/dev/null \
+    || fail "CI evidence was confused with worker/model execution: $out"
   pass "top-level ci status uses ci log green marker"
 }
 
