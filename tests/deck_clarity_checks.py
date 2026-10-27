@@ -354,15 +354,19 @@ class Clarity(unittest.TestCase):
         (mate / 'state/home-summary.json').write_text(json.dumps(summary))
         (self.home / 'data/secondmates.md').write_text(
             '- mate - fixture (home: ' + str(mate) + '; scope: fixture; projects: fixture; added 2026-10-27)\n')
+        # A step sampled during collection, after the snapshot's fixed reference
+        # time, has a small negative age and is still fresh; one a full TTL ahead is not.
         for now, expected, age in [('2026-10-27T05:00:30Z', 'running', 30),
                                    ('2026-10-27T05:01:00Z', 'unknown', 60),
-                                   ('2026-10-27T04:59:59Z', 'unknown', -1)]:
+                                   ('2026-10-27T04:59:57Z', 'running', -3),
+                                   ('2026-10-27T04:59:00Z', 'unknown', -60)]:
             with self.subTest(now=now):
                 snap = self.value('fm-bearings-snapshot.sh', '--json',
                                   env=dict(self.env, FM_SNAPSHOT_SECONDMATES='20', FM_BEARINGS_NOW=now))
                 row = next(v for v in snap['in_flight'] if v['id'] == 'mate/demo')
                 step = row['run_step']
                 self.assertEqual(step['state'], expected)
+                self.assertEqual(step['freshness'], 'fresh' if expected == 'running' else 'stale')
                 self.assertEqual(step['age_seconds'], age)
                 self.assertEqual(step['declared_state'], 'running')
                 self.assertEqual(step['observed_at'], '2026-10-27T05:00:00Z')

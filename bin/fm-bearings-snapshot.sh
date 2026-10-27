@@ -35,6 +35,12 @@
 # the home row on secondmates[] keeps the decision and gate classification.
 # Main Underway rows carry blocked_by using the same comma-separated, bounded
 # unresolved-blocker string as gates ("-" when empty or absent).
+# Underway rows also carry state_source (the current-state verdict's source:
+# pane, run-step, status-log, remote-endpoint, or none) and wait_until (the
+# canonical declaration's paused-until time, ISO-8601 UTC), each null when
+# unknown. Underway and gate rows carry the canonical hold_bucket and
+# hold_until as row fields, null for a non-captain row, alongside the
+# unchanged display reason.
 # Captain-hold placement follows the canonical snapshot's hold_bucket and
 # nothing else; this wrapper never inspects hold reason or body prose. The
 # buckets are total and mutually exclusive, so every captain hold appears in
@@ -438,6 +444,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   def as_gate($owner; $records):
     flow_registration($now) + {id, title:(.title | trunc(60)),
      flow:((.flow // flow_context(.; null; null; $owner; $records; [])) | flow_owner($owner)),
+     hold_bucket:(.hold_bucket // null), hold_until:(.hold_until // null),
      blocked_by:compact_blockers,
      reason:(hold_gate_reason | trunc(40)), owner:$owner,
      filed:((.since // null) | trunc(40)),
@@ -518,6 +525,9 @@ MODEL=$(printf '%s' "$SNAP" | jq \
        | select(.backlog.current_role != "held" or .current_state.state == "working")
        | flow_registration($now) + {id, kind, card_time:(.card_time // null),
         state: .current_state.state,
+        state_source:(.current_state.source // null),
+        wait_until:(.declaration.wait_until // null),
+        hold_bucket:(.backlog.hold_bucket // null), hold_until:(.backlog.hold_until // null),
         flow:flow_context(.backlog; .current_state; .declaration; "(main)"; $canonical.backlog.records; .hints.open_decisions),
         repo:(.backlog.repo // .project // null),
         blocked_by:(.backlog | compact_blockers),
@@ -531,6 +541,8 @@ MODEL=$(printf '%s' "$SNAP" | jq \
          | flow_registration($now) + {id:($m.id + "/" + .id),
             kind:(.kind // "secondmate"),card_time:(.card_time // null),
             state:(.state // "working"),
+            state_source:(.source // null),wait_until:(.wait_until // null),
+            hold_bucket:(.hold_bucket // null),hold_until:(.hold_until // null),
             flow:((.flow // null) | flow_owner($m.id)),
             repo:(.repo // null),
             name:((.name // "") as $name

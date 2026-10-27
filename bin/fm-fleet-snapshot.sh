@@ -52,6 +52,8 @@
 #     receipt contract is bin/fm_delivery.py, otherwise dates stay date-only.
 #   declaration on task rows is the latest captured foreign status declaration,
 #     independently labeled historical; it never replaces current_state.
+#     Its wait_until is the ISO-8601 UTC end of a `paused ... until <time>`
+#     declaration, parsed by fm-classify-lib.sh's status_paused_until, else null.
 #   presentation on backlog rows is the optional private owner declaration
 #     written by fm-tasks-axi.sh presentation; fm-flow-lib.sh owns its projection.
 #   execution on task/linked backlog rows is the exact recorded crew, harness,
@@ -772,7 +774,7 @@ task_json_lines() {
   local remote_host remote_root current_file endpoint_file observation_line index=0
   local pr pr_source event_json current_json endpoint_exists agent_alive meta_json status_json report_json worktree_json home_json
   local last_event_raw current_state current_source pending_decision blocked_event report_present=0 pr_from_status
-  local declaration_line declaration_verb declaration_note
+  local declaration_line declaration_verb declaration_note declaration_wait_until
   local open_decisions_tsv open_decisions_json progress_json spawned_at status_start_bytes
 
   while [ "$index" -lt "$SNAPSHOT_TASK_META_COUNT" ]; do
@@ -826,6 +828,7 @@ task_json_lines() {
     declaration_line=$(fm_card_time_latest_declaration "$status_log" "$status_log.ranges" "$status_start_bytes")
     status_line_verb "$declaration_line" declaration_verb
     declaration_note=$(status_line_note "$declaration_line")
+    declaration_wait_until=$(status_paused_until "$declaration_line") || declaration_wait_until=
     last_event_raw=$(printf '%s' "$event_json" | jq -r '.last_event.raw // ""')
     read -r current_state current_source < <(
       printf '%s' "$current_json" | jq -r '[.state // "", .source // ""] | @tsv'
@@ -912,6 +915,7 @@ task_json_lines() {
       --arg observed_at "$SNAPSHOT_NOW" \
       --arg last_event_raw "$last_event_raw" \
       --arg declaration_verb "$declaration_verb" --arg declaration_note "$declaration_note" \
+      --arg declaration_wait_until "$declaration_wait_until" \
       --argjson card_time "$progress_json" \
       --argjson current_state "$current_json" \
       --argjson meta_path "$meta_json" \
@@ -929,6 +933,7 @@ task_json_lines() {
         card_time:(if $card_time.kind == "done_report" and $current_state.state != "done" then null else $card_time end),
         declaration:(if $declaration_verb == "" then null else
           {state:$declaration_verb,note:$declaration_note,source:"status.declaration",
+           wait_until:($declaration_wait_until | if . == "" then null else tonumber | todate end),
            card_time:$card_time,current_state:false} end),
         kind:$kind,
         harness:($harness // ""),
@@ -1113,6 +1118,9 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
             repo:(($work.repo // .project // null) | if . == null then null else trunc(120) end),
             name:(($work.title // null) | if . == null then null else trunc(70) end),
             source:.current_state.source,card_time,
+            wait_until:(.declaration.wait_until // null),
+            hold_until:(($work.hold_until // null) | if . == null then null else trunc(40) end),
+            hold_bucket:($work.hold_bucket // null),
             doing:((.current_state.detail // "") | trunc(120))} ]) as $active_all
     | ($captain_holds_all
        + ([ $tasks[] as $t | ($t.hints.open_decisions // [])[]

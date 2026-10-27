@@ -11,7 +11,9 @@
 # The legacy human-hold next_action retains its canonical reason, never executed.
 # execution is registered metadata only; native_activity never uses phase or
 # endpoint presence as model liveness. run_step is a sampled validation source,
-# expiring after its TTL, not a native model observation.
+# expiring after its TTL, not a native model observation. A step sampled during
+# collection, after the fixed reference time, has a negative age and stays fresh
+# while it is less than one TTL ahead of that reference.
 # This projection classifies structured fields only, never prose or vendor UI.
 # shellcheck disable=SC2034,SC2016
 FM_FLOW_JQ_DEFS='
@@ -21,7 +23,7 @@ FM_FLOW_JQ_DEFS='
       | (try ($now | fromdateiso8601) catch null) as $now_at
       | (if $at == null or $now_at == null then null else ($now_at - $at) end) as $age
       | ($step.ttl_seconds // 0) as $ttl
-      | ($age != null and $age >= 0 and ($ttl | type) == "number" and $ttl > 0 and $age < $ttl
+      | ($age != null and ($ttl | type) == "number" and $ttl > 0 and $age > (0 - $ttl) and $age < $ttl
          and $step.source == "no-mistakes.attributed-run"
          and ($step.phase == "validation" or $step.phase == "ci")) as $fresh
       | $step + {state:(if $fresh then ($step.declared_state // $step.state) else "unknown" end),

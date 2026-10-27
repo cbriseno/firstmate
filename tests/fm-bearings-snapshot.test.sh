@@ -2429,6 +2429,79 @@ EOF
   pass "working captain holds retain main and secondmate bucket surfaces"
 }
 
+test_rows_carry_structured_hold_wait_and_state_source() {
+  local home mate fakebin id json in_flight queued dir ids
+  home=$(make_home row-structured-signals)
+  mate="$TMP_ROOT/row-structured-signals-mate"
+  : > "$home/data/secondmates.md"
+  make_valid_secondmate_home signal-mate "$mate"
+  append_secondmate_registry "$home" signal-mate "$mate"
+  in_flight=$(cat <<'EOF2'
+- [ ] held-live - Working live call (repo: sample) (kind: captain) (hold: choose release route) (hold-kind: captain)
+  Captain hold set: 2026-07-10T00:00:00Z
+- [ ] held-dated - Working dated call (repo: sample) (kind: captain) (hold: choose dated route) (hold-kind: captain) (hold-until: 2026-08-01)
+  Captain hold set: 2026-07-10T00:00:00Z
+- [ ] plain-work - Ordinary work (repo: sample) (kind: ship)
+EOF2
+)
+  queued=$(cat <<'EOF2'
+- [ ] queued-dated - Deferred call (repo: sample) (kind: captain) (hold: decide later) (hold-kind: captain) (hold-until: 2026-08-02)
+  Captain hold set: 2026-07-10T00:00:00Z
+- [ ] queued-blocked - Waits on prep blocked-by: plain-work (repo: sample) (kind: ship)
+EOF2
+)
+  printf '## In flight\n%s\n\n## Queued\n%s\n\n## Done\n' "$in_flight" "$queued" > "$mate/data/backlog.md"
+  # Main also carries wait fixtures: a timed pause, an untimed pause, and a
+  # timed pause superseded by a later working declaration.
+  printf '## In flight\n%s\n%s\n\n## Queued\n%s\n\n## Done\n' "$in_flight" \
+    "$(for id in timed-pause untimed-pause resumed; do
+         printf -- '- [ ] %s - Wait fixture %s (repo: sample) (kind: ship)\n' "$id" "$id"
+       done)" "$queued" > "$home/data/backlog.md"
+  for dir in "$home" "$mate"; do
+    ids="held-live held-dated plain-work"
+    [ "$dir" = "$mate" ] || ids="$ids timed-pause untimed-pause resumed"
+    for id in $ids; do
+      mkdir -p "$dir/projects/$id"
+      fm_write_meta "$dir/state/$id.meta" \
+        "window=firstmate:fm-$id" "worktree=$dir/projects/$id" "project=sample" \
+        "harness=claude" "kind=ship" "mode=no-mistakes"
+      case "$id" in
+        *pause|resumed) record_claude_state "$dir/state" "$id" idle ;;
+        *) record_claude_state "$dir/state" "$id" busy
+           printf 'working: active work\n' > "$dir/state/$id.status" ;;
+      esac
+    done
+  done
+  printf 'paused [at=1783790000]: own validation run until 2026-07-11T18:40Z\n' > "$home/state/timed-pause.status"
+  printf 'paused [at=1783790000]: waiting for the upstream release\n' > "$home/state/untimed-pause.status"
+  printf 'paused [at=1783780000]: old wait until 2026-07-11T10:00Z\nworking [at=1783790000]: resumed\n' \
+    > "$home/state/resumed.status"
+  fakebin=$(make_fakebin "$home")
+
+  json=$(run "$home" "$fakebin" --json --all-in-flight --all-queued)
+  printf '%s' "$json" | jq -e '
+    def row($s; $id; $owner): [.[$s][] | select(.id == $id and ($owner == null or .owner == $owner))][0];
+    (row("in_flight"; "held-dated"; null) | .hold_bucket == "dated" and .hold_until == "2026-08-01")
+      and (row("in_flight"; "held-live"; null) | .hold_bucket == "live" and .hold_until == null)
+      and (row("in_flight"; "plain-work"; null) | .hold_bucket == null and .hold_until == null
+           and .state == "working" and .state_source == "pane" and .wait_until == null)
+      and (row("in_flight"; "signal-mate/held-dated"; null) | .hold_bucket == "dated" and .hold_until == "2026-08-01"
+           and .state_source == "pane")
+      and (row("in_flight"; "signal-mate/plain-work"; null) | .hold_bucket == null and .state_source == "pane"
+           and has("wait_until"))
+      and (row("gates"; "queued-dated"; "(main)") | .hold_bucket == "dated" and .hold_until == "2026-08-02"
+           and .reason == "until 2026-08-02: decide later")
+      and (row("gates"; "queued-blocked"; "(main)") | .hold_bucket == null and .hold_until == null)
+      and (row("gates"; "queued-dated"; "signal-mate") | .hold_bucket == "dated" and .hold_until == "2026-08-02"
+           and .reason == "until 2026-08-02: decide later")
+      and (row("in_flight"; "timed-pause"; null) | .wait_until == "2026-07-11T18:40:00Z"
+           and (.state_source | type) == "string")
+      and (row("in_flight"; "untimed-pause"; null) | .wait_until == null)
+      and (row("in_flight"; "resumed"; null) | .wait_until == null)
+  ' >/dev/null || fail "rows lack structured hold, wait, or state-source fields: $json"
+  pass "Underway and gate rows carry hold_bucket, hold_until, wait_until, and state_source"
+}
+
 test_active_children_project_independent_of_home_captain_hold() {
   local home mate fakebin json
   home=$(make_home underway-hold-parent)
@@ -3506,6 +3579,7 @@ test_card_time_preserves_source_precision_and_lifecycle
 [ "${1:-}" != --card-time-only ] || exit 0
 
 test_underway_dependencies_match_gate_format
+test_rows_carry_structured_hold_wait_and_state_source
 test_task_teardown_during_metadata_capture_does_not_abort_snapshot
 test_current_state_uses_captured_status_observation
 test_relaunched_task_does_not_inherit_reused_endpoint_state
