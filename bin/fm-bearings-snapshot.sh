@@ -41,9 +41,9 @@
 # row's wait_until, set only while the crew's current state is paused and the
 # latest declaration is that pause's `until <time>`; null otherwise, including
 # every working row and every secondmate child row, which is working by
-# construction). Underway and gate rows carry the canonical hold_bucket and
-# hold_until as row fields, null for a non-captain row, alongside the
-# unchanged display reason.
+# construction). Underway and gate rows carry the canonical hold_bucket (null
+# for a non-captain row) and hold_until as row fields, alongside the unchanged
+# display reason.
 # Captain-hold placement follows the canonical snapshot's hold_bucket and
 # nothing else; this wrapper never inspects hold reason or body prose. The
 # buckets are total and mutually exclusive, so every captain hold appears in
