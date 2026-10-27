@@ -20,7 +20,13 @@ set -u
 . "$(dirname "${BASH_SOURCE[0]}")/wake-helpers.sh"
 
 HOST="$ROOT/bin/fm-supervision-host.sh"
+# shellcheck disable=SC2034 # read by the drain test that sources this file
+REPORT="$ROOT/bin/fm-branch-report.sh"
+# shellcheck disable=SC2034 # read by the drain test that sources this file
+DISPATCH="$ROOT/bin/fm-branch-dispatch.mjs"
 CONTRACT="$ROOT/bin/fm-afk-contract.sh"
+# shellcheck disable=SC2034 # read by the host and park tests that source this file
+LEASE="$ROOT/bin/fm-lease.sh"
 
 command -v node >/dev/null 2>&1 || { printf 'skip: node absent\n'; exit 0; }
 command -v perl >/dev/null 2>&1 || { printf 'skip: perl absent\n'; exit 0; }
