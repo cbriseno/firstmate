@@ -74,8 +74,10 @@
 #     its wake lines keep the arm's eight-line cap. A "supervision-host stood
 #     down:" close exits 0 silently, and a host that died without a close is
 #     retried instead of being judged by the healthy-watcher predicate
-#     (docs/supervision-host.md). On a home that opted out nothing below
-#     changes.
+#     (docs/supervision-host.md). A host line still rewakes when the host's
+#     own engine turn finished the last task, so a recorded captain outcome
+#     is never dropped as a vanished need. On a home that opted out nothing
+#     below changes.
 #   - Translation: while supervision is still needed and AFK remains inactive,
 #     an actionable arm close (signal:/stale:/check:/heartbeat) prints one
 #     rewake banner to stderr and exits 2, which wakes Claude even while idle
@@ -472,8 +474,16 @@ while [ "$attempt" -lt "$AUTOARM_ATTEMPTS" ]; do
 done
 
 # The need may have vanished mid-cycle (fleet torn down, X opted out): nothing
-# left to supervise, so close quietly instead of waking the model.
-if ! need_supervision; then
+# left to supervise, so close quietly instead of waking the model. A line the
+# supervision host addressed to main is still delivered, because the host's own
+# engine turn can finish the last task, as when it closes out a scout whose
+# findings it recorded as a captain outcome.
+HOST_HANDBACK=0
+if [ "$HOST_MODE" -eq 1 ] && [ "$ACTIONABLE" -eq 1 ] && [ -n "$OUT" ] \
+  && grep -q '^supervision-host:' "$OUT" 2>/dev/null; then
+  HOST_HANDBACK=1
+fi
+if [ "$HOST_HANDBACK" -eq 0 ] && ! need_supervision; then
   autoarm_record clean
   [ -z "$OUT" ] || rm -f "$OUT" 2>/dev/null || true
   exit 0
