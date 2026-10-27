@@ -1,0 +1,16 @@
+OK  in_flight api-crew               state=working state_source=pane wait_until=null hold_bucket=null hold_until=null
+OK  in_flight docs-crew              state=working state_source=pane wait_until=null hold_bucket=null hold_until=null
+OK  in_flight held-live-working      state=working state_source=pane wait_until=null hold_bucket=live hold_until=null
+OK  in_flight paused-untimed         state=paused state_source=status-log wait_until=null hold_bucket=null hold_until=null
+OK  in_flight paused-vendor          state=paused state_source=status-log wait_until=2026-10-28T15:00:00Z hold_bucket=null hold_until=null
+OK  in_flight resumed-validation     state=working state_source=pane wait_until=null hold_bucket=null hold_until=null
+OK  in_flight ui-crew                state=working state_source=pane wait_until=null hold_bucket=null hold_until=null
+OK  in_flight waits-publication      state=paused state_source=status-log wait_until=null hold_bucket=null hold_until=null
+OK  in_flight mate/mate-build        state=working state_source=pane wait_until=null hold_bucket=null hold_until=null
+OK  in_flight mate/mate-resumed      state=working state_source=pane wait_until=null hold_bucket=null hold_until=null
+OK  gates     held-dated             hold_bucket=dated hold_until=2026-11-03 blocked_by=-
+OK  gates     follow-a               hold_bucket=null hold_until=null blocked_by=ui-crew
+OK  gates     follow-b               hold_bucket=null hold_until=null blocked_by=api-crew
+OK  gates     follow-c               hold_bucket=null hold_until=null blocked_by=follow-a
+OK  gates     deferred-call          hold_bucket=dated hold_until=2026-11-10 blocked_by=-
+PARITY PASS

@@ -1,0 +1,2987 @@
+{
+  "schema": "fm-fleet-snapshot.v1",
+  "generated": "2026-10-27T18:57:22Z",
+  "fm_home": "/tmp/fm-lab.xpPumC",
+  "roots": {
+    "fm_root": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZA79RPWR2AA3N64R6G5QX5",
+    "state": "/tmp/fm-lab.xpPumC/state",
+    "data": "/tmp/fm-lab.xpPumC/data",
+    "config": "/tmp/fm-lab.xpPumC/config",
+    "projects": "/tmp/fm-lab.xpPumC/projects"
+  },
+  "backlog": {
+    "records": [
+      {
+        "merged": null,
+        "card_time": {
+          "precision": "date",
+          "kind": "filed",
+          "source": "backlog.since",
+          "value": "2026-10-27"
+        },
+        "report_path": null,
+        "local_note": null,
+        "done": null,
+        "completion": {
+          "date": null,
+          "verb": null
+        },
+        "raw": "- [ ] ui-crew - Board legend for live work (repo: sample) (kind: ship) (since 2026-10-27)",
+        "hold_age_days": 0,
+        "unresolved_blocker_ids": [],
+        "checked": false,
+        "body_lines": [],
+        "hold_reason": null,
+        "pr_url": null,
+        "hold_kind": null,
+        "since": "2026-10-27",
+        "current_role": "worker",
+        "requires_child_metadata": true,
+        "state": "in_flight",
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by": null,
+        "blocked_by_ids": [],
+        "captain_actionable": false,
+        "kind": "ship",
+        "body_excerpt": null,
+        "structured": true,
+        "hold_set": null,
+        "hold_bucket": null,
+        "delivered_time": null,
+        "order": 1,
+        "links": [],
+        "id": "ui-crew",
+        "priority": null,
+        "hold_until": null,
+        "title": "Board legend for live work",
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "ui-crew",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-ui-crew",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      },
+      {
+        "raw": "- [ ] api-crew - Expose crew signals API (repo: sample) (kind: ship) (since 2026-10-27)",
+        "hold_age_days": 0,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "local_note": null,
+        "report_path": null,
+        "card_time": {
+          "value": "2026-10-27",
+          "source": "backlog.since",
+          "kind": "filed",
+          "precision": "date"
+        },
+        "merged": null,
+        "blocked_reason": null,
+        "reported": null,
+        "blocked_by_ids": [],
+        "blocked_by": null,
+        "repo": "sample",
+        "pr_url": null,
+        "hold_reason": null,
+        "unresolved_blocker_ids": [],
+        "checked": false,
+        "body_lines": [],
+        "requires_child_metadata": true,
+        "state": "in_flight",
+        "since": "2026-10-27",
+        "hold_kind": null,
+        "current_role": "worker",
+        "hold_set": null,
+        "hold_bucket": null,
+        "structured": true,
+        "links": [],
+        "delivered_time": null,
+        "order": 2,
+        "captain_actionable": false,
+        "kind": "ship",
+        "body_excerpt": null,
+        "hold_until": null,
+        "title": "Expose crew signals API",
+        "id": "api-crew",
+        "priority": null,
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "api-crew",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-api-crew",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      },
+      {
+        "captain_actionable": false,
+        "body_excerpt": null,
+        "kind": "ship",
+        "hold_set": null,
+        "hold_bucket": null,
+        "structured": true,
+        "links": [],
+        "order": 3,
+        "delivered_time": null,
+        "hold_until": null,
+        "title": "Document the deck columns",
+        "priority": null,
+        "id": "docs-crew",
+        "report_path": null,
+        "local_note": null,
+        "card_time": {
+          "kind": "filed",
+          "precision": "date",
+          "value": "2026-10-27",
+          "source": "backlog.since"
+        },
+        "merged": null,
+        "hold_age_days": 0,
+        "raw": "- [ ] docs-crew - Document the deck columns (repo: sample) (kind: ship) (since 2026-10-27)",
+        "completion": {
+          "date": null,
+          "verb": null
+        },
+        "done": null,
+        "hold_reason": null,
+        "pr_url": null,
+        "checked": false,
+        "body_lines": [],
+        "unresolved_blocker_ids": [],
+        "state": "in_flight",
+        "requires_child_metadata": true,
+        "current_role": "worker",
+        "since": "2026-10-27",
+        "hold_kind": null,
+        "blocked_reason": null,
+        "reported": null,
+        "blocked_by": null,
+        "blocked_by_ids": [],
+        "repo": "sample",
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "docs-crew",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-docs-crew",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      },
+      {
+        "captain_actionable": false,
+        "kind": "ship",
+        "body_excerpt": null,
+        "structured": true,
+        "hold_set": null,
+        "hold_bucket": null,
+        "delivered_time": null,
+        "order": 4,
+        "links": [],
+        "id": "paused-vendor",
+        "priority": null,
+        "title": "Wait for vendor window",
+        "hold_until": null,
+        "merged": null,
+        "card_time": {
+          "kind": "filed",
+          "precision": "date",
+          "value": "2026-10-26",
+          "source": "backlog.since"
+        },
+        "local_note": null,
+        "report_path": null,
+        "done": null,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "raw": "- [ ] paused-vendor - Wait for vendor window (repo: sample) (kind: ship) (since 2026-10-26)",
+        "hold_age_days": 1,
+        "unresolved_blocker_ids": [],
+        "checked": false,
+        "body_lines": [],
+        "hold_reason": null,
+        "pr_url": null,
+        "hold_kind": null,
+        "since": "2026-10-26",
+        "current_role": "worker",
+        "requires_child_metadata": true,
+        "state": "in_flight",
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by": null,
+        "blocked_by_ids": [],
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "paused-vendor",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-paused-vendor",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      },
+      {
+        "captain_actionable": false,
+        "body_excerpt": null,
+        "kind": "ship",
+        "structured": true,
+        "hold_bucket": null,
+        "hold_set": null,
+        "order": 5,
+        "delivered_time": null,
+        "links": [],
+        "priority": null,
+        "id": "paused-untimed",
+        "title": "Wait for upstream release",
+        "hold_until": null,
+        "card_time": {
+          "value": "2026-10-26",
+          "source": "backlog.since",
+          "kind": "filed",
+          "precision": "date"
+        },
+        "merged": null,
+        "report_path": null,
+        "local_note": null,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "hold_age_days": 1,
+        "raw": "- [ ] paused-untimed - Wait for upstream release (repo: sample) (kind: ship) (since 2026-10-26)",
+        "body_lines": [],
+        "checked": false,
+        "unresolved_blocker_ids": [],
+        "pr_url": null,
+        "hold_reason": null,
+        "current_role": "worker",
+        "hold_kind": null,
+        "since": "2026-10-26",
+        "state": "in_flight",
+        "requires_child_metadata": true,
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by": null,
+        "blocked_by_ids": [],
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "paused-untimed",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-paused-untimed",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      },
+      {
+        "captain_actionable": false,
+        "kind": "ship",
+        "body_excerpt": null,
+        "structured": true,
+        "hold_set": null,
+        "hold_bucket": null,
+        "delivered_time": null,
+        "order": 6,
+        "links": [],
+        "id": "resumed-validation",
+        "priority": null,
+        "hold_until": null,
+        "title": "Fix after own validation run",
+        "card_time": {
+          "precision": "date",
+          "kind": "filed",
+          "source": "backlog.since",
+          "value": "2026-10-26"
+        },
+        "merged": null,
+        "report_path": null,
+        "local_note": null,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "raw": "- [ ] resumed-validation - Fix after own validation run (repo: sample) (kind: ship) (since 2026-10-26)",
+        "hold_age_days": 1,
+        "unresolved_blocker_ids": [],
+        "checked": false,
+        "body_lines": [],
+        "hold_reason": null,
+        "pr_url": null,
+        "hold_kind": null,
+        "since": "2026-10-26",
+        "current_role": "worker",
+        "state": "in_flight",
+        "requires_child_metadata": true,
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by_ids": [],
+        "blocked_by": null,
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "resumed-validation",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-resumed-validation",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      },
+      {
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "hold_age_days": 2,
+        "raw": "- [ ] held-dated - Stopped until captain date (repo: sample) (kind: captain) (hold: resume after travel) (hold-kind: captain) (hold-until: 2026-11-03)",
+        "merged": null,
+        "card_time": {
+          "kind": "asked",
+          "precision": "second",
+          "value": "2026-10-25T00:00:00Z",
+          "source": "backlog.hold_set"
+        },
+        "report_path": null,
+        "local_note": null,
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by": null,
+        "blocked_by_ids": [],
+        "body_lines": [
+          "Captain hold set: 2026-10-25T00:00:00Z"
+        ],
+        "checked": false,
+        "unresolved_blocker_ids": [],
+        "pr_url": null,
+        "hold_reason": "resume after travel",
+        "current_role": "held",
+        "hold_kind": "captain",
+        "since": null,
+        "state": "in_flight",
+        "requires_child_metadata": false,
+        "structured": true,
+        "hold_bucket": "dated",
+        "hold_set": "2026-10-25T00:00:00Z",
+        "order": 7,
+        "delivered_time": null,
+        "links": [],
+        "captain_actionable": false,
+        "body_excerpt": "Captain hold set: 2026-10-25T00:00:00Z",
+        "kind": "captain",
+        "priority": null,
+        "id": "held-dated",
+        "title": "Stopped until captain date",
+        "hold_until": "2026-11-03",
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "held-dated",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-held-dated",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      },
+      {
+        "blocked_by_ids": [],
+        "blocked_by": null,
+        "repo": "sample",
+        "blocked_reason": null,
+        "reported": null,
+        "state": "in_flight",
+        "requires_child_metadata": false,
+        "since": null,
+        "hold_kind": "captain",
+        "current_role": "held",
+        "pr_url": null,
+        "hold_reason": "choose release route",
+        "unresolved_blocker_ids": [],
+        "body_lines": [
+          "Captain hold set: 2026-10-25T00:00:00Z"
+        ],
+        "checked": false,
+        "raw": "- [ ] held-live-working - Working while captain decides (repo: sample) (kind: captain) (hold: choose release route) (hold-kind: captain)",
+        "hold_age_days": 2,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "report_path": null,
+        "local_note": null,
+        "merged": null,
+        "card_time": {
+          "precision": "second",
+          "kind": "asked",
+          "source": "backlog.hold_set",
+          "value": "2026-10-25T00:00:00Z"
+        },
+        "hold_until": null,
+        "title": "Working while captain decides",
+        "id": "held-live-working",
+        "priority": null,
+        "links": [],
+        "delivered_time": null,
+        "order": 8,
+        "hold_set": "2026-10-25T00:00:00Z",
+        "hold_bucket": "live",
+        "structured": true,
+        "kind": "captain",
+        "body_excerpt": "Captain hold set: 2026-10-25T00:00:00Z",
+        "captain_actionable": true,
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "held-live-working",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-held-live-working",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      },
+      {
+        "blocked_by_ids": [
+          "ui-crew"
+        ],
+        "blocked_by": "ui-crew",
+        "repo": "sample",
+        "blocked_reason": null,
+        "reported": null,
+        "requires_child_metadata": true,
+        "state": "in_flight",
+        "since": "2026-10-26",
+        "hold_kind": null,
+        "current_role": "worker",
+        "hold_reason": null,
+        "pr_url": null,
+        "unresolved_blocker_ids": [
+          "ui-crew"
+        ],
+        "body_lines": [],
+        "checked": false,
+        "raw": "- [ ] waits-publication - Waits on board legend landing blocked-by: ui-crew (repo: sample) (kind: ship) (since 2026-10-26)",
+        "hold_age_days": 1,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "report_path": null,
+        "local_note": null,
+        "card_time": {
+          "source": "backlog.since",
+          "value": "2026-10-26",
+          "precision": "date",
+          "kind": "filed"
+        },
+        "merged": null,
+        "title": "Waits on board legend landing",
+        "hold_until": null,
+        "id": "waits-publication",
+        "priority": null,
+        "links": [],
+        "delivered_time": null,
+        "order": 9,
+        "hold_bucket": null,
+        "hold_set": null,
+        "structured": true,
+        "kind": "ship",
+        "body_excerpt": null,
+        "captain_actionable": false,
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "waits-publication",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-waits-publication",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      },
+      {
+        "card_time": null,
+        "merged": null,
+        "report_path": null,
+        "local_note": null,
+        "done": null,
+        "completion": {
+          "date": null,
+          "verb": null
+        },
+        "raw": "- [ ] follow-a - Follow-up after legend blocked-by: ui-crew (repo: sample) (kind: ship)",
+        "hold_age_days": null,
+        "unresolved_blocker_ids": [
+          "ui-crew"
+        ],
+        "checked": false,
+        "body_lines": [],
+        "pr_url": null,
+        "hold_reason": null,
+        "hold_kind": null,
+        "since": null,
+        "current_role": "queued",
+        "state": "queued",
+        "requires_child_metadata": false,
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by_ids": [
+          "ui-crew"
+        ],
+        "blocked_by": "ui-crew",
+        "captain_actionable": false,
+        "kind": "ship",
+        "body_excerpt": null,
+        "structured": true,
+        "hold_bucket": null,
+        "hold_set": null,
+        "delivered_time": null,
+        "order": 10,
+        "links": [],
+        "id": "follow-a",
+        "priority": null,
+        "title": "Follow-up after legend",
+        "hold_until": null,
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": null,
+        "native_activity": null,
+        "run_step": null
+      },
+      {
+        "order": 11,
+        "delivered_time": null,
+        "links": [],
+        "structured": true,
+        "hold_bucket": null,
+        "hold_set": null,
+        "body_excerpt": null,
+        "kind": "ship",
+        "captain_actionable": false,
+        "priority": null,
+        "id": "follow-b",
+        "hold_until": null,
+        "title": "Follow-up after API",
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "hold_age_days": null,
+        "raw": "- [ ] follow-b - Follow-up after API blocked-by: api-crew (repo: sample) (kind: ship)",
+        "card_time": null,
+        "merged": null,
+        "local_note": null,
+        "report_path": null,
+        "repo": "sample",
+        "blocked_by": "api-crew",
+        "blocked_by_ids": [
+          "api-crew"
+        ],
+        "reported": null,
+        "blocked_reason": null,
+        "current_role": "queued",
+        "hold_kind": null,
+        "since": null,
+        "state": "queued",
+        "requires_child_metadata": false,
+        "checked": false,
+        "body_lines": [],
+        "unresolved_blocker_ids": [
+          "api-crew"
+        ],
+        "pr_url": null,
+        "hold_reason": null,
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": null,
+        "native_activity": null,
+        "run_step": null
+      },
+      {
+        "report_path": null,
+        "local_note": null,
+        "card_time": null,
+        "merged": null,
+        "hold_age_days": null,
+        "raw": "- [ ] follow-c - Follow-up of follow-a blocked-by: follow-a (repo: sample) (kind: ship)",
+        "done": null,
+        "completion": {
+          "date": null,
+          "verb": null
+        },
+        "requires_child_metadata": false,
+        "state": "queued",
+        "current_role": "queued",
+        "hold_kind": null,
+        "since": null,
+        "pr_url": null,
+        "hold_reason": null,
+        "checked": false,
+        "body_lines": [],
+        "unresolved_blocker_ids": [
+          "follow-a"
+        ],
+        "blocked_by_ids": [
+          "follow-a"
+        ],
+        "blocked_by": "follow-a",
+        "repo": "sample",
+        "blocked_reason": null,
+        "reported": null,
+        "body_excerpt": null,
+        "kind": "ship",
+        "captain_actionable": false,
+        "links": [],
+        "order": 12,
+        "delivered_time": null,
+        "hold_bucket": null,
+        "hold_set": null,
+        "structured": true,
+        "title": "Follow-up of follow-a",
+        "hold_until": null,
+        "priority": null,
+        "id": "follow-c",
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": null,
+        "native_activity": null,
+        "run_step": null
+      },
+      {
+        "structured": true,
+        "hold_bucket": "dated",
+        "hold_set": "2026-10-20T00:00:00Z",
+        "delivered_time": null,
+        "order": 13,
+        "links": [],
+        "captain_actionable": false,
+        "kind": "captain",
+        "body_excerpt": "Captain hold set: 2026-10-20T00:00:00Z",
+        "id": "deferred-call",
+        "priority": null,
+        "hold_until": "2026-11-10",
+        "title": "Deferred by captain to a date",
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "raw": "- [ ] deferred-call - Deferred by captain to a date (repo: sample) (kind: captain) (hold: revisit pricing) (hold-kind: captain) (hold-until: 2026-11-10)",
+        "hold_age_days": 7,
+        "card_time": {
+          "value": "2026-10-20T00:00:00Z",
+          "source": "backlog.hold_set",
+          "kind": "asked",
+          "precision": "second"
+        },
+        "merged": null,
+        "report_path": null,
+        "local_note": null,
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by_ids": [],
+        "blocked_by": null,
+        "unresolved_blocker_ids": [],
+        "body_lines": [
+          "Captain hold set: 2026-10-20T00:00:00Z"
+        ],
+        "checked": false,
+        "pr_url": null,
+        "hold_reason": "revisit pricing",
+        "hold_kind": "captain",
+        "since": null,
+        "current_role": "queued",
+        "requires_child_metadata": false,
+        "state": "queued",
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": null,
+        "native_activity": null,
+        "run_step": null
+      }
+    ],
+    "path": "/tmp/fm-lab.xpPumC/data/backlog.md",
+    "present": true
+  },
+  "tasks": [
+    {
+      "id": "api-crew",
+      "card_time": {
+        "kind": "updated",
+        "value": "2026-10-27T18:56:49Z",
+        "precision": "second",
+        "source": "status.declaration.at",
+        "original_value": 1793127409,
+        "attempt_boundary": "unknown"
+      },
+      "declaration": {
+        "state": "working",
+        "note": "wiring crew signals",
+        "source": "status.declaration",
+        "card_time": {
+          "kind": "updated",
+          "value": "2026-10-27T18:56:49Z",
+          "precision": "second",
+          "source": "status.declaration.at",
+          "original_value": 1793127409,
+          "attempt_boundary": "unknown"
+        },
+        "current_state": false
+      },
+      "wait_until": null,
+      "kind": "ship",
+      "harness": "claude",
+      "mode": "no-mistakes",
+      "yolo": "",
+      "branch": null,
+      "project": "sample",
+      "spawn_gen": null,
+      "backend": "tmux",
+      "execution": {
+        "crew_id": "api-crew",
+        "harness": "claude",
+        "role": "ship",
+        "endpoint_identity": "firstmate:fm-api-crew",
+        "backend": null,
+        "host": null,
+        "spawn_gen": null,
+        "assignment_state": "registered",
+        "source": "task.meta",
+        "observed_at": "2026-10-27T18:57:22Z"
+      },
+      "native_activity": {
+        "state": "unknown",
+        "verified": false,
+        "observed_at": null,
+        "source": null,
+        "identity": null
+      },
+      "run_step": null,
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "/tmp/fm-lab.xpPumC/state/api-crew.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "/tmp/fm-lab.xpPumC/state/api-crew.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "working",
+            "note": "wiring crew signals",
+            "raw": "working [at=1793127409]: wiring crew signals",
+            "age_seconds": 33
+          }
+        },
+        "worktree": {
+          "path": "/tmp/fm-lab.xpPumC/projects/api-crew",
+          "present": true
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "/tmp/fm-lab.xpPumC/data/api-crew/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "working",
+        "source": "pane",
+        "detail": "harness busy (claude-hook)",
+        "raw": "state: working · source: pane · harness busy (claude-hook)",
+        "run_step": null,
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": "firstmate:fm-api-crew",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": null,
+        "source": "absent",
+        "head": null
+      },
+      "hints": {
+        "pending_decision": false,
+        "blocked_event": false,
+        "open_decisions": [],
+        "scout_report_present": false,
+        "last_event_text": "working [at=1793127409]: wiring crew signals"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-api-crew",
+        "steer": "bin/fm-send.sh fm-api-crew '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": {
+        "raw": "- [ ] api-crew - Expose crew signals API (repo: sample) (kind: ship) (since 2026-10-27)",
+        "hold_age_days": 0,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "local_note": null,
+        "report_path": null,
+        "card_time": {
+          "value": "2026-10-27",
+          "source": "backlog.since",
+          "kind": "filed",
+          "precision": "date"
+        },
+        "merged": null,
+        "blocked_reason": null,
+        "reported": null,
+        "blocked_by_ids": [],
+        "blocked_by": null,
+        "repo": "sample",
+        "pr_url": null,
+        "hold_reason": null,
+        "unresolved_blocker_ids": [],
+        "checked": false,
+        "body_lines": [],
+        "requires_child_metadata": true,
+        "state": "in_flight",
+        "since": "2026-10-27",
+        "hold_kind": null,
+        "current_role": "worker",
+        "hold_set": null,
+        "hold_bucket": null,
+        "structured": true,
+        "links": [],
+        "delivered_time": null,
+        "order": 2,
+        "captain_actionable": false,
+        "kind": "ship",
+        "body_excerpt": null,
+        "hold_until": null,
+        "title": "Expose crew signals API",
+        "id": "api-crew",
+        "priority": null,
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "api-crew",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-api-crew",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      }
+    },
+    {
+      "id": "docs-crew",
+      "card_time": {
+        "kind": "updated",
+        "value": "2026-10-27T18:56:49Z",
+        "precision": "second",
+        "source": "status.declaration.at",
+        "original_value": 1793127409,
+        "attempt_boundary": "unknown"
+      },
+      "declaration": {
+        "state": "working",
+        "note": "documenting columns",
+        "source": "status.declaration",
+        "card_time": {
+          "kind": "updated",
+          "value": "2026-10-27T18:56:49Z",
+          "precision": "second",
+          "source": "status.declaration.at",
+          "original_value": 1793127409,
+          "attempt_boundary": "unknown"
+        },
+        "current_state": false
+      },
+      "wait_until": null,
+      "kind": "ship",
+      "harness": "claude",
+      "mode": "no-mistakes",
+      "yolo": "",
+      "branch": null,
+      "project": "sample",
+      "spawn_gen": null,
+      "backend": "tmux",
+      "execution": {
+        "crew_id": "docs-crew",
+        "harness": "claude",
+        "role": "ship",
+        "endpoint_identity": "firstmate:fm-docs-crew",
+        "backend": null,
+        "host": null,
+        "spawn_gen": null,
+        "assignment_state": "registered",
+        "source": "task.meta",
+        "observed_at": "2026-10-27T18:57:22Z"
+      },
+      "native_activity": {
+        "state": "unknown",
+        "verified": false,
+        "observed_at": null,
+        "source": null,
+        "identity": null
+      },
+      "run_step": null,
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "/tmp/fm-lab.xpPumC/state/docs-crew.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "/tmp/fm-lab.xpPumC/state/docs-crew.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "working",
+            "note": "documenting columns",
+            "raw": "working [at=1793127409]: documenting columns",
+            "age_seconds": 33
+          }
+        },
+        "worktree": {
+          "path": "/tmp/fm-lab.xpPumC/projects/docs-crew",
+          "present": true
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "/tmp/fm-lab.xpPumC/data/docs-crew/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "working",
+        "source": "pane",
+        "detail": "harness busy (claude-hook)",
+        "raw": "state: working · source: pane · harness busy (claude-hook)",
+        "run_step": null,
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": "firstmate:fm-docs-crew",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": null,
+        "source": "absent",
+        "head": null
+      },
+      "hints": {
+        "pending_decision": false,
+        "blocked_event": false,
+        "open_decisions": [],
+        "scout_report_present": false,
+        "last_event_text": "working [at=1793127409]: documenting columns"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-docs-crew",
+        "steer": "bin/fm-send.sh fm-docs-crew '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": {
+        "captain_actionable": false,
+        "body_excerpt": null,
+        "kind": "ship",
+        "hold_set": null,
+        "hold_bucket": null,
+        "structured": true,
+        "links": [],
+        "order": 3,
+        "delivered_time": null,
+        "hold_until": null,
+        "title": "Document the deck columns",
+        "priority": null,
+        "id": "docs-crew",
+        "report_path": null,
+        "local_note": null,
+        "card_time": {
+          "kind": "filed",
+          "precision": "date",
+          "value": "2026-10-27",
+          "source": "backlog.since"
+        },
+        "merged": null,
+        "hold_age_days": 0,
+        "raw": "- [ ] docs-crew - Document the deck columns (repo: sample) (kind: ship) (since 2026-10-27)",
+        "completion": {
+          "date": null,
+          "verb": null
+        },
+        "done": null,
+        "hold_reason": null,
+        "pr_url": null,
+        "checked": false,
+        "body_lines": [],
+        "unresolved_blocker_ids": [],
+        "state": "in_flight",
+        "requires_child_metadata": true,
+        "current_role": "worker",
+        "since": "2026-10-27",
+        "hold_kind": null,
+        "blocked_reason": null,
+        "reported": null,
+        "blocked_by": null,
+        "blocked_by_ids": [],
+        "repo": "sample",
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "docs-crew",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-docs-crew",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      }
+    },
+    {
+      "id": "held-dated",
+      "card_time": {
+        "kind": "updated",
+        "value": "2026-10-27T18:56:49Z",
+        "precision": "second",
+        "source": "status.declaration.at",
+        "original_value": 1793127409,
+        "attempt_boundary": "unknown"
+      },
+      "declaration": {
+        "state": "paused",
+        "note": "stopped for captain until 2026-11-03",
+        "source": "status.declaration",
+        "card_time": {
+          "kind": "updated",
+          "value": "2026-10-27T18:56:49Z",
+          "precision": "second",
+          "source": "status.declaration.at",
+          "original_value": 1793127409,
+          "attempt_boundary": "unknown"
+        },
+        "current_state": false
+      },
+      "wait_until": null,
+      "kind": "ship",
+      "harness": "claude",
+      "mode": "no-mistakes",
+      "yolo": "",
+      "branch": null,
+      "project": "sample",
+      "spawn_gen": null,
+      "backend": "tmux",
+      "execution": {
+        "crew_id": "held-dated",
+        "harness": "claude",
+        "role": "ship",
+        "endpoint_identity": "firstmate:fm-held-dated",
+        "backend": null,
+        "host": null,
+        "spawn_gen": null,
+        "assignment_state": "registered",
+        "source": "task.meta",
+        "observed_at": "2026-10-27T18:57:22Z"
+      },
+      "native_activity": {
+        "state": "unknown",
+        "verified": false,
+        "observed_at": null,
+        "source": null,
+        "identity": null
+      },
+      "run_step": null,
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "/tmp/fm-lab.xpPumC/state/held-dated.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "/tmp/fm-lab.xpPumC/state/held-dated.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "paused",
+            "note": "stopped for captain until 2026-11-03",
+            "raw": "paused [at=1793127409]: stopped for captain until 2026-11-03",
+            "age_seconds": 33
+          }
+        },
+        "worktree": {
+          "path": "/tmp/fm-lab.xpPumC/projects/held-dated",
+          "present": true
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "/tmp/fm-lab.xpPumC/data/held-dated/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "paused",
+        "source": "status-log",
+        "detail": "stopped for captain until 2026-11-03",
+        "raw": "state: paused · source: status-log · stopped for captain until 2026-11-03",
+        "run_step": null,
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": "firstmate:fm-held-dated",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": null,
+        "source": "absent",
+        "head": null
+      },
+      "hints": {
+        "pending_decision": false,
+        "blocked_event": false,
+        "open_decisions": [],
+        "scout_report_present": false,
+        "last_event_text": "paused [at=1793127409]: stopped for captain until 2026-11-03"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-held-dated",
+        "steer": "bin/fm-send.sh fm-held-dated '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": {
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "hold_age_days": 2,
+        "raw": "- [ ] held-dated - Stopped until captain date (repo: sample) (kind: captain) (hold: resume after travel) (hold-kind: captain) (hold-until: 2026-11-03)",
+        "merged": null,
+        "card_time": {
+          "kind": "asked",
+          "precision": "second",
+          "value": "2026-10-25T00:00:00Z",
+          "source": "backlog.hold_set"
+        },
+        "report_path": null,
+        "local_note": null,
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by": null,
+        "blocked_by_ids": [],
+        "body_lines": [
+          "Captain hold set: 2026-10-25T00:00:00Z"
+        ],
+        "checked": false,
+        "unresolved_blocker_ids": [],
+        "pr_url": null,
+        "hold_reason": "resume after travel",
+        "current_role": "held",
+        "hold_kind": "captain",
+        "since": null,
+        "state": "in_flight",
+        "requires_child_metadata": false,
+        "structured": true,
+        "hold_bucket": "dated",
+        "hold_set": "2026-10-25T00:00:00Z",
+        "order": 7,
+        "delivered_time": null,
+        "links": [],
+        "captain_actionable": false,
+        "body_excerpt": "Captain hold set: 2026-10-25T00:00:00Z",
+        "kind": "captain",
+        "priority": null,
+        "id": "held-dated",
+        "title": "Stopped until captain date",
+        "hold_until": "2026-11-03",
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "held-dated",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-held-dated",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      }
+    },
+    {
+      "id": "held-live-working",
+      "card_time": {
+        "kind": "updated",
+        "value": "2026-10-27T18:56:49Z",
+        "precision": "second",
+        "source": "status.declaration.at",
+        "original_value": 1793127409,
+        "attempt_boundary": "unknown"
+      },
+      "declaration": {
+        "state": "working",
+        "note": "preparing both release routes",
+        "source": "status.declaration",
+        "card_time": {
+          "kind": "updated",
+          "value": "2026-10-27T18:56:49Z",
+          "precision": "second",
+          "source": "status.declaration.at",
+          "original_value": 1793127409,
+          "attempt_boundary": "unknown"
+        },
+        "current_state": false
+      },
+      "wait_until": null,
+      "kind": "ship",
+      "harness": "claude",
+      "mode": "no-mistakes",
+      "yolo": "",
+      "branch": null,
+      "project": "sample",
+      "spawn_gen": null,
+      "backend": "tmux",
+      "execution": {
+        "crew_id": "held-live-working",
+        "harness": "claude",
+        "role": "ship",
+        "endpoint_identity": "firstmate:fm-held-live-working",
+        "backend": null,
+        "host": null,
+        "spawn_gen": null,
+        "assignment_state": "registered",
+        "source": "task.meta",
+        "observed_at": "2026-10-27T18:57:22Z"
+      },
+      "native_activity": {
+        "state": "unknown",
+        "verified": false,
+        "observed_at": null,
+        "source": null,
+        "identity": null
+      },
+      "run_step": null,
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "/tmp/fm-lab.xpPumC/state/held-live-working.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "/tmp/fm-lab.xpPumC/state/held-live-working.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "working",
+            "note": "preparing both release routes",
+            "raw": "working [at=1793127409]: preparing both release routes",
+            "age_seconds": 33
+          }
+        },
+        "worktree": {
+          "path": "/tmp/fm-lab.xpPumC/projects/held-live-working",
+          "present": true
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "/tmp/fm-lab.xpPumC/data/held-live-working/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "working",
+        "source": "pane",
+        "detail": "harness busy (claude-hook)",
+        "raw": "state: working · source: pane · harness busy (claude-hook)",
+        "run_step": null,
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": "firstmate:fm-held-live-working",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": null,
+        "source": "absent",
+        "head": null
+      },
+      "hints": {
+        "pending_decision": false,
+        "blocked_event": false,
+        "open_decisions": [],
+        "scout_report_present": false,
+        "last_event_text": "working [at=1793127409]: preparing both release routes"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-held-live-working",
+        "steer": "bin/fm-send.sh fm-held-live-working '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": {
+        "blocked_by_ids": [],
+        "blocked_by": null,
+        "repo": "sample",
+        "blocked_reason": null,
+        "reported": null,
+        "state": "in_flight",
+        "requires_child_metadata": false,
+        "since": null,
+        "hold_kind": "captain",
+        "current_role": "held",
+        "pr_url": null,
+        "hold_reason": "choose release route",
+        "unresolved_blocker_ids": [],
+        "body_lines": [
+          "Captain hold set: 2026-10-25T00:00:00Z"
+        ],
+        "checked": false,
+        "raw": "- [ ] held-live-working - Working while captain decides (repo: sample) (kind: captain) (hold: choose release route) (hold-kind: captain)",
+        "hold_age_days": 2,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "report_path": null,
+        "local_note": null,
+        "merged": null,
+        "card_time": {
+          "precision": "second",
+          "kind": "asked",
+          "source": "backlog.hold_set",
+          "value": "2026-10-25T00:00:00Z"
+        },
+        "hold_until": null,
+        "title": "Working while captain decides",
+        "id": "held-live-working",
+        "priority": null,
+        "links": [],
+        "delivered_time": null,
+        "order": 8,
+        "hold_set": "2026-10-25T00:00:00Z",
+        "hold_bucket": "live",
+        "structured": true,
+        "kind": "captain",
+        "body_excerpt": "Captain hold set: 2026-10-25T00:00:00Z",
+        "captain_actionable": true,
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "held-live-working",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-held-live-working",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      }
+    },
+    {
+      "id": "paused-untimed",
+      "card_time": {
+        "kind": "updated",
+        "value": "2026-10-27T18:56:49Z",
+        "precision": "second",
+        "source": "status.declaration.at",
+        "original_value": 1793127409,
+        "attempt_boundary": "unknown"
+      },
+      "declaration": {
+        "state": "paused",
+        "note": "waiting for the upstream release",
+        "source": "status.declaration",
+        "card_time": {
+          "kind": "updated",
+          "value": "2026-10-27T18:56:49Z",
+          "precision": "second",
+          "source": "status.declaration.at",
+          "original_value": 1793127409,
+          "attempt_boundary": "unknown"
+        },
+        "current_state": false
+      },
+      "wait_until": null,
+      "kind": "ship",
+      "harness": "claude",
+      "mode": "no-mistakes",
+      "yolo": "",
+      "branch": null,
+      "project": "sample",
+      "spawn_gen": null,
+      "backend": "tmux",
+      "execution": {
+        "crew_id": "paused-untimed",
+        "harness": "claude",
+        "role": "ship",
+        "endpoint_identity": "firstmate:fm-paused-untimed",
+        "backend": null,
+        "host": null,
+        "spawn_gen": null,
+        "assignment_state": "registered",
+        "source": "task.meta",
+        "observed_at": "2026-10-27T18:57:22Z"
+      },
+      "native_activity": {
+        "state": "unknown",
+        "verified": false,
+        "observed_at": null,
+        "source": null,
+        "identity": null
+      },
+      "run_step": null,
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "/tmp/fm-lab.xpPumC/state/paused-untimed.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "/tmp/fm-lab.xpPumC/state/paused-untimed.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "paused",
+            "note": "waiting for the upstream release",
+            "raw": "paused [at=1793127409]: waiting for the upstream release",
+            "age_seconds": 33
+          }
+        },
+        "worktree": {
+          "path": "/tmp/fm-lab.xpPumC/projects/paused-untimed",
+          "present": true
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "/tmp/fm-lab.xpPumC/data/paused-untimed/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "paused",
+        "source": "status-log",
+        "detail": "waiting for the upstream release",
+        "raw": "state: paused · source: status-log · waiting for the upstream release",
+        "run_step": null,
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": "firstmate:fm-paused-untimed",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": null,
+        "source": "absent",
+        "head": null
+      },
+      "hints": {
+        "pending_decision": false,
+        "blocked_event": false,
+        "open_decisions": [],
+        "scout_report_present": false,
+        "last_event_text": "paused [at=1793127409]: waiting for the upstream release"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-paused-untimed",
+        "steer": "bin/fm-send.sh fm-paused-untimed '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": {
+        "captain_actionable": false,
+        "body_excerpt": null,
+        "kind": "ship",
+        "structured": true,
+        "hold_bucket": null,
+        "hold_set": null,
+        "order": 5,
+        "delivered_time": null,
+        "links": [],
+        "priority": null,
+        "id": "paused-untimed",
+        "title": "Wait for upstream release",
+        "hold_until": null,
+        "card_time": {
+          "value": "2026-10-26",
+          "source": "backlog.since",
+          "kind": "filed",
+          "precision": "date"
+        },
+        "merged": null,
+        "report_path": null,
+        "local_note": null,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "hold_age_days": 1,
+        "raw": "- [ ] paused-untimed - Wait for upstream release (repo: sample) (kind: ship) (since 2026-10-26)",
+        "body_lines": [],
+        "checked": false,
+        "unresolved_blocker_ids": [],
+        "pr_url": null,
+        "hold_reason": null,
+        "current_role": "worker",
+        "hold_kind": null,
+        "since": "2026-10-26",
+        "state": "in_flight",
+        "requires_child_metadata": true,
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by": null,
+        "blocked_by_ids": [],
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "paused-untimed",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-paused-untimed",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      }
+    },
+    {
+      "id": "paused-vendor",
+      "card_time": {
+        "kind": "updated",
+        "value": "2026-10-27T18:56:49Z",
+        "precision": "second",
+        "source": "status.declaration.at",
+        "original_value": 1793127409,
+        "attempt_boundary": "unknown"
+      },
+      "declaration": {
+        "state": "paused",
+        "note": "vendor maintenance window until 2026-10-28T15:00Z",
+        "source": "status.declaration",
+        "card_time": {
+          "kind": "updated",
+          "value": "2026-10-27T18:56:49Z",
+          "precision": "second",
+          "source": "status.declaration.at",
+          "original_value": 1793127409,
+          "attempt_boundary": "unknown"
+        },
+        "current_state": false
+      },
+      "wait_until": "2026-10-28T15:00:00Z",
+      "kind": "ship",
+      "harness": "claude",
+      "mode": "no-mistakes",
+      "yolo": "",
+      "branch": null,
+      "project": "sample",
+      "spawn_gen": null,
+      "backend": "tmux",
+      "execution": {
+        "crew_id": "paused-vendor",
+        "harness": "claude",
+        "role": "ship",
+        "endpoint_identity": "firstmate:fm-paused-vendor",
+        "backend": null,
+        "host": null,
+        "spawn_gen": null,
+        "assignment_state": "registered",
+        "source": "task.meta",
+        "observed_at": "2026-10-27T18:57:22Z"
+      },
+      "native_activity": {
+        "state": "unknown",
+        "verified": false,
+        "observed_at": null,
+        "source": null,
+        "identity": null
+      },
+      "run_step": null,
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "/tmp/fm-lab.xpPumC/state/paused-vendor.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "/tmp/fm-lab.xpPumC/state/paused-vendor.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "paused",
+            "note": "vendor maintenance window until 2026-10-28T15:00Z",
+            "raw": "paused [at=1793127409]: vendor maintenance window until 2026-10-28T15:00Z",
+            "age_seconds": 33
+          }
+        },
+        "worktree": {
+          "path": "/tmp/fm-lab.xpPumC/projects/paused-vendor",
+          "present": true
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "/tmp/fm-lab.xpPumC/data/paused-vendor/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "paused",
+        "source": "status-log",
+        "detail": "vendor maintenance window until 2026-10-28T15:00Z",
+        "raw": "state: paused · source: status-log · vendor maintenance window until 2026-10-28T15:00Z",
+        "run_step": null,
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": "firstmate:fm-paused-vendor",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": null,
+        "source": "absent",
+        "head": null
+      },
+      "hints": {
+        "pending_decision": false,
+        "blocked_event": false,
+        "open_decisions": [],
+        "scout_report_present": false,
+        "last_event_text": "paused [at=1793127409]: vendor maintenance window until 2026-10-28T15:00Z"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-paused-vendor",
+        "steer": "bin/fm-send.sh fm-paused-vendor '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": {
+        "captain_actionable": false,
+        "kind": "ship",
+        "body_excerpt": null,
+        "structured": true,
+        "hold_set": null,
+        "hold_bucket": null,
+        "delivered_time": null,
+        "order": 4,
+        "links": [],
+        "id": "paused-vendor",
+        "priority": null,
+        "title": "Wait for vendor window",
+        "hold_until": null,
+        "merged": null,
+        "card_time": {
+          "kind": "filed",
+          "precision": "date",
+          "value": "2026-10-26",
+          "source": "backlog.since"
+        },
+        "local_note": null,
+        "report_path": null,
+        "done": null,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "raw": "- [ ] paused-vendor - Wait for vendor window (repo: sample) (kind: ship) (since 2026-10-26)",
+        "hold_age_days": 1,
+        "unresolved_blocker_ids": [],
+        "checked": false,
+        "body_lines": [],
+        "hold_reason": null,
+        "pr_url": null,
+        "hold_kind": null,
+        "since": "2026-10-26",
+        "current_role": "worker",
+        "requires_child_metadata": true,
+        "state": "in_flight",
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by": null,
+        "blocked_by_ids": [],
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "paused-vendor",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-paused-vendor",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      }
+    },
+    {
+      "id": "resumed-validation",
+      "card_time": {
+        "kind": "updated",
+        "value": "2026-10-27T18:56:49Z",
+        "precision": "second",
+        "source": "status.declaration.at",
+        "original_value": 1793127409,
+        "attempt_boundary": "unknown"
+      },
+      "declaration": {
+        "state": "paused",
+        "note": "own validation run until 2026-10-28T23:40Z",
+        "source": "status.declaration",
+        "card_time": {
+          "kind": "updated",
+          "value": "2026-10-27T18:56:49Z",
+          "precision": "second",
+          "source": "status.declaration.at",
+          "original_value": 1793127409,
+          "attempt_boundary": "unknown"
+        },
+        "current_state": false
+      },
+      "wait_until": null,
+      "kind": "ship",
+      "harness": "claude",
+      "mode": "no-mistakes",
+      "yolo": "",
+      "branch": null,
+      "project": "sample",
+      "spawn_gen": null,
+      "backend": "tmux",
+      "execution": {
+        "crew_id": "resumed-validation",
+        "harness": "claude",
+        "role": "ship",
+        "endpoint_identity": "firstmate:fm-resumed-validation",
+        "backend": null,
+        "host": null,
+        "spawn_gen": null,
+        "assignment_state": "registered",
+        "source": "task.meta",
+        "observed_at": "2026-10-27T18:57:22Z"
+      },
+      "native_activity": {
+        "state": "unknown",
+        "verified": false,
+        "observed_at": null,
+        "source": null,
+        "identity": null
+      },
+      "run_step": null,
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "/tmp/fm-lab.xpPumC/state/resumed-validation.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "/tmp/fm-lab.xpPumC/state/resumed-validation.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "paused",
+            "note": "own validation run until 2026-10-28T23:40Z",
+            "raw": "paused [at=1793127409]: own validation run until 2026-10-28T23:40Z",
+            "age_seconds": 33
+          }
+        },
+        "worktree": {
+          "path": "/tmp/fm-lab.xpPumC/projects/resumed-validation",
+          "present": true
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "/tmp/fm-lab.xpPumC/data/resumed-validation/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "working",
+        "source": "pane",
+        "detail": "harness busy (claude-hook)",
+        "raw": "state: working · source: pane · harness busy (claude-hook)",
+        "run_step": null,
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": "firstmate:fm-resumed-validation",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": null,
+        "source": "absent",
+        "head": null
+      },
+      "hints": {
+        "pending_decision": false,
+        "blocked_event": false,
+        "open_decisions": [],
+        "scout_report_present": false,
+        "last_event_text": "paused [at=1793127409]: own validation run until 2026-10-28T23:40Z"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-resumed-validation",
+        "steer": "bin/fm-send.sh fm-resumed-validation '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": {
+        "captain_actionable": false,
+        "kind": "ship",
+        "body_excerpt": null,
+        "structured": true,
+        "hold_set": null,
+        "hold_bucket": null,
+        "delivered_time": null,
+        "order": 6,
+        "links": [],
+        "id": "resumed-validation",
+        "priority": null,
+        "hold_until": null,
+        "title": "Fix after own validation run",
+        "card_time": {
+          "precision": "date",
+          "kind": "filed",
+          "source": "backlog.since",
+          "value": "2026-10-26"
+        },
+        "merged": null,
+        "report_path": null,
+        "local_note": null,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "raw": "- [ ] resumed-validation - Fix after own validation run (repo: sample) (kind: ship) (since 2026-10-26)",
+        "hold_age_days": 1,
+        "unresolved_blocker_ids": [],
+        "checked": false,
+        "body_lines": [],
+        "hold_reason": null,
+        "pr_url": null,
+        "hold_kind": null,
+        "since": "2026-10-26",
+        "current_role": "worker",
+        "state": "in_flight",
+        "requires_child_metadata": true,
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by_ids": [],
+        "blocked_by": null,
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "resumed-validation",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-resumed-validation",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      }
+    },
+    {
+      "id": "ui-crew",
+      "card_time": {
+        "kind": "updated",
+        "value": "2026-10-27T18:56:49Z",
+        "precision": "second",
+        "source": "status.declaration.at",
+        "original_value": 1793127409,
+        "attempt_boundary": "unknown"
+      },
+      "declaration": {
+        "state": "working",
+        "note": "building the board legend",
+        "source": "status.declaration",
+        "card_time": {
+          "kind": "updated",
+          "value": "2026-10-27T18:56:49Z",
+          "precision": "second",
+          "source": "status.declaration.at",
+          "original_value": 1793127409,
+          "attempt_boundary": "unknown"
+        },
+        "current_state": false
+      },
+      "wait_until": null,
+      "kind": "ship",
+      "harness": "claude",
+      "mode": "no-mistakes",
+      "yolo": "",
+      "branch": null,
+      "project": "sample",
+      "spawn_gen": null,
+      "backend": "tmux",
+      "execution": {
+        "crew_id": "ui-crew",
+        "harness": "claude",
+        "role": "ship",
+        "endpoint_identity": "firstmate:fm-ui-crew",
+        "backend": null,
+        "host": null,
+        "spawn_gen": null,
+        "assignment_state": "registered",
+        "source": "task.meta",
+        "observed_at": "2026-10-27T18:57:22Z"
+      },
+      "native_activity": {
+        "state": "unknown",
+        "verified": false,
+        "observed_at": null,
+        "source": null,
+        "identity": null
+      },
+      "run_step": null,
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "/tmp/fm-lab.xpPumC/state/ui-crew.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "/tmp/fm-lab.xpPumC/state/ui-crew.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "working",
+            "note": "building the board legend",
+            "raw": "working [at=1793127409]: building the board legend",
+            "age_seconds": 33
+          }
+        },
+        "worktree": {
+          "path": "/tmp/fm-lab.xpPumC/projects/ui-crew",
+          "present": true
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "/tmp/fm-lab.xpPumC/data/ui-crew/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "working",
+        "source": "pane",
+        "detail": "harness busy (claude-hook)",
+        "raw": "state: working · source: pane · harness busy (claude-hook)",
+        "run_step": null,
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": "firstmate:fm-ui-crew",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": null,
+        "source": "absent",
+        "head": null
+      },
+      "hints": {
+        "pending_decision": false,
+        "blocked_event": false,
+        "open_decisions": [],
+        "scout_report_present": false,
+        "last_event_text": "working [at=1793127409]: building the board legend"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-ui-crew",
+        "steer": "bin/fm-send.sh fm-ui-crew '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": {
+        "merged": null,
+        "card_time": {
+          "precision": "date",
+          "kind": "filed",
+          "source": "backlog.since",
+          "value": "2026-10-27"
+        },
+        "report_path": null,
+        "local_note": null,
+        "done": null,
+        "completion": {
+          "date": null,
+          "verb": null
+        },
+        "raw": "- [ ] ui-crew - Board legend for live work (repo: sample) (kind: ship) (since 2026-10-27)",
+        "hold_age_days": 0,
+        "unresolved_blocker_ids": [],
+        "checked": false,
+        "body_lines": [],
+        "hold_reason": null,
+        "pr_url": null,
+        "hold_kind": null,
+        "since": "2026-10-27",
+        "current_role": "worker",
+        "requires_child_metadata": true,
+        "state": "in_flight",
+        "reported": null,
+        "blocked_reason": null,
+        "repo": "sample",
+        "blocked_by": null,
+        "blocked_by_ids": [],
+        "captain_actionable": false,
+        "kind": "ship",
+        "body_excerpt": null,
+        "structured": true,
+        "hold_set": null,
+        "hold_bucket": null,
+        "delivered_time": null,
+        "order": 1,
+        "links": [],
+        "id": "ui-crew",
+        "priority": null,
+        "hold_until": null,
+        "title": "Board legend for live work",
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "ui-crew",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-ui-crew",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      }
+    },
+    {
+      "id": "waits-publication",
+      "card_time": {
+        "kind": "updated",
+        "value": "2026-10-27T18:56:49Z",
+        "precision": "second",
+        "source": "status.declaration.at",
+        "original_value": 1793127409,
+        "attempt_boundary": "unknown"
+      },
+      "declaration": {
+        "state": "paused",
+        "note": "waiting on ui-crew publication",
+        "source": "status.declaration",
+        "card_time": {
+          "kind": "updated",
+          "value": "2026-10-27T18:56:49Z",
+          "precision": "second",
+          "source": "status.declaration.at",
+          "original_value": 1793127409,
+          "attempt_boundary": "unknown"
+        },
+        "current_state": false
+      },
+      "wait_until": null,
+      "kind": "ship",
+      "harness": "claude",
+      "mode": "no-mistakes",
+      "yolo": "",
+      "branch": null,
+      "project": "sample",
+      "spawn_gen": null,
+      "backend": "tmux",
+      "execution": {
+        "crew_id": "waits-publication",
+        "harness": "claude",
+        "role": "ship",
+        "endpoint_identity": "firstmate:fm-waits-publication",
+        "backend": null,
+        "host": null,
+        "spawn_gen": null,
+        "assignment_state": "registered",
+        "source": "task.meta",
+        "observed_at": "2026-10-27T18:57:22Z"
+      },
+      "native_activity": {
+        "state": "unknown",
+        "verified": false,
+        "observed_at": null,
+        "source": null,
+        "identity": null
+      },
+      "run_step": null,
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "/tmp/fm-lab.xpPumC/state/waits-publication.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "/tmp/fm-lab.xpPumC/state/waits-publication.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "paused",
+            "note": "waiting on ui-crew publication",
+            "raw": "paused [at=1793127409]: waiting on ui-crew publication",
+            "age_seconds": 33
+          }
+        },
+        "worktree": {
+          "path": "/tmp/fm-lab.xpPumC/projects/waits-publication",
+          "present": true
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "/tmp/fm-lab.xpPumC/data/waits-publication/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "paused",
+        "source": "status-log",
+        "detail": "waiting on ui-crew publication",
+        "raw": "state: paused · source: status-log · waiting on ui-crew publication",
+        "run_step": null,
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": "firstmate:fm-waits-publication",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-10-27T18:57:22Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": null,
+        "source": "absent",
+        "head": null
+      },
+      "hints": {
+        "pending_decision": false,
+        "blocked_event": false,
+        "open_decisions": [],
+        "scout_report_present": false,
+        "last_event_text": "paused [at=1793127409]: waiting on ui-crew publication"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-waits-publication",
+        "steer": "bin/fm-send.sh fm-waits-publication '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": {
+        "blocked_by_ids": [
+          "ui-crew"
+        ],
+        "blocked_by": "ui-crew",
+        "repo": "sample",
+        "blocked_reason": null,
+        "reported": null,
+        "requires_child_metadata": true,
+        "state": "in_flight",
+        "since": "2026-10-26",
+        "hold_kind": null,
+        "current_role": "worker",
+        "hold_reason": null,
+        "pr_url": null,
+        "unresolved_blocker_ids": [
+          "ui-crew"
+        ],
+        "body_lines": [],
+        "checked": false,
+        "raw": "- [ ] waits-publication - Waits on board legend landing blocked-by: ui-crew (repo: sample) (kind: ship) (since 2026-10-26)",
+        "hold_age_days": 1,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "done": null,
+        "report_path": null,
+        "local_note": null,
+        "card_time": {
+          "source": "backlog.since",
+          "value": "2026-10-26",
+          "precision": "date",
+          "kind": "filed"
+        },
+        "merged": null,
+        "title": "Waits on board legend landing",
+        "hold_until": null,
+        "id": "waits-publication",
+        "priority": null,
+        "links": [],
+        "delivered_time": null,
+        "order": 9,
+        "hold_bucket": null,
+        "hold_set": null,
+        "structured": true,
+        "kind": "ship",
+        "body_excerpt": null,
+        "captain_actionable": false,
+        "presentation": {
+          "summary": null,
+          "waiting_for": null,
+          "next_action": null
+        },
+        "presentation_evidence": null,
+        "dependency_records": [],
+        "execution": {
+          "crew_id": "waits-publication",
+          "harness": "claude",
+          "role": "ship",
+          "endpoint_identity": "firstmate:fm-waits-publication",
+          "backend": null,
+          "host": null,
+          "spawn_gen": null,
+          "assignment_state": "registered",
+          "source": "task.meta",
+          "observed_at": "2026-10-27T18:57:22Z"
+        },
+        "native_activity": {
+          "state": "unknown",
+          "verified": false,
+          "observed_at": null,
+          "source": null,
+          "identity": null
+        },
+        "run_step": null
+      }
+    }
+  ],
+  "main_inventory": {
+    "valid": true,
+    "reason": null,
+    "orphan_in_flight": [],
+    "unstructured_current_count": 0
+  },
+  "contributions": {
+    "known": 0,
+    "checked": 0,
+    "counts": {
+      "captain": 0,
+      "fleet": 0,
+      "maintainer": 0,
+      "nobody": 0
+    },
+    "unmeasured": 0,
+    "complete": true,
+    "proven_clear": true,
+    "stale_verdicts": 0,
+    "missing_verdicts": 0,
+    "unreadable_records": 0,
+    "valid_until": 900,
+    "captain": [],
+    "captain_omitted": 0
+  },
+  "scout_reports": [],
+  "secondmate_current": {
+    "registry": {
+      "present": true,
+      "available": true,
+      "reason": null,
+      "provenance": "registered-table",
+      "path": "/tmp/fm-lab.xpPumC/data/secondmates.md",
+      "freshness": {
+        "status": "fresh",
+        "observed_at": "2026-10-27T18:57:22Z"
+      },
+      "records": [
+        {
+          "id": "mate",
+          "home": "/tmp/fm-lab-mate.kfPOGr",
+          "host": null,
+          "root": null,
+          "remote": false,
+          "registered": true,
+          "registry_error": null
+        }
+      ],
+      "input_truncated": false,
+      "records_truncated": false,
+      "complete": true,
+      "reasons": [],
+      "lines_in_window": 1,
+      "records_in_window": 1
+    },
+    "records": [
+      {
+        "id": "mate",
+        "home": "/tmp/fm-lab-mate.kfPOGr",
+        "host": null,
+        "remote": false,
+        "registered": true,
+        "spawn_gen": null,
+        "current": {
+          "state": "active_child_work",
+          "reason": null
+        },
+        "invalidity": {
+          "kind": null,
+          "ids": []
+        },
+        "reconcile_inventory": {
+          "kind": null,
+          "ids": []
+        },
+        "provenance": {
+          "selected": "structured-home",
+          "structured_home": "/tmp/fm-lab-mate.kfPOGr",
+          "summary_source": "local-ledger",
+          "summary_valid": true,
+          "trust": "complete",
+          "parent_event_role": "historical-only"
+        },
+        "freshness": {
+          "status": "fresh",
+          "observed_at": "2026-10-27T18:57:01Z",
+          "age_seconds": 21
+        },
+        "active_children": [
+          {
+            "execution": {
+              "crew_id": "mate-build",
+              "harness": "claude",
+              "role": "ship",
+              "endpoint_identity": "firstmate:fm-mate-build",
+              "backend": null,
+              "host": null,
+              "spawn_gen": null,
+              "assignment_state": "registered",
+              "source": "task.meta",
+              "observed_at": "2026-10-27T18:57:01Z"
+            },
+            "run_step": null,
+            "native_activity": {
+              "state": "unknown",
+              "verified": false,
+              "observed_at": null,
+              "source": null,
+              "identity": null
+            },
+            "id": "mate-build",
+            "kind": "ship",
+            "state": "working",
+            "flow": {
+              "phase": "active",
+              "title": "Secondmate build work",
+              "state": "executing",
+              "owner": "(main)",
+              "reason": "harness busy (claude-hook)",
+              "source": "current_state.pane",
+              "declared_state": "working",
+              "presentation": {
+                "summary": null,
+                "waiting_for": null,
+                "next_action": null
+              },
+              "presentation_evidence": null,
+              "waiting_for": null,
+              "next_action": null,
+              "firstmate_action": null,
+              "dependencies": []
+            },
+            "repo": "sample",
+            "name": "Secondmate build work",
+            "source": "pane",
+            "card_time": {
+              "kind": "updated",
+              "value": "2026-10-27T18:56:49Z",
+              "precision": "second",
+              "source": "status.declaration.at",
+              "original_value": 1793127409,
+              "attempt_boundary": "unknown"
+            },
+            "hold_until": null,
+            "hold_bucket": null,
+            "doing": "harness busy (claude-hook)"
+          },
+          {
+            "execution": {
+              "crew_id": "mate-resumed",
+              "harness": "claude",
+              "role": "ship",
+              "endpoint_identity": "firstmate:fm-mate-resumed",
+              "backend": null,
+              "host": null,
+              "spawn_gen": null,
+              "assignment_state": "registered",
+              "source": "task.meta",
+              "observed_at": "2026-10-27T18:57:01Z"
+            },
+            "run_step": null,
+            "native_activity": {
+              "state": "unknown",
+              "verified": false,
+              "observed_at": null,
+              "source": null,
+              "identity": null
+            },
+            "id": "mate-resumed",
+            "kind": "ship",
+            "state": "working",
+            "flow": {
+              "phase": "active",
+              "title": "Secondmate resumed after pause",
+              "state": "executing",
+              "owner": "(main)",
+              "reason": "harness busy (claude-hook)",
+              "source": "current_state.pane",
+              "declared_state": "paused",
+              "presentation": {
+                "summary": null,
+                "waiting_for": null,
+                "next_action": null
+              },
+              "presentation_evidence": null,
+              "waiting_for": null,
+              "next_action": null,
+              "firstmate_action": null,
+              "dependencies": []
+            },
+            "repo": "sample",
+            "name": "Secondmate resumed after pause",
+            "source": "pane",
+            "card_time": {
+              "kind": "updated",
+              "value": "2026-10-27T18:56:49Z",
+              "precision": "second",
+              "source": "status.declaration.at",
+              "original_value": 1793127409,
+              "attempt_boundary": "unknown"
+            },
+            "hold_until": null,
+            "hold_bucket": null,
+            "doing": "harness busy (claude-hook)"
+          }
+        ],
+        "decisions_open": [],
+        "holds": [
+          {
+            "id": "mate-vendor",
+            "title": "mate-vendor",
+            "blocked_by": null,
+            "blocked_by_ids": [],
+            "unresolved_blocker_ids": [],
+            "reason": "vendor window until 2026-10-29T09:30Z",
+            "wait_until": "2026-10-29T09:30:00Z",
+            "source": "child-state"
+          }
+        ],
+        "queued": [],
+        "contributions": {
+          "known": 0,
+          "checked": 0,
+          "counts": {
+            "captain": 0,
+            "fleet": 0,
+            "maintainer": 0,
+            "nobody": 0
+          },
+          "unmeasured": 0,
+          "complete": true,
+          "proven_clear": true,
+          "stale_verdicts": 0,
+          "missing_verdicts": 0,
+          "unreadable_records": 0,
+          "valid_until": 900,
+          "captain": [],
+          "captain_omitted": 0
+        },
+        "landed": [],
+        "endpoints": [
+          {
+            "id": "mate-build",
+            "state": "working",
+            "source": "pane",
+            "endpoint": {
+              "target": "firstmate:fm-mate-build",
+              "exists": true,
+              "agent_alive": "not_checked",
+              "status": "unknown",
+              "observed_at": "2026-10-27T18:57:01Z",
+              "freshness": "fresh"
+            }
+          },
+          {
+            "id": "mate-resumed",
+            "state": "working",
+            "source": "pane",
+            "endpoint": {
+              "target": "firstmate:fm-mate-resumed",
+              "exists": true,
+              "agent_alive": "not_checked",
+              "status": "unknown",
+              "observed_at": "2026-10-27T18:57:01Z",
+              "freshness": "fresh"
+            }
+          },
+          {
+            "id": "mate-vendor",
+            "state": "paused",
+            "source": "status-log",
+            "endpoint": {
+              "target": "firstmate:fm-mate-vendor",
+              "exists": true,
+              "agent_alive": "not_checked",
+              "status": "unknown",
+              "observed_at": "2026-10-27T18:57:01Z",
+              "freshness": "fresh"
+            }
+          }
+        ],
+        "counts": {
+          "active_children": 2,
+          "decisions_open": 0,
+          "holds": 1,
+          "queued": 0,
+          "landed": 0,
+          "endpoints": 3
+        },
+        "omitted": [],
+        "parent_event": {
+          "raw": "",
+          "note": "",
+          "age_seconds": null,
+          "open_activities": [],
+          "open_decisions": [],
+          "activity_scan": {
+            "records": [],
+            "available": true,
+            "input_truncated": false,
+            "retained_truncated": false,
+            "reasons": [],
+            "lines_in_window": 0,
+            "records_in_window": 0
+          },
+          "reconciliation": {
+            "provenance": "parent-status-keyed-fold",
+            "trust": "untrusted-supplement",
+            "activities": [],
+            "decisions": [],
+            "contradiction": false,
+            "inconclusive": false
+          }
+        },
+        "terminal_evidence": {
+          "provenance": "parent-direct-report-terminal",
+          "trust": "untrusted-supplement",
+          "captured": false,
+          "observed_at": "2026-10-27T18:57:22Z",
+          "freshness": "not-collected",
+          "reason": "no useful contradiction check",
+          "lines": 0,
+          "bytes": 0,
+          "event_note_seen": false,
+          "contradiction": false
+        },
+        "contradiction": false
+      }
+    ],
+    "total_registered": 1,
+    "total": 1,
+    "shown": 1,
+    "truncated": 0
+  },
+  "secondmate_landed": {
+    "records": [],
+    "truncated": [],
+    "unreadable": [],
+    "partial": []
+  },
+  "secondmate_guidance": {
+    "note": "For kind=secondmate, bearings selects validated structured state from that registered home; parent events and bounded terminal evidence are fallback-only supplements and never current-state authority."
+  }
+}

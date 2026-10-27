@@ -1,0 +1,13 @@
+reference now (FM_BEARINGS_NOW) = 2026-10-27T18:59:04Z
+offset   observed_at            | target 549fdc9 state/fresh/age | base 7880f5e state/age      
++30      2026-10-27T18:59:34Z   | running/fresh/-30            | unknown/-30                 
++3       2026-10-27T18:59:07Z   | running/fresh/-3             | unknown/-3                  
++0       2026-10-27T18:59:04Z   | running/fresh/0              | running/0                   
++-30     2026-10-27T18:58:34Z   | running/fresh/30             | running/30                  
++-59     2026-10-27T18:58:05Z   | running/fresh/59             | running/59                  
++-60     2026-10-27T18:58:04Z   | unknown/stale/60             | unknown/60                  
++-90     2026-10-27T18:57:34Z   | unknown/stale/90             | unknown/90                  
+boundary (future side):
++59      2026-10-27T19:00:03Z   | running/fresh/-59            | unknown/-59                 
++60      2026-10-27T19:00:04Z   | unknown/stale/-60            | unknown/-60                 
++3600    2026-10-27T19:59:04Z   | unknown/stale/-3600          | unknown/-3600               

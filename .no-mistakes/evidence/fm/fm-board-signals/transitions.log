@@ -1,0 +1,5 @@
+## Transition 1: paused-vendor crew resumes silently (hook busy, no new status line)
+## Transition 2: resumed-validation crew goes idle again (hook stop, no new status line)
+## Transition 3: paused-untimed crew writes a malformed until (Feb 30) ; waits-publication writes a past until
+## Transition 4: secondmate mate-vendor resumes (busy); mate-resumed idles back onto its timed pause
+secondmate ledger refreshed

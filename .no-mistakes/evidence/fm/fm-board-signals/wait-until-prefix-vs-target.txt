@@ -1,0 +1,10 @@
+Same live lab, rows whose latest declaration is a timed pause:
+id                   state    | ff41043 (pre-fix) wait_until     | 549fdc9 (target) wait_until     
+paused-vendor        working  | working 2026-10-28T15:00:00Z     | null                            
+resumed-validation   paused   | paused 2026-10-28T23:40:00Z      | 2026-10-28T23:40:00Z            
+waits-publication    paused   | paused 2026-10-27T01:00:00Z      | 2026-10-27T01:00:00Z            
+mate/mate-vendor     working  | working 2026-10-29T09:30:00Z     | null                            
+mate/mate-resumed             | <not a row>                      |                                 
+
+Secondmate home-summary holds (target):
+[{"id":"mate-resumed","source":"child-state","wait_until":"2026-10-28T20:00:00Z"}]

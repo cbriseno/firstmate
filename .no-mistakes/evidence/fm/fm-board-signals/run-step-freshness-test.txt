@@ -1,0 +1,6 @@
+test_cached_validation_observation_expires_without_changing_native_state (__main__.Clarity.test_cached_validation_observation_expires_without_changing_native_state) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 7.314s
+
+OK
