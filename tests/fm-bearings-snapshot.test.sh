@@ -2430,7 +2430,7 @@ EOF
 }
 
 test_rows_carry_structured_hold_wait_and_state_source() {
-  local home mate fakebin id json in_flight queued dir ids
+  local home mate fakebin id json canonical in_flight queued dir ids main_waits mate_waits
   home=$(make_home row-structured-signals)
   mate="$TMP_ROOT/row-structured-signals-mate"
   : > "$home/data/secondmates.md"
@@ -2450,23 +2450,28 @@ EOF2
 - [ ] queued-blocked - Waits on prep blocked-by: plain-work (repo: sample) (kind: ship)
 EOF2
 )
-  printf '## In flight\n%s\n\n## Queued\n%s\n\n## Done\n' "$in_flight" "$queued" > "$mate/data/backlog.md"
-  # Main also carries wait fixtures: a timed pause, an untimed pause, and a
-  # timed pause superseded by a later working declaration.
-  printf '## In flight\n%s\n%s\n\n## Queued\n%s\n\n## Done\n' "$in_flight" \
-    "$(for id in timed-pause untimed-pause resumed; do
-         printf -- '- [ ] %s - Wait fixture %s (repo: sample) (kind: ship)\n' "$id" "$id"
-       done)" "$queued" > "$home/data/backlog.md"
+  # Main carries wait fixtures: a timed pause, an untimed pause, a timed pause
+  # superseded by a later working declaration, and a timed pause the crew
+  # silently resumed from (busy pane, no later status line). The secondmate
+  # carries a silently resumed child and a currently paused child.
+  main_waits="timed-pause untimed-pause resumed silent-resume"
+  mate_waits="silent-resume child-pause"
   for dir in "$home" "$mate"; do
-    ids="held-live held-dated plain-work"
-    [ "$dir" = "$mate" ] || ids="$ids timed-pause untimed-pause resumed"
-    for id in $ids; do
+    ids=$main_waits
+    [ "$dir" = "$home" ] || ids=$mate_waits
+    printf '## In flight\n%s\n%s\n\n## Queued\n%s\n\n## Done\n' "$in_flight" \
+      "$(for id in $ids; do
+           printf -- '- [ ] %s - Wait fixture %s (repo: sample) (kind: ship)\n' "$id" "$id"
+         done)" "$queued" > "$dir/data/backlog.md"
+    for id in held-live held-dated plain-work $ids; do
       mkdir -p "$dir/projects/$id"
       fm_write_meta "$dir/state/$id.meta" \
         "window=firstmate:fm-$id" "worktree=$dir/projects/$id" "project=sample" \
         "harness=claude" "kind=ship" "mode=no-mistakes"
       case "$id" in
         *pause|resumed) record_claude_state "$dir/state" "$id" idle ;;
+        silent-resume) record_claude_state "$dir/state" "$id" busy
+           printf 'paused [at=1783790000]: own validation run until 2026-07-11T18:40Z\n' > "$dir/state/$id.status" ;;
         *) record_claude_state "$dir/state" "$id" busy
            printf 'working: active work\n' > "$dir/state/$id.status" ;;
       esac
@@ -2476,6 +2481,7 @@ EOF2
   printf 'paused [at=1783790000]: waiting for the upstream release\n' > "$home/state/untimed-pause.status"
   printf 'paused [at=1783780000]: old wait until 2026-07-11T10:00Z\nworking [at=1783790000]: resumed\n' \
     > "$home/state/resumed.status"
+  printf 'paused [at=1783790000]: vendor window until 2026-07-11T19:30Z\n' > "$mate/state/child-pause.status"
   fakebin=$(make_fakebin "$home")
 
   json=$(run "$home" "$fakebin" --json --all-in-flight --all-queued)
@@ -2494,11 +2500,26 @@ EOF2
       and (row("gates"; "queued-blocked"; "(main)") | .hold_bucket == null and .hold_until == null)
       and (row("gates"; "queued-dated"; "signal-mate") | .hold_bucket == "dated" and .hold_until == "2026-08-02"
            and .reason == "until 2026-08-02: decide later")
-      and (row("in_flight"; "timed-pause"; null) | .wait_until == "2026-07-11T18:40:00Z"
+      and (row("in_flight"; "timed-pause"; null) | .state == "paused" and .wait_until == "2026-07-11T18:40:00Z"
            and (.state_source | type) == "string")
-      and (row("in_flight"; "untimed-pause"; null) | .wait_until == null)
+      and (row("in_flight"; "untimed-pause"; null) | .state == "paused" and .wait_until == null)
       and (row("in_flight"; "resumed"; null) | .wait_until == null)
+      and (row("in_flight"; "silent-resume"; null) | .state == "working" and .state_source == "pane"
+           and .wait_until == null)
+      and (row("in_flight"; "signal-mate/silent-resume"; null) | .state == "working" and .wait_until == null)
   ' >/dev/null || fail "rows lack structured hold, wait, or state-source fields: $json"
+  canonical=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_NOW=2026-07-11T18:00:00Z \
+    "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+  printf '%s' "$canonical" | jq -e '
+    (.tasks[] | select(.id == "silent-resume") | .current_state.state == "working"
+       and .declaration.state == "paused" and .wait_until == null)
+      and (.tasks[] | select(.id == "timed-pause") | .wait_until == "2026-07-11T18:40:00Z")
+      and (.secondmate_current.records[] | select(.id == "signal-mate")
+        | any(.holds[]; .id == "child-pause" and .source == "child-state"
+              and .wait_until == "2026-07-11T19:30:00Z")
+          and any(.active_children[]; .id == "silent-resume")
+          and all(.active_children[]; (.wait_until // null) == null))
+  ' >/dev/null || fail "wait_until is not limited to the current pause: $canonical"
   pass "Underway and gate rows carry hold_bucket, hold_until, wait_until, and state_source"
 }
 

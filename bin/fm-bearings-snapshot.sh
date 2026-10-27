@@ -36,9 +36,12 @@
 # Main Underway rows carry blocked_by using the same comma-separated, bounded
 # unresolved-blocker string as gates ("-" when empty or absent).
 # Underway rows also carry state_source (the current-state verdict's source:
-# pane, run-step, status-log, remote-endpoint, or none) and wait_until (the
-# canonical declaration's paused-until time, ISO-8601 UTC), each null when
-# unknown. Underway and gate rows carry the canonical hold_bucket and
+# pane, run-step, status-log, remote-endpoint, or none; null when unknown) and
+# wait_until (the current pause's end time, ISO-8601 UTC: the canonical task
+# row's wait_until, set only while the crew's current state is paused and the
+# latest declaration is that pause's `until <time>`; null otherwise, including
+# every working row and every secondmate child row, which is working by
+# construction). Underway and gate rows carry the canonical hold_bucket and
 # hold_until as row fields, null for a non-captain row, alongside the
 # unchanged display reason.
 # Captain-hold placement follows the canonical snapshot's hold_bucket and
@@ -526,7 +529,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
        | flow_registration($now) + {id, kind, card_time:(.card_time // null),
         state: .current_state.state,
         state_source:(.current_state.source // null),
-        wait_until:(.declaration.wait_until // null),
+        wait_until:(.wait_until // null),
         hold_bucket:(.backlog.hold_bucket // null), hold_until:(.backlog.hold_until // null),
         flow:flow_context(.backlog; .current_state; .declaration; "(main)"; $canonical.backlog.records; .hints.open_decisions),
         repo:(.backlog.repo // .project // null),
@@ -541,7 +544,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
          | flow_registration($now) + {id:($m.id + "/" + .id),
             kind:(.kind // "secondmate"),card_time:(.card_time // null),
             state:(.state // "working"),
-            state_source:(.source // null),wait_until:(.wait_until // null),
+            state_source:(.source // null),wait_until:null,
             hold_bucket:(.hold_bucket // null),hold_until:(.hold_until // null),
             flow:((.flow // null) | flow_owner($m.id)),
             repo:(.repo // null),
