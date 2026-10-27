@@ -227,10 +227,10 @@ command -v jq >/dev/null 2>&1 || { echo "fm-bearings-snapshot: jq not found" >&2
 
 # Projection permission is explicit and separate from action authorization.
 # The posture owner performs only reads; its ordinary-work guard is unchanged.
-POSTURE=$(bash "$SCRIPT_DIR/fm-afk-return.sh" snapshot-posture) || exit $?
+NOW=${FM_BEARINGS_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
+POSTURE=$(FM_SNAPSHOT_NOW="$NOW" bash "$SCRIPT_DIR/fm-afk-return.sh" snapshot-posture) || exit $?
 RETURN_CATCHUP=$(printf '%s' "$POSTURE" | jq -c '.return_catchup') || exit 1
 
-NOW=${FM_BEARINGS_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
 if [ "$ALL_LANDED" = 1 ] || [ "$ALL_SECONDMATES" = 1 ]; then
   if [ "$ALL_LANDED" = 1 ]; then
     SNAP=$(FM_SNAPSHOT_NOW="$NOW" FM_SNAPSHOT_SECONDMATES=0 FM_SNAPSHOT_SECONDMATE_LANDED_PER_HOME=0 "$FLEET" --json) || exit $?

@@ -348,7 +348,7 @@ snapshot_posture() {
     catchup=$(jq -n --argjson count "$count" --arg reason "$reason" \
       '{pending:true,blockers:$count,reason:$reason}') || return 1
   fi
-  jq -n --arg mode "$mode" --arg observed "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  jq -n --arg mode "$mode" --arg observed "${FM_SNAPSHOT_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" \
     --argjson rc "$rc" --argjson catchup "$catchup" \
     '{schema:"fm-snapshot-posture.v1",mode:$mode,source:"fm-afk-return",
       observed_at:$observed,ordinary_work_allowed:($rc == 0),
