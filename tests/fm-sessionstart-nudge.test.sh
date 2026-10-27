@@ -12,11 +12,13 @@ set -u
 # lifecycle in which startup and later clear/compact hooks share one harness
 # ancestor. This also prevents a developer's ambient harness from making the
 # portable regression pass locally while failing on a harness-free CI runner.
+# Use Pi because the instruction-refresh cases exercise Pi's compact hook.
+# A Codex ancestor would correctly override their Pi environment markers.
 if [ "${FM_SESSIONSTART_TEST_HARNESS:-0}" != 1 ]; then
   HARNESS_FIXTURE=$(mktemp -d "${TMPDIR:-/tmp}/fm-sessionstart-harness.XXXXXX") || exit 1
-  ln -s /bin/bash "$HARNESS_FIXTURE/codex" || exit 1
+  ln -s /bin/bash "$HARNESS_FIXTURE/pi" || exit 1
   # shellcheck disable=SC2016 # Expand in the fixture shell, not this parent.
-  FM_SESSIONSTART_TEST_HARNESS=1 "$HARNESS_FIXTURE/codex" \
+  FM_SESSIONSTART_TEST_HARNESS=1 "$HARNESS_FIXTURE/pi" \
     -c '"$@"; rc=$?; :; exit "$rc"' _ "$0" "$@"
   HARNESS_STATUS=$?
   rm -rf "$HARNESS_FIXTURE"
@@ -288,6 +290,8 @@ test_run_rebuild_forwards_source_to_drifted_instruction_refresh() {
   clear_out=$(run_hook_pi "$root" --source clear </dev/null)
   resume_out=$(run_hook_pi "$root" --source resume </dev/null)
 
+  assert_contains "$compact_out" "primary harness: pi" \
+    "the compact fixture did not resolve to Pi through its persistent harness ancestor"
   assert_contains "$compact_out" "RUN_TIER_AGENTS=updated" \
     "the compact run wrapper did not forward its source to instruction refresh"
   assert_not_contains "$clear_out" "CURRENT AGENTS.md - INSTRUCTION REFRESH" \
@@ -307,6 +311,8 @@ test_run_compact_without_completion_refreshes_before_finishing_startup() {
 
   out=$(run_hook_pi "$root" --source compact </dev/null) || status=$?
   expect_code 0 "$status" "run wrapper compact without completion proof"
+  assert_contains "$out" "primary harness: pi" \
+    "the incomplete compact fixture did not resolve to Pi"
   assert_contains "$out" "$FULL_BANNER$root" \
     "compact skipped full startup when no completed startup could be proven"
   assert_contains "$out" "INCOMPLETE_START_AGENTS=current" \
