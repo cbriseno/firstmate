@@ -90,6 +90,10 @@ If a session exits mid-cycle and leaves an orphaned Stop hook, the replacement s
 [`turnend-guard.md`](turnend-guard.md#auto-arm-generation-claim) owns the open-claim definition.
 While supervision is still needed and away mode remains inactive, an actionable close wakes the idle session through exit 2.
 
+A turn that ends on an API error, such as a rate limit, overload, authentication or billing failure, fires Claude's `StopFailure` instead of `Stop`.
+Claude ignores that event's exit code and output and gives it no decision control, so no hook can re-arm or rewake from it, and Firstmate registers none for the primary.
+After such a turn the pane shows the API error and stays idle: no new Stop-owned cycle starts, a still-running watcher or handling successor can only record wakes, and the durable queue holds them until a later prompt's turn ends with an ordinary `Stop`.
+
 ### Claude session-lock ownership
 
 The hook handles the session lock as follows:
