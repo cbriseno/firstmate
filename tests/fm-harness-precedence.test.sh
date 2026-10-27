@@ -333,6 +333,39 @@ SH
 
 # --- 5. A harness that is pid 1 of its own namespace ------------------------
 
+# A Codex primary's SessionStart hook reaches session start's harness probe
+# through the hook's login shell, the run wrapper, session start's own timeout
+# stage, and a command substitution, which put the codex process more than eight
+# parents above the probe and rendered the unknown-harness fallback. The walk
+# must reach as far as the session-lock walk that already finds the same owner.
+test_deep_markerless_chain_still_finds_the_harness() {
+  local dir bin nest got depth verdict
+  dir="$TMP_ROOT/deep-chain"
+  bin=$(named_bin "$dir/codex-tree" codex)
+  nest="$dir/nest.sh"
+  cat > "$nest" <<'SH'
+#!/usr/bin/env bash
+if [ "$1" -gt 0 ]; then
+  r=$(bash "$0" "$(( $1 - 1 ))" "$2"); printf '%s' "$r"; exit 0
+fi
+p=$$ d=1
+while [ "$p" -gt 1 ] && [ "$(basename -- "$(ps -o comm= -p "$p")")" != codex ]; do
+  p=$(ps -o ppid= -p "$p" | tr -d ' '); d=$((d + 1))
+done
+printf '%s %s' "$d" "$("$2")"
+SH
+  got=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+    -u CURSOR_AGENT -u CURSOR_INVOKED_AS \
+    "$bin" -c "r=\$(bash '$nest' 7 '$HARNESS'); printf '%s' \"\$r\"")
+  depth=${got%% *}
+  verdict=${got#* }
+  [ "$depth" -gt 8 ] \
+    || fail "the nested chain put codex only $depth parents above the probe, so this case proves nothing"
+  [ "$verdict" = codex ] \
+    || fail "a codex process $depth parents above the probe resolved '$verdict', expected codex"
+  pass "a markerless harness more than eight parents above the probe is still found"
+}
+
 # The walk used to stop as soon as the NEXT pid was 1, on the assumption that
 # pid 1 is always init. Inside a PID namespace that assumption inverts: the
 # harness itself is pid 1, so the one process that proves who owns the tree was
@@ -833,6 +866,7 @@ test_retained_cursor_marker_does_not_rename_a_nested_claude
 test_pi_signed_survives_agreeing_ancestry
 test_interpreter_args_match_does_not_outrank_a_marker
 test_native_child_of_an_interpreter_shim_decides_at_comm_strength
+test_deep_markerless_chain_still_finds_the_harness
 test_harness_at_namespace_pid1_is_examined
 test_descent_probe_reaches_a_strength_the_top_of_session_cannot
 test_descent_probe_ignores_a_sibling_branch_the_walk_cannot_reach
