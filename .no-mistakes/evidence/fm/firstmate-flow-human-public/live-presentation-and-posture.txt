@@ -1,0 +1,30 @@
+## S1 presentation patch/read/clear (temp home)
+{"id": "demo", "presentation": {"summary": null, "waiting_for": null, "next_action": null}, "evidence": null}
+rc=0
+{"id": "demo", "presentation": {"summary": "Corrección lista para revisar.", "waiting_for": null, "next_action": "Revisar el resultado."}, "evidence": {"source": "task.owner.declaration", "observed_at": "2026-10-27T06:38:55Z", "current_state": false, "path": "data/demo/presentation.json", "available": true}}
+rc=0
+{"id": "demo", "presentation": {"summary": "Corrección lista para revisar.", "waiting_for": null, "next_action": "Revisar el resultado."}, "evidence": {"source": "task.owner.declaration", "observed_at": "2026-10-27T06:38:55Z", "current_state": false, "path": "data/demo/presentation.json", "available": true}}
+rc=0
+{"id": "demo", "presentation": {"summary": "Corrección lista para revisar.", "waiting_for": null, "next_action": "Revisar el resultado."}, "evidence": {"source": "task.owner.declaration", "observed_at": "2026-10-27T06:38:57Z", "current_state": false, "path": "data/demo/presentation.json", "available": true}}
+rc=0
+{"id": "demo", "presentation": {"summary": null, "waiting_for": null, "next_action": null}, "evidence": {"source": "task.owner.declaration", "observed_at": "2026-10-27T06:38:58Z", "current_state": false, "path": "data/demo/presentation.json", "available": true}}
+rc=0
+## S2 invalid inputs
+{"ok": false, "state": "error", "message": "presentation write needs an exact task from the backlog owner"}
+rc=1
+{"ok": false, "state": "error", "message": "invalid presentation task identity"}
+rc=1
+{"ok": false, "state": "error", "message": "presentation fields must be null or plain text of 1..2000 characters"}
+rc=1
+## S3 snapshot-posture
+{
+  "schema": "fm-snapshot-posture.v1",
+  "mode": "attended",
+  "source": "fm-afk-return",
+  "observed_at": "2026-10-27T06:38:59Z",
+  "ordinary_work_allowed": true,
+  "away_active": false,
+  "return_catchup": null
+}
+rc=0
+guard rc=0
