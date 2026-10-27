@@ -36,13 +36,13 @@ fm_notify_register() {
 }
 
 # Claude Stop retry for a root that startup could not prove because its
-# transcript did not exist yet. Inert once this session has any binding:
-# replacing one still needs an explicit revoke. Proof failures stay silent.
+# transcript did not exist yet, or whose resumed session left a stale same-ID
+# binding. Inert while this session's binding is still valid (bind
+# --unless-valid). Proof failures stay silent.
 fm_notify_register_claude_hook() {  # <claude-hook-payload>
   fm_notify_enabled || return 0
-  case "${CLAUDE_CODE_SESSION_ID:-}" in ''|*/*) return 0 ;; esac
-  [ ! -e "$FM_HOME/state/agent-notify/claude-$CLAUDE_CODE_SESSION_ID.json" ] || return 0
-  printf '%s' "$1" | bash "$_FM_NOTIFY_BIN" --home "$FM_HOME" bind claude >/dev/null 2>&1 || true
+  [ -n "${CLAUDE_CODE_SESSION_ID:-}" ] || return 0
+  printf '%s' "$1" | bash "$_FM_NOTIFY_BIN" --home "$FM_HOME" bind claude --unless-valid >/dev/null 2>&1 || true
 }
 
 fm_notify_landed() {  # <data> <task> <tasks-axi done artifact flags...>

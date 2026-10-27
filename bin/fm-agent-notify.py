@@ -20,14 +20,18 @@ store. Leading metadata-only records are skipped; any naming another session
 refuse. A fresh Claude startup writes that transcript only after its
 SessionStart hook, so startup registration cannot prove it there; the tracked
 Claude Stop entry bin/fm-agent-notify-register.sh retries the same bind once it
-exists. A resumed session reusing a bound native ID still needs revoke first.
-Each authorized native hook then uses its genuine payload
-session_id to select and revalidate that exact binding, including shared hook
-runtimes without tool-local environment. Unknown sessions keep ordinary behavior.
+exists; `bind --unless-valid` keeps that retry inert while this session's
+recorded binding is still valid. Each authorized native hook then uses its
+genuine payload session_id to select and revalidate that exact binding,
+including shared hook runtimes without tool-local environment. Unknown
+sessions keep ordinary behavior.
 Bindings in state/agent-notify/<provider>-<native-id>.json carry consumer fields
 version/home/provider/session_id/role/task_id, plus revalidated producer proof.
-Replacement ownership never silently reuses a native ID. `revoke <provider>`
-revokes the current native session only. No pane or title is identity evidence.
+A resumed session reuses its native ID: bind replaces a same-ID binding only
+when its recorded proof process is gone or has another start time, and only
+after the new claimant passes every proof above. A live recorded process still
+refuses until `revoke <provider>`, which revokes the current native session
+only. No pane or title is identity evidence.
 
 With configuration present, the first existing native hook automatically binds
 an unbound CLI worker using its genuine payload session_id, native metadata and
@@ -240,11 +244,25 @@ def claude_cwd(path, sid):
     raise ValueError("native Claude session metadata has no working directory")
 
 
-def native(provider, home, payload, worker_hook=False):
+def native_sid(provider, payload, worker_hook=False):
     key = "CODEX_THREAD_ID" if provider == "codex" else "CLAUDE_CODE_SESSION_ID"
     sid = slug(payload.get("session_id", "") if worker_hook else os.environ.get(key, ""))
     if payload.get("session_id", sid) != sid:
         raise ValueError("native hook and tool session disagree")
+    return sid
+
+
+def live(binding):
+    """The binding's proof process still runs as the recorded incarnation."""
+    try:
+        proof = binding["proof"]
+        return process(proof["pid"])["lstart"] == proof["started"]
+    except (KeyError, TypeError, OSError, ValueError, subprocess.SubprocessError):
+        return False
+
+
+def native(provider, home, payload, worker_hook=False):
+    sid = native_sid(provider, payload, worker_hook)
     chain = list(ancestry())
     if provider == "codex":
         matches = [(p, r) for p, r in chain if Path(r["comm"]).name == "codex"]
@@ -310,7 +328,11 @@ class Bridge:
     def binding_path(self, provider, sid):
         return self.state / (provider + "-" + slug(sid) + ".json")
 
-    def bind(self, provider, payload, worker_hook=False):
+    def bind(self, provider, payload, worker_hook=False, unless_valid=False):
+        if unless_valid:
+            existing = self.binding_path(provider, native_sid(provider, payload, worker_hook))
+            if existing.exists() and self.valid_binding(read(existing)):
+                return existing
         task = os.environ.get("FM_TASK_ID")
         secondmate_hook = worker_hook and not task
         if secondmate_hook:
@@ -357,7 +379,8 @@ class Bridge:
                        session_id=sid, role=role, task_id=task, proof=proof)
         path = self.binding_path(provider, sid)
         with self.locked():
-            if path.exists() and read(path) != binding:
+            previous = read(path) if path.exists() else binding
+            if previous != binding and live(previous):
                 raise ValueError("native session already belongs to another owner; revoke first")
             if role == "firstmate":
                 root = self.state / "root.json"
@@ -375,9 +398,9 @@ class Bridge:
         try:
             if binding["version"] != 1 or binding["home"] != str(self.home):
                 return False
-            proof = binding["proof"]
-            if process(proof["pid"])["lstart"] != proof["started"]:
+            if not live(binding):
                 return False
+            proof = binding["proof"]
             if binding["role"] == "firstmate":
                 state = self.home / "state"
                 owned = ((state / ".lock").read_text().strip() == str(proof["pid"])
@@ -589,6 +612,8 @@ def main():
     init.add_argument("--consumer", required=True)
     for name in ("bind", "hook", "revoke"):
         commands.add_parser(name).add_argument("provider", choices=("codex", "claude"))
+    commands.choices["bind"].add_argument("--unless-valid", action="store_true",
+        help="succeed unchanged while this session's recorded binding is still valid")
     commands.choices["hook"].add_argument("--consumer", required=True,
         help="absolute installed consumer path; also forwards unknown/unconfigured sessions")
     commands.add_parser("accept-root")
@@ -643,7 +668,7 @@ def main():
     if not bridge.config:
         return
     if args.command == "bind":
-        print(bridge.bind(args.provider, stdin_payload()))
+        print(bridge.bind(args.provider, stdin_payload(), unless_valid=args.unless_valid))
     elif args.command == "hook":
         bridge.hook(args.provider, json.load(sys.stdin))
     elif args.command == "revoke":

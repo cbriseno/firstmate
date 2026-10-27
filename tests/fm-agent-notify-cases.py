@@ -9,6 +9,40 @@ import sys
 import time
 
 
+def same_id_rebind(binding, bind, state):
+    """A resumed session reuses its native ID; only a stale record is replaced."""
+    bound = binding.read_bytes()
+    record = json.loads(bound)
+
+    def recorded(**proof):
+        binding.write_text(json.dumps({**record, "proof": {**record["proof"], **proof}}))
+
+    gone = subprocess.Popen(["true"])
+    gone.wait()
+    complete = state / ".session-start-complete"
+    saved = complete.read_bytes()
+    recorded(pid=gone.pid)
+    complete.write_text("1")
+    bind(1)  # Replacement still needs every current claimant proof.
+    assert json.loads(binding.read_text())["proof"]["pid"] == gone.pid
+    complete.write_bytes(saved)
+    for pid in (gone.pid, 1):  # Process gone; pid alive with another start time.
+        recorded(pid=pid)
+        bind(0)
+        assert binding.read_bytes() == bound
+    other = subprocess.Popen(["sleep", "60"])
+    try:
+        started = subprocess.run(["ps", "-p", str(other.pid), "-o", "lstart="],
+                                 capture_output=True, text=True, check=True).stdout.strip()
+        recorded(pid=other.pid, started=started)
+        bind(1)  # A live recorded process still refuses until revoke.
+        assert json.loads(binding.read_text())["proof"]["pid"] == other.pid
+    finally:
+        other.kill()
+        other.wait()
+    binding.write_bytes(bound)
+
+
 def launch():
     code, tmp = map(Path, sys.argv[1:3])
     # An executable symlink gives the fixture an actual codex-named ancestor.
@@ -389,14 +423,20 @@ def claude_metadata():
     assert json.loads(binding.read_text())["proof"]["transcript_path"] == str(transcript)
     assert json.loads((state / "root.json").read_text()) == {"provider": "claude", "session_id": sid}
     bridge("accept-root")  # current_root revalidates through the recorded transcript.
-    # A resumed session reuses the native ID in a new process: revoke first.
+    same_id_rebind(binding, lambda expected: bridge("bind", "claude", expected=expected), home / "state")
+    saved = (home / "state/.lock-session").read_bytes()
     proof = json.loads(binding.read_text())
     binding.write_text(json.dumps({**proof, "proof": {**proof["proof"], "pid": 1}}))
-    assert "revoke first" in bridge("bind", "claude", expected=1).stderr
+    (home / "state/.lock-session").write_text("another-session")
+    assert "lock session mismatch" in bridge("bind", "claude", expected=1).stderr
+    assert json.loads(binding.read_text())["proof"]["pid"] == 1
+    (home / "state/.lock-session").write_bytes(saved)
+    bridge("bind", "claude")
+    bridge("accept-root")
     bridge("revoke", "claude")
     assert not binding.exists()
     bridge("bind", "claude")
-    print("ok - Claude transcript metadata skips cwd-less leading records; store lookup; resume needs revoke; proofs kept")
+    print("ok - Claude transcript metadata skips cwd-less leading records; store lookup; stale resume rebinds; proofs kept")
 
     # The Stop retry binds once the transcript exists and is otherwise inert.
     def unbind():
@@ -416,14 +456,20 @@ def claude_metadata():
     bound = binding.read_bytes()
     assert json.loads(bound)["proof"]["transcript_path"] == str(transcript)
     assert json.loads((state / "root.json").read_text()) == {"provider": "claude", "session_id": sid}
+    # A resumed session's stale same-ID binding is replaced; a valid one is kept.
     binding.write_text(json.dumps({**json.loads(bound), "proof": {**json.loads(bound)["proof"], "pid": 1}}))
-    stale = binding.read_bytes()
     register()
-    assert binding.read_bytes() == stale  # Replacement stays an explicit revoke.
+    assert binding.read_bytes() == bound
+    kept = {**json.loads(bound), "proof": {**json.loads(bound)["proof"], "transcript_path": str(tmp / "kept.jsonl")}}
+    binding.write_text(json.dumps(kept))
+    assert bridge("bind", "claude", "--unless-valid", data=hook_payload).stdout.strip() == str(binding)
+    assert "revoke first" in bridge("bind", "claude", data=hook_payload, expected=1).stderr
+    register()
+    assert json.loads(binding.read_text()) == kept
     binding.write_bytes(bound)
     assert run(["bash", str(code / "bin/fm-agent-notify-register.sh"), "--help"]).stdout.startswith("Usage:")
     run(["bash", str(code / "bin/fm-agent-notify-register.sh"), "manual"], expected=2)
-    print("ok - Claude Stop registration retry binds an unbound root silently; inert unconfigured/foreign/out of scope/bound")
+    print("ok - Claude Stop registration retry binds an unbound or stale root silently; inert unconfigured/foreign/out of scope/validly bound")
 
     # Startup registration tries each present provider; only the lock owner wins.
     script = '. "$1/bin/fm-agent-notify-lib.sh"; fm_notify_register'
@@ -532,6 +578,10 @@ with (root/'consumer.jsonl').open('a') as f: f.write(json.dumps(row)+'\\n')
     assert "firstmate_event" not in records()[-1]["payload"]
     assert hook(sid="invalid/id")["binding"] is None
     print("ok - native process/session plus supervisor ownership; unknown/personal fallback; operational input")
+
+    same_id_rebind(binding_path, lambda expected: cmd("bind", "codex", expected=expected), home / "state")
+    assert hook()["binding"]["session_id"] == "fixture-root"
+    print("ok - resumed Codex root replaces only a stale same-ID binding after every proof; a live one refuses")
 
     before = len(records())
     call("seeded", 1, "open", old)

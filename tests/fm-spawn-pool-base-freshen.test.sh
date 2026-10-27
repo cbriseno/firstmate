@@ -409,19 +409,24 @@ test_direct_pr_and_scout_refresh_before_launch() {
   pass "direct-PR ships and scouts both refresh stale pooled worktrees before launch"
 }
 
-test_local_only_starts_from_the_landed_local_branch() {
-  local rec id out status origin_tip landed
+test_local_only_starts_from_the_local_branch() {
+  local rec id out status origin_tip landed upstream publisher
   id='pool-local-only-r14'
   rec=$(make_case local-landed "$id")
   read_case_record "$rec"
+  publisher="$CASE_DIR/publisher"
   origin_tip=$(git -C "$PROJECT_DIR" ls-remote origin refs/heads/main | cut -f1)
 
-  # Remote newer than the local branch: the fetched tip still wins.
+  # Local branch behind the remote: it is still the base, with a warning.
   out=$(run_spawn "$id" --mode local-only --yolo off)
   status=$?
   expect_code 0 "$status" "a local-only spawn behind its remote should launch"$'\n'"$out"
-  [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$origin_tip" ] \
-    || fail "a local-only spawn whose local branch is behind the remote did not start at the remote tip"
+  [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$INITIAL_SHA" ] \
+    || fail "a local-only spawn whose local branch is behind the remote did not start from the local branch"
+  assert_contains "$out" "warning: local main ($INITIAL_SHA) does not contain origin/main ($origin_tip)" \
+    "a local-only spawn behind its remote did not name both heads"
+  assert_contains "$out" "upstream commits are not included until the operator syncs" \
+    "a local-only spawn behind its remote did not say upstream commits are left out"
 
   # A local landing (bin/fm-merge-local.sh) leaves the local branch ahead.
   git -C "$PROJECT_DIR" merge --quiet --ff-only "$origin_tip"
@@ -445,6 +450,8 @@ test_local_only_starts_from_the_landed_local_branch() {
   expect_code 0 "$status" "a local-only ship after a local landing should launch"$'\n'"$out"
   [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$landed" ] \
     || fail "a local-only ship started from the remote tip and lost the locally landed commit"
+  assert_not_contains "$out" "does not contain origin/main" \
+    "a local-only ship whose local branch contains the remote tip warned anyway"
 
   printf -- '- %s [local-only] - fixture (added 2026-10-27)\n' "$(basename "$PROJECT_DIR")" > "$HOME_DIR/data/projects.md"
   id='pool-local-only-scout-r14'
@@ -456,7 +463,38 @@ test_local_only_starts_from_the_landed_local_branch() {
   [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$landed" ] \
     || fail "a scout of a local-only project read the remote tip instead of the landed local branch"
   assert_present "$POOL_DIR/landed.txt" "the local-only scout copy is missing the landed file"
-  pass "local-only ships and scouts start from the landed local branch; other modes keep the remote tip"
+
+  # Upstream moves after the local landing: the two heads have diverged.
+  printf 'upstream moved\n' > "$publisher/upstream.txt"
+  git -C "$publisher" add upstream.txt
+  git -C "$publisher" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' commit -qm upstream
+  git -C "$publisher" push --quiet origin main
+  upstream=$(git -C "$publisher" rev-parse HEAD)
+
+  id='pool-local-only-diverged-ship-r14'
+  fm_test_spawn_brief "$HOME_DIR" "$id"
+  out=$(run_spawn "$id" --mode local-only --yolo off)
+  status=$?
+  expect_code 0 "$status" "a local-only ship whose local branch diverged from the remote should launch"$'\n'"$out"
+  [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$landed" ] \
+    || fail "a diverged local-only ship started from the remote tip and lost the locally landed commit"
+  assert_contains "$out" "warning: local main ($landed) does not contain origin/main ($upstream)" \
+    "a diverged local-only ship did not name both heads"
+  assert_contains "$out" "upstream commits are not included until the operator syncs" \
+    "a diverged local-only ship did not say upstream commits are left out"
+  assert_absent "$POOL_DIR/upstream.txt" "a diverged local-only ship included the unsynced upstream commit"
+
+  id='pool-local-only-diverged-scout-r14'
+  fm_test_spawn_brief "$HOME_DIR" "$id"
+  git -C "$POOL_DIR" checkout --quiet --detach "$upstream"
+  out=$(run_spawn "$id" --scout)
+  status=$?
+  expect_code 0 "$status" "a scout of a diverged local-only project should launch"$'\n'"$out"
+  [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$landed" ] \
+    || fail "a scout of a diverged local-only project read the remote tip instead of the landed local branch"
+  assert_contains "$out" "warning: local main ($landed) does not contain origin/main ($upstream)" \
+    "a scout of a diverged local-only project did not name both heads"
+  pass "local-only ships and scouts start from the local branch, warning when it lacks the remote tip; other modes keep the remote tip"
 }
 
 test_dirty_pool_refuses_without_discarding_work() {
@@ -1238,7 +1276,7 @@ test_prose_base_branch_line_is_ignored
 test_scout_base_branch_refused_on_gerrit_forge
 test_non_main_default_branch_refreshes_before_branching
 test_direct_pr_and_scout_refresh_before_launch
-test_local_only_starts_from_the_landed_local_branch
+test_local_only_starts_from_the_local_branch
 test_dirty_pool_refuses_without_discarding_work
 test_unresolved_remote_default_refuses_pool
 test_unreachable_origin_refuses_stale_pool_base

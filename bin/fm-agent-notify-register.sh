@@ -11,8 +11,10 @@
 # session-start completion and lock session - stays bin/fm-agent-notify.py's.
 #
 # Inert without config/agent-notify.json, in a secondmate home, outside the
-# primary scope, on a foreign-host payload, and once this session has any
-# binding. Proof failures are silent and ordinary hooks keep their behavior.
+# primary scope, on a foreign-host payload, and while this session's binding is
+# still valid. A resumed session's stale same-ID binding is replaced only under
+# bind's own rule. Proof failures are silent and ordinary hooks keep their
+# behavior.
 # Exit status is always 0. Any argument is a manual run: -h/--help prints usage
 # and anything else is refused, both before anything is read.
 set -u
@@ -23,8 +25,9 @@ Usage: fm-agent-notify-register.sh
 
 Claude Stop hook registered in .claude/settings.json; not for manual use.
 It reads the Stop payload on stdin and, when Agent Notify is configured and
-this primary session is not yet bound, retries the root bind. To bind by hand
-from inside the native session, run: bin/fm-agent-notify.sh --home <home> bind claude
+this primary session has no still-valid binding, retries the root bind. To
+bind by hand from inside the native session, run:
+bin/fm-agent-notify.sh --home <home> bind claude
 EOF
 }
 

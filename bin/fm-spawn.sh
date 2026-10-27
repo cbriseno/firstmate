@@ -316,8 +316,11 @@
 #   resolves the current remote default branch (or uses --base-branch, described
 #   above), and resets to its tip. A local-only ship, or a scout of a project the
 #   registry marks local-only, resets instead to the local branch of that name
-#   when it already contains the fetched tip, because local-only work lands on
-#   that local branch (bin/fm-merge-local.sh) and never reaches the remote.
+#   whenever it exists and no --base-branch was given, because local-only work
+#   lands on that local branch (bin/fm-merge-local.sh) and never reaches the
+#   remote. When that local branch does not contain the fetched tip (it is behind
+#   or has diverged), spawn still starts from it and warns, naming both heads,
+#   that upstream commits are not included until the operator syncs the two.
 #   When none is detected, spawn skips that remote freshness check and launches from the
 #   clean worktree's current HEAD. Relaunch reuses the recorded worktree without
 #   fetching or resetting its base. An unreachable detected origin, unresolved
@@ -4109,11 +4112,12 @@ freshen_spawn_worktree_base() { # <worktree> [<base-branch>] [<lands-locally>]
     echo "error: '$target' is not a commit for pooled worktree '$worktree'; refusing to launch from a potentially stale base" >&2
     return 1
   }
-  # Local-only work lands on the local branch (bin/fm-merge-local.sh), so a
-  # local branch that already contains the fetched tip is the newer base.
-  if [ "$lands_locally" = 1 ] \
-    && landed=$(git -C "$worktree" rev-parse --verify --quiet "refs/heads/$default^{commit}" 2>/dev/null) \
-    && git -C "$worktree" merge-base --is-ancestor "$expected" "$landed"; then
+  # Local-only work lands on the local default branch (bin/fm-merge-local.sh)
+  # and never reaches the remote, so that branch is the base whenever it exists.
+  if [ "$lands_locally" = 1 ] && [ -z "$base" ] \
+    && landed=$(git -C "$worktree" rev-parse --verify --quiet "refs/heads/$default^{commit}" 2>/dev/null); then
+    git -C "$worktree" merge-base --is-ancestor "$expected" "$landed" \
+      || echo "warning: local $default ($landed) does not contain origin/$default ($expected); starting from local $default, so upstream commits are not included until the operator syncs local $default with origin/$default" >&2
     target="refs/heads/$default"
     expected=$landed
   fi
