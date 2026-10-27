@@ -20,10 +20,7 @@ set -u
 . "$(dirname "${BASH_SOURCE[0]}")/wake-helpers.sh"
 
 HOST="$ROOT/bin/fm-supervision-host.sh"
-REPORT="$ROOT/bin/fm-branch-report.sh"
-DISPATCH="$ROOT/bin/fm-branch-dispatch.mjs"
 CONTRACT="$ROOT/bin/fm-afk-contract.sh"
-LEASE="$ROOT/bin/fm-lease.sh"
 
 command -v node >/dev/null 2>&1 || { printf 'skip: node absent\n'; exit 0; }
 command -v perl >/dev/null 2>&1 || { printf 'skip: perl absent\n'; exit 0; }
@@ -794,6 +791,7 @@ park_after_stop() {  # <home>
 # default is observable through the pre-turn margin: a turn bound plus grace of
 # 27000 seconds crosses a 27000-second park, so the close goes to main at the
 # boundary, while under a 28799-second park the same turn runs.
+# shellcheck disable=SC2034 # PARK_OUTCOME is read by the park test that sources this file
 park_outcome() {  # <name> <park-seconds>; sets PARK_OUTCOME to boundary or handled
   local home
   home=$(make_home "$1" away)
