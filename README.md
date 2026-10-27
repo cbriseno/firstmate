@@ -11,8 +11,6 @@ It is not an official upstream release or an endorsed project.
 - Retained delivery history and follow-up questions about completed work, with guarded request handling.
 - Task and delivery timestamps that preserve known precision and leave unknown times unknown.
 - Optional notification event routing through an Agent Notify bridge, configured separately for each private operational home.
-- [Platform setup and prerequisite checks](docs/platforms.md), plus a [reviewed public-export workflow](docs/public-export.md) for sharing generic changes without importing private operator history.
-
-Documentation: [configuration](docs/configuration.md), [platforms](docs/platforms.md), [wedge alarms](docs/wedge-alarm.md), [remote secondmates](docs/remote-secondmates.md), [public export](docs/public-export.md), and backend guides for [tmux](docs/tmux-backend.md), [Herdr](docs/herdr-backend.md), [Zellij](docs/zellij-backend.md), [Orca](docs/orca-backend.md), [cmux](docs/cmux-backend.md), [Paseo](docs/paseo-backend.md), and [Rex](docs/rex-backend.md). The [documentation guide](docs/documentation-audiences.md) explains how the docs are organized.
+- [Platform setup](docs/platforms.md), [configuration](docs/configuration.md), and the backend guides for [tmux](docs/tmux-backend.md), [Herdr](docs/herdr-backend.md), [Zellij](docs/zellij-backend.md), [Orca](docs/orca-backend.md), [cmux](docs/cmux-backend.md), [Paseo](docs/paseo-backend.md), and [Rex](docs/rex-backend.md) cover prerequisites and differences per platform, and a [reviewed public-export workflow](docs/public-export.md) shares generic changes without importing private operator history; [wedge alarms](docs/wedge-alarm.md), [remote secondmates](docs/remote-secondmates.md), and the [documentation guide](docs/documentation-audiences.md) cover the remaining areas.
 
 The original [MIT license and copyright notice](LICENSE) and inherited commit history are preserved.
