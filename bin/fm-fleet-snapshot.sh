@@ -52,6 +52,13 @@
 #     receipt contract is bin/fm_delivery.py, otherwise dates stay date-only.
 #   declaration on task rows is the latest captured foreign status declaration,
 #     independently labeled historical; it never replaces current_state.
+#   presentation on backlog rows is the optional private owner declaration
+#     written by fm-tasks-axi.sh presentation; fm-flow-lib.sh owns its projection.
+#   execution on task/linked backlog rows is the exact recorded crew, harness,
+#     backend target, remote host and generation. assignment_state=registered
+#     proves registration only, never native liveness. native_activity remains
+#     explicitly unknown. run_step is optional attributed validation evidence
+#     from fm-crew-state.sh --json, with that owner's source/time/expiry.
 #   tasks[]: one row per task metadata record captured at snapshot start, sorted
 #     by id. A record removed before capture is omitted. If a captured task's
 #     generation changes while observations run, its selected metadata remains
@@ -340,8 +347,13 @@ crew_state_json() {  # <id> [<captured-meta>] [<captured-status>]
       FM_DATA_OVERRIDE="$DATA" \
       FM_PROJECTS_OVERRIDE="$PROJECTS" \
       FM_CONFIG_OVERRIDE="$CONFIG" \
-      "$SCRIPT_DIR/fm-crew-state.sh" "$id" 2>/dev/null || true
+      "$SCRIPT_DIR/fm-crew-state.sh" "$id" --json 2>/dev/null || true
   )
+  if printf '%s' "$raw" | jq -e 'type == "object" and (.state | type == "string") and (.source | type == "string")' >/dev/null 2>&1; then
+    printf '%s\n' "$raw"
+    return 0
+  fi
+  # Retain compatibility with older captured current-state producers.
   raw=$(printf '%s\n' "$raw" | head -1)
   sep=' · '
   state=unknown
@@ -879,6 +891,8 @@ task_json_lines() {
       --arg id "$id" \
       --arg kind "$kind" \
       --arg harness "$harness" \
+      --arg registered_backend "$(if [ -n "$remote_host" ]; then meta_value "$meta" remote_backend; else meta_value "$meta" backend; fi)" \
+      --arg registered_role "$(meta_value "$meta" kind)" \
       --arg mode "$mode" \
       --arg yolo "$yolo" \
       --arg branch "$branch" \
@@ -924,6 +938,15 @@ task_json_lines() {
         project:($project // ""),
         spawn_gen:($spawn_gen | if . == "" then null else . end),
         backend:$backend,
+        execution:{crew_id:$id,harness:($harness | if . == "" then null else . end),
+          role:($registered_role | if . == "" then null else . end),
+          endpoint_identity:($target | if . == "" then null else . end),
+          backend:($registered_backend | if . == "" then null else . end),
+          host:($remote_host | if . == "" then null else . end),
+          spawn_gen:($spawn_gen | if . == "" then null else . end),
+          assignment_state:"registered",source:"task.meta",observed_at:$observed_at},
+        native_activity:{state:"unknown",verified:false,observed_at:null,source:null,identity:null},
+        run_step:($current_state.run_step // null),
         remote:(if $remote_host == "" then null else {host:$remote_host,root:$remote_root} end),
         paths:{
           meta:$meta_path,
@@ -1032,7 +1055,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
                     | any($tasks[]; .id == $id and .current_state.state == "working") | not)))) ]) as $queued_all
     | ([ $queued_all[]
          | select(.captain_actionable == true)
-         | {id,key:.id,verb:"captain-hold",summary:(.title | trunc(160)),
+         | flow_registration($generated) + {id,key:.id,verb:"captain-hold",summary:(.title | trunc(160)),
             flow:flow_context(.; null; null; "(main)"; $backlog.records; []),
             reason:(.hold_reason | trunc(160)),
             hold_until:(.hold_until // null),
@@ -1040,6 +1063,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
             hold_age_days:(.hold_age_days // null),card_time,source:"backlog"} ]) as $captain_holds_all
     | ([ $backlog.records[]? | select(landed_record)
          | {id:(.id | trunc(120)),title:(.title | trunc(120)),
+            flow:flow_context(.; null; null; "(main)"; $backlog.records; []),
             kind:((.kind // null) | if . == null then null else trunc(40) end),
             hold_kind:((.hold_kind // null) | if . == null then null else trunc(40) end),
             pr_url:((.pr_url // null) | if . == null then null else trunc(500) end),
@@ -1084,7 +1108,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
          | select($work.current_role != "program")
          | $tasks[]
          | select(.id == $work.id and .current_state.state == "working")
-         | {id,kind,state:.current_state.state,
+         | flow_registration($generated) + {id,kind,state:.current_state.state,
             flow:flow_context($work; .current_state; .declaration; "(main)"; $backlog.records; .hints.open_decisions),
             repo:(($work.repo // .project // null) | if . == null then null else trunc(120) end),
             name:(($work.title // null) | if . == null then null else trunc(70) end),
@@ -1143,7 +1167,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
         active_children:$active_all[:$child_n],
         decisions_open:$decisions_all[:$decisions_n],
         holds:$holds_all[:$queued_n],
-        queued:([$queued_all[] | {id:(.id | trunc(120)),title:(.title | trunc(120)),
+        queued:([$queued_all[] | flow_registration($generated) + {id:(.id | trunc(120)),title:(.title | trunc(120)),
           flow:flow_context(.; null; null; "(main)"; $backlog.records; []),
           blocked_by:((.blocked_by // null) | if . == null then null else trunc(120) end),
           blocked_by_ids:((.blocked_by_ids // []) | map(trunc(120))),
@@ -2006,7 +2030,7 @@ scout_report_lines() {
 }
 
 BACKLOG_JSON=$(backlog_json) || { echo "fm-fleet-snapshot: backlog read failed" >&2; exit 1; }
-BACKLOG_TIMES=$(printf '%s' "$BACKLOG_JSON" | FM_HOME="$FM_HOME" python3 "$SCRIPT_DIR/fm_delivery.py" enrich-times) \
+BACKLOG_TIMES=$(printf '%s' "$BACKLOG_JSON" | FM_HOME="$FM_HOME" python3 "$SCRIPT_DIR/fm_delivery.py" enrich-times --data "$DATA") \
   && BACKLOG_JSON=$BACKLOG_TIMES
 contribution_tasks_json() {
   local meta id merge_authority
@@ -2051,6 +2075,18 @@ printf '%s\n' "$BACKLOG_JSON" > "$BACKLOG_JSON_FILE" \
   || { echo "fm-fleet-snapshot: temporary backlog file write failed" >&2; exit 1; }
 printf '%s\n' "$TASKS_JSON" > "$TASKS_JSON_FILE" \
   || { echo "fm-fleet-snapshot: temporary task file write failed" >&2; exit 1; }
+# Link registration independently of backlog ownership/phase. Queued or held
+# records without metadata retain null execution, never a coordinator fallback.
+if jq --slurpfile tasks "$TASKS_JSON_FILE" '
+  .records |= map(. as $record | ([$tasks[0][] | select(.id == $record.id)][0] // {}) as $task
+    | . + {execution:($task.execution // null),native_activity:($task.native_activity // null),
+           run_step:($task.run_step // null)})' "$BACKLOG_JSON_FILE" > "$JSON_TRANSPORT_DIR/linked-backlog.json" \
+  && mv "$JSON_TRANSPORT_DIR/linked-backlog.json" "$BACKLOG_JSON_FILE"; then
+  :
+else
+  echo "fm-fleet-snapshot: task registration linking failed" >&2
+  exit 1
+fi
 
 CONTRIBUTIONS_JSON_FILE="$JSON_TRANSPORT_DIR/contributions.json"
 CONTRIBUTION_TASKS_JSON=$(contribution_tasks_json) \

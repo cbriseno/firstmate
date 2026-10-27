@@ -6,10 +6,31 @@
 # Reasons and titles are full captured text. Dependencies are home-local backlog
 # identities, with canonical state and provenance; absent records stay unknown.
 # A declaration is historical evidence, never a substitute for current_state.
-# A human hold supplies next_action as its canonical reason text, never executed.
+# presentation is optional owner-authored text, with separate historical
+# presentation_evidence. Missing text stays null; no action is minted by phase.
+# The legacy human-hold next_action retains its canonical reason, never executed.
+# execution is registered metadata only; native_activity never uses phase or
+# endpoint presence as model liveness. run_step is a sampled validation source,
+# expiring after its TTL, not a native model observation.
 # This projection classifies structured fields only, never prose or vendor UI.
 # shellcheck disable=SC2034,SC2016
 FM_FLOW_JQ_DEFS='
+  def flow_run_step($step; $now):
+    if ($step | type) != "object" then null else
+      (try ($step.observed_at | fromdateiso8601) catch null) as $at
+      | (try ($now | fromdateiso8601) catch null) as $now_at
+      | (if $at == null or $now_at == null then null else ($now_at - $at) end) as $age
+      | ($step.ttl_seconds // 0) as $ttl
+      | ($age != null and $age >= 0 and ($ttl | type) == "number" and $ttl > 0 and $age < $ttl
+         and $step.source == "no-mistakes.attributed-run"
+         and ($step.phase == "validation" or $step.phase == "ci")) as $fresh
+      | $step + {state:(if $fresh then ($step.declared_state // $step.state) else "unknown" end),
+          declared_state:($step.declared_state // $step.state),
+          freshness:(if $fresh then "fresh" else "stale" end),age_seconds:$age}
+    end;
+  def flow_registration($now):
+    {execution:(.execution // null),run_step:flow_run_step(.run_step; $now),
+     native_activity:(.native_activity // {state:"unknown",verified:false,observed_at:null,source:null,identity:null})};
   def flow_context($record; $current; $declaration; $owner; $records; $decisions):
     ($record.unresolved_blocker_ids // []) as $waiting
     | [($record.blocked_by_ids // $waiting)[] as $id
@@ -43,23 +64,14 @@ FM_FLOW_JQ_DEFS='
                elif $declaration.note != null then "status.declaration (historical)"
                else "unknown" end),
        declared_state:($declaration.state // null),
-       waiting_for:(if ($waiting | length) > 0 then ($deps | map(select(.unresolved) | .title) | join(", "))
-                    elif $phase == "human" then "respuesta humana registrada en la decisión"
-                    elif $phase == "integration" then "verificación e integración de Firstmate"
-                    elif $phase == "technical" then "revisión de la condición técnica declarada"
-                    else null end),
-       next_action:(if $phase == "active" then "El worker continúa el encargo."
-                    elif $phase == "dependency" then "Firstmate revisa las dependencias antes de continuar esta etapa."
-                    elif $phase == "human" then ($record.hold_reason // "Firstmate presenta o reconcilia la decisión pendiente.")
-                    elif $phase == "integration" then "Firstmate verifica la entrega y aplica la autoridad de integración configurada."
-                    elif $phase == "technical" then "Firstmate comprueba el bloqueo o la pausa; el texto declarado no demuestra que haya desaparecido."
-                    elif $record.state == "queued" then "Firstmate puede despachar cuando corresponda."
-                    else "Firstmate necesita una observación actual; la última declaración se conserva como contexto." end),
-       firstmate_action:(if $phase == "active" then "supervisar"
-                         elif $phase == "dependency" then "coordinar dependencias"
-                         elif $phase == "human" then "gestionar decisión"
-                         elif $phase == "integration" then "verificar entrega"
-                         elif $phase == "technical" then "revisar condición técnica"
-                         else "reconciliar estado" end),
+       presentation:{summary:($record.presentation.summary // null),
+         waiting_for:($record.presentation.waiting_for // null),
+         next_action:($record.presentation.next_action // null)},
+       presentation_evidence:($record.presentation_evidence // null),
+       waiting_for:($record.presentation.waiting_for //
+         (if ($waiting | length) > 0 then ($deps | map(select(.unresolved) | .title) | join(", ")) else null end)),
+       next_action:($record.presentation.next_action //
+         (if $phase == "human" then $record.hold_reason else null end)),
+       firstmate_action:null,
        dependencies:$deps};
 '

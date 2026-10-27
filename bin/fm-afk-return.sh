@@ -9,6 +9,7 @@
 #   fm-afk-return.sh guard    Read-only consult: exit 3 while away mode is still
 #                            active, exit 4 while return catch-up is pending.
 #   fm-afk-return.sh catchup-summary  Read-only catch-up projection for a reporting surface.
+#   fm-afk-return.sh snapshot-posture  Passive JSON posture; never authorizes actions or returns.
 #
 # THE RETURN BRIEF (stdout, on begin and on every check) is rendered from durable
 # records, never from conversation memory: the archived away-posture record
@@ -49,11 +50,12 @@
 # closed. It retains the presented wake, buffered-escalation, wedge-marker,
 # health, and posture-record evidence until every live open blocker is closed
 # and `check` succeeds. Repeated begin/check calls are idempotent. `guard` and
-# `catchup-summary` never mutate state and are suitable for ordinary read
-# entrypoints such as fm-bearings-snapshot.sh. `guard` separates its two
-# refusal branches by exit status so a reporting surface can keep refusing
-# during an active away window while still rendering the catch-up posture as
-# content; this file owns the gate format both branches read.
+# `catchup-summary` never mutate state. `guard` protects ordinary captain work;
+# its refusal is not a restriction on observing the board. `snapshot-posture`
+# explicitly permits passive projections during away and catch-up, retaining
+# posture, uncertainty and action restrictions as data. It never calls return,
+# clears evidence, acquires locks, or grants mutation/merge authority. This
+# separates the former reporting refusal from the human-return action boundary.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,7 +78,7 @@ CONTRACT="$SCRIPT_DIR/fm-afk-contract.sh"
 . "$SCRIPT_DIR/fm-hold-reason-lib.sh"
 
 usage() {
-  sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 clean_field() {
@@ -320,6 +322,37 @@ return_guard() {
     return 4
   fi
   return 0
+}
+
+snapshot_posture() {
+  local rc=0 mode=attended line='' count=0 reason='' catchup=null
+  return_guard >/dev/null 2>&1 || rc=$?
+  case "$rc" in
+    0) ;;
+    3)
+      mode=away
+      if fm_afk_contract_present "$STATE"; then
+        mode=$(fm_afk_contract_record_mode "$(fm_afk_contract_path "$STATE")")
+      elif [ "$(head -1 "$STATE/.afk" 2>/dev/null)" = quiet ]; then
+        mode=quiet
+      fi
+      ;;
+    4) mode=catchup ;;
+    *) return "$rc" ;;
+  esac
+  if [ -e "$GATE" ]; then
+    [ -f "$GATE" ] && [ -r "$GATE" ] || { echo 'fm-afk-return: unreadable catch-up posture' >&2; return 1; }
+    line=$(catchup_summary) || return 1
+    count=${line%%$'\t'*}
+    reason=${line#*$'\t'}
+    catchup=$(jq -n --argjson count "$count" --arg reason "$reason" \
+      '{pending:true,blockers:$count,reason:$reason}') || return 1
+  fi
+  jq -n --arg mode "$mode" --arg observed "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson rc "$rc" --argjson catchup "$catchup" \
+    '{schema:"fm-snapshot-posture.v1",mode:$mode,source:"fm-afk-return",
+      observed_at:$observed,ordinary_work_allowed:($rc == 0),
+      away_active:($rc == 3),return_catchup:$catchup}'
 }
 
 # --- supervisor health, snapshotted before anything is shut down ------------
@@ -894,6 +927,7 @@ main() {
     begin|check) ;;
     guard) return_guard; return ;;
     catchup-summary) catchup_summary; return ;;
+    snapshot-posture) snapshot_posture; return ;;
     -h|--help|help) usage; return 0 ;;
     *) usage >&2; return 2 ;;
   esac
