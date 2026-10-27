@@ -409,9 +409,14 @@ A Cursor, OpenCode, omp, Grok, or Codex home names it (`claude`, optionally with
 
 Each arm owner's own suite covers its host mode against a stub host.
 
+The four suites share their stub engine and fixtures through `tests/supervision-host-helpers.sh`, so each test runs once in one of them; `bin/fm-test-run.sh` schedules them as separate serial members.
+
 | Test | What it covers |
 |---|---|
-| `tests/fm-supervision-host.test.sh` | Drives the real host, auto-arm, grant, drain, report, and lease scripts against a stub engine, in both postures, including the shared offer rule and the drain's `BRANCH OUTCOMES` section. |
+| `tests/fm-supervision-host.test.sh` | Drives the real host, auto-arm, grant, drain, report, and lease scripts against a stub engine, in both postures, including the shared offer rule: the host loop, wakes, closes, the dialog mirror, and return paths. |
+| `tests/fm-supervision-host-drain.test.sh` | The branch report surface, dispatch entry, and the drain's `BRANCH OUTCOMES` section. |
+| `tests/fm-supervision-host-hook.test.sh` | The Claude Stop hook's hand-back and re-arm: main-only pass-throughs, successors closed before or during their turn, and a returned driver. |
+| `tests/fm-supervision-host-park.test.sh` | The park boundary, the engine-error latch, lock ownership, and held-outcome delivery. |
 | `tests/fm-claude-stop-autoarm.test.sh` | The Claude arm owner's host mode against a stub host. |
 | `tests/fm-cursor-primary.test.sh` | The Cursor arm owner's host mode against a stub host. |
 | `tests/fm-pi-watch-extension.test.sh` | The OpenCode plugin's host mode against a stub host. |

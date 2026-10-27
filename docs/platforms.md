@@ -35,7 +35,7 @@ bash bin/fm-doctor.sh --backend tmux
 The doctor is read-only and performs no network, installs, logins, service lifecycle actions or agent prompts.
 It reports prerequisites, not a successful live dispatch or authentication result.
 Startup's existing bootstrap remains responsible for installed tool versions and authentication checks.
-Resolve reported missing dependencies before launching a primary harness using the [README setup](../README.md#install-and-launch).
+Resolve reported missing dependencies before launching a primary harness using the [configuration guide](configuration.md).
 
 ## Private operational home and integrations
 
