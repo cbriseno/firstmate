@@ -917,3 +917,28 @@ Observed output:
 ```
 
 The safe command-channel contract is covered without a notification by `tests/fm-daemon.test.sh`: the summary reaches both `$1` and stdin, every channel is process-group bounded, and a failed channel falls through.
+
+## Claude root notification identity
+
+This supports the Claude transcript proof in [`fm-agent-notify.py`](../../bin/fm-agent-notify.py) and the Stop retry in [`fm-agent-notify-register.sh`](../../bin/fm-agent-notify-register.sh).
+It was observed read-only on Linux on 2026-10-27 from transcript structure only, never content, in one primary session on Claude Code 2.1.309 and one worker session on 2.1.311.
+The leading-record read printed only each record's type, whether it has `cwd`, and whether its `sessionId` is the file's own.
+Its output follows, with each session id prefix replaced by the session's role:
+
+```text
+primary 0 last-prompt False own
+primary 1 mode False own
+primary 2 permission-mode False own
+primary first-cwd-index 3 attachment version 2.1.309 own-sid True
+worker 0 last-prompt False own
+worker 1 mode False own
+worker 2 permission-mode False own
+worker 3 atis-latch False own
+worker 4 file-history-snapshot False no-sessionId
+worker first-cwd-index 5 attachment version 2.1.311 own-sid True
+```
+
+`stat -c '%n birth=%W mtime=%Y'` on the 2.1.311 transcript and its SessionStart hook output file printed `birth=1793118589` and `birth=1793118587 mtime=1793118587`.
+The transcript is created after the SessionStart hooks finish, so a fresh session's startup registration cannot read it; the Claude hooks reference also states that the transcript is written asynchronously.
+The hermetic regressions in `tests/fm-agent-notify.test.sh` pin the skip, refusal, store-lookup, resume and Stop-retry behavior; refresh them with `bin/fm-test-run.sh tests/fm-agent-notify.test.sh`.
+They do not prove a live root registration, which still needs the in-session bind and receipt check named in the bridge header.
