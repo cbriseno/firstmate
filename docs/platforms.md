@@ -36,6 +36,23 @@ The doctor is read-only and performs no network, installs, logins, service lifec
 It reports prerequisites, not a successful live dispatch or authentication result.
 Startup's existing bootstrap remains responsible for installed tool versions and authentication checks.
 Resolve reported missing dependencies before launching a primary harness using the [configuration guide](configuration.md).
+Set a Git identity with `git config --global user.name` and `user.email`, because workers commit under it; without one they choose an author themselves.
+
+## Launch the primary
+
+Start the primary harness from the clone's root directory; the clone is the operational home unless `FM_HOME` names another.
+Its tracked project hooks run the session-start digest and own supervision, so they must be allowed to run.
+
+- **Claude Code:** run `claude` and answer its workspace trust prompt with "Yes, I trust this folder" once per clone.
+  The digest runs before the first turn, and a Stop hook wakes the idle session when a worker reports, so the captain does not have to nudge it.
+- **Codex:** run `codex`, trust the folder, then choose "Trust all and continue" when Codex reports that the project's hooks need review; with untrusted hooks no Firstmate hook runs.
+  The digest runs when the first prompt opens the session.
+  Codex supervision is foreground: while work is under way the primary keeps its turn open and runs bounded watcher checkpoints, so worker results, decisions and landing asks arrive without a nudge.
+  After a Codex turn ends, later worker events wait in the durable queue until the next message; the experimental [native Codex supervision](configuration.md#codex-native-supervision) opt-in is the only post-turn wake path and needs its own live acceptance.
+
+The primary runs shell commands that drive the terminal backend, create Git worktrees outside the clone, and fetch from remotes, so choose its permission or approval posture with that in mind.
+Workers launch with the unattended postures described in the [configuration guide](configuration.md#claude-permission-mode-configclaude-permission-mode).
+Then tell the first mate which project to add, by URL or local path, and what to do.
 
 ## Private operational home and integrations
 

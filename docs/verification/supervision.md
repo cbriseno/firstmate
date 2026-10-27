@@ -95,6 +95,11 @@ Codex's interactive TUI fired no project `SessionStart` hook at all in the same 
 Codex's run tier is therefore verified only for `codex exec` startup and context-preserving resume.
 The interactive TUI is a known uncovered gap: Firstmate has no tracked session-open, compaction, or re-emit channel there, ships no global hook, and does not claim instruction-refresh delivery for that surface.
 
+On 2026-10-27 codex-cli 0.164.0 changed that for startup.
+In a fresh clone on Linux, launched as `codex --no-daemon --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox` from the clone root, no `state/.session-start-complete` existed until the first prompt; that prompt fired the tracked `SessionStart` entry, `state/.lock` then named the `codex` process, and the session's own rollout carried the injected digest beginning `SUPERVISION OPERATING INSTRUCTIONS - primary harness: codex`.
+The probe inside `bin/fm-session-start.sh` sat nine parents below `codex` (hook login shell, run wrapper, session start, its timeout stage and stage shell, the inner session start, and the command substitution), which is why `bin/fm-harness.sh` walks sixteen parents; `tests/fm-harness-precedence.test.sh` pins that depth without a harness.
+Daemon-attached sessions, compaction and re-emit were not exercised.
+
 Pi compaction was verified on 2026-08-05 with Pi 0.82.0 in the same throwaway lab after setting `.pi/settings.json` `compaction.keepRecentTokens` to 200 and completing one substantial assistant-prose turn before issuing `/compact`.
 Pi reported `Compacted from 7,697 tokens`, the recorder observed `session_compact`, and the model quoted the freshly injected `source=compact` token back.
 Both preconditions are load-bearing: the stock 20,000-token keep window exceeds a small lab session, and `AgentSession.compact()` aborts an in-flight turn before measuring compactable history, which otherwise discards that turn and reports `Nothing to compact (session too small)`.
