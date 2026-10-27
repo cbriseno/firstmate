@@ -1,4 +1,5 @@
 """Hermetic CLI fixtures, not evidence of native vendor/runtime acceptance."""
+import contextlib
 import datetime
 import hashlib
 import json
@@ -7,6 +8,20 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+
+
+NEVER_STARTED = "Thu Jan  1 00:00:00 1970"
+
+
+@contextlib.contextmanager
+def running():
+    """A live process this test owns, for records naming a live pid."""
+    other = subprocess.Popen(["sleep", "60"])
+    try:
+        yield other.pid
+    finally:
+        other.kill()
+        other.wait()
 
 
 def same_id_rebind(binding, bind, state):
@@ -26,20 +41,17 @@ def same_id_rebind(binding, bind, state):
     bind(1)  # Replacement still needs every current claimant proof.
     assert json.loads(binding.read_text())["proof"]["pid"] == gone.pid
     complete.write_bytes(saved)
-    for pid in (gone.pid, 1):  # Process gone; pid alive with another start time.
-        recorded(pid=pid)
-        bind(0)
-        assert binding.read_bytes() == bound
-    other = subprocess.Popen(["sleep", "60"])
-    try:
-        started = subprocess.run(["ps", "-p", str(other.pid), "-o", "lstart="],
+    with running() as pid:
+        # Process gone; pid alive with another start time.
+        for proof in ({"pid": gone.pid}, {"pid": pid, "started": NEVER_STARTED}):
+            recorded(**proof)
+            bind(0)
+            assert binding.read_bytes() == bound
+        started = subprocess.run(["ps", "-p", str(pid), "-o", "lstart="],
                                  capture_output=True, text=True, check=True).stdout.strip()
-        recorded(pid=other.pid, started=started)
+        recorded(pid=pid, started=started)
         bind(1)  # A live recorded process still refuses until revoke.
-        assert json.loads(binding.read_text())["proof"]["pid"] == other.pid
-    finally:
-        other.kill()
-        other.wait()
+        assert json.loads(binding.read_text())["proof"]["pid"] == pid
     binding.write_bytes(bound)
 
 
@@ -426,12 +438,14 @@ def claude_metadata():
     same_id_rebind(binding, lambda expected: bridge("bind", "claude", expected=expected), home / "state")
     saved = (home / "state/.lock-session").read_bytes()
     proof = json.loads(binding.read_text())
-    binding.write_text(json.dumps({**proof, "proof": {**proof["proof"], "pid": 1}}))
-    (home / "state/.lock-session").write_text("another-session")
-    assert "lock session mismatch" in bridge("bind", "claude", expected=1).stderr
-    assert json.loads(binding.read_text())["proof"]["pid"] == 1
-    (home / "state/.lock-session").write_bytes(saved)
-    bridge("bind", "claude")
+    with running() as pid:
+        binding.write_text(json.dumps({**proof, "proof": {**proof["proof"], "pid": pid, "started": NEVER_STARTED}}))
+        (home / "state/.lock-session").write_text("another-session")
+        assert "lock session mismatch" in bridge("bind", "claude", expected=1).stderr
+        assert json.loads(binding.read_text())["proof"]["pid"] == pid
+        (home / "state/.lock-session").write_bytes(saved)
+        bridge("bind", "claude")
+    assert json.loads(binding.read_text()) == proof
     bridge("accept-root")
     bridge("revoke", "claude")
     assert not binding.exists()
@@ -457,8 +471,10 @@ def claude_metadata():
     assert json.loads(bound)["proof"]["transcript_path"] == str(transcript)
     assert json.loads((state / "root.json").read_text()) == {"provider": "claude", "session_id": sid}
     # A resumed session's stale same-ID binding is replaced; a valid one is kept.
-    binding.write_text(json.dumps({**json.loads(bound), "proof": {**json.loads(bound)["proof"], "pid": 1}}))
-    register()
+    with running() as pid:
+        binding.write_text(json.dumps({**json.loads(bound), "proof": {**json.loads(bound)["proof"],
+                                                                       "pid": pid, "started": NEVER_STARTED}}))
+        register()
     assert binding.read_bytes() == bound
     kept = {**json.loads(bound), "proof": {**json.loads(bound)["proof"], "transcript_path": str(tmp / "kept.jsonl")}}
     binding.write_text(json.dumps(kept))
