@@ -999,11 +999,11 @@ test_run_hook_budget_bounds_preparation() {
     source=startup
     case "$stage" in
       gate|scope) tool=git ;;
-      state) tool=mkdir; rmdir "$fixture/state" ;;
-      payload) tool=cat; source= ;;
-      parse) tool=awk; source= ;;
+      state) tool='mkdir'; rmdir "$fixture/state" ;;
+      payload) tool='cat'; source= ;;
+      parse) tool='awk'; source= ;;
       completion-*)
-        tool=cat
+        tool='cat'
         source=${stage#completion-}
         printf '%s\n' "$$" > "$fixture/state/.lock"
         printf '%s\n' "$$" > "$fixture/state/.session-start-complete"
