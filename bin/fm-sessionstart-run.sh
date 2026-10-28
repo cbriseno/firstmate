@@ -45,9 +45,80 @@
 # A fresh clone has no gitignored state dir yet; a root that otherwise
 # qualifies as primary gets one created here before the scope check runs, so
 # the first session takes the helm without a manual `mkdir state`.
+#
+# HOOK BUDGET. A hook harness discards everything a hook printed when it kills
+# the hook at its registered timeout (180s for Claude, Codex, and Cursor), so a
+# digest that is still running then is lost without a word. The digest's own
+# FM_SESSION_START_TIMEOUT bound does not close that gap alone: a nested bounded
+# call runs in a process group of its own, survives the digest's group kill,
+# and keeps the hook's stdout open until its own bound expires, while a loaded
+# host can spend the remaining margin before the digest even starts.
+# So this wrapper bounds preparation and execution together from entry under
+# FM_SESSION_START_HOOK_BUDGET (default 150s, below every registered hook timeout).
+# Eligibility, payload reads and parsing, completion checks, and capture-file
+# allocation all spend that budget. A host without a whole-wrapper bound gets
+# the incomplete notice instead of launching the digest. The digest runs only
+# with stdout and stderr captured to private files; capture failure produces
+# the incomplete notice
+# without launching it. The wrapper delivers captured output with time reserved
+# before the outer bound. No digest descendant holds the harness's pipe.
+# The budget's deadline also reaches
+# bin/fm-session-start.sh as FM_SESSION_START_DEADLINE, which caps the digest's
+# own bound to fit inside it, so on a slow host that script's stage-naming
+# STARTUP TRUNCATED banner normally reports first, and this budget stays the
+# backstop for a start that cannot even reach its own bound. A run the budget
+# stops, or one that exits nonzero for any other reason, ends with a SESSION
+# START INCOMPLETE notice telling the agent to run bin/fm-session-start.sh, so
+# an overrun is never silent. bin/fm-session-start.sh stays the owner of what
+# runs and in what order.
 set -u
+SECONDS=0
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR=${BASH_SOURCE[0]%/*}
+[ "$SCRIPT_DIR" != "${BASH_SOURCE[0]}" ] || SCRIPT_DIR=.
+SCRIPT_DIR="$(cd "$SCRIPT_DIR" && pwd)"
+# shellcheck source=bin/fm-timeout-lib.sh
+. "$SCRIPT_DIR/fm-timeout-lib.sh"
+
+HOOK_BUDGET=${FM_SESSION_START_HOOK_BUDGET:-150}
+case "$HOOK_BUDGET" in ''|*[!0-9]*) HOOK_BUDGET=150 ;; esac
+[ "$HOOK_BUDGET" -gt 0 ] 2>/dev/null || HOOK_BUDGET=150
+
+incomplete_notice() {
+  local rc=$1 bar='●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+  printf '\n%s\n' "$bar"
+  if [ "$rc" = capture ]; then
+    printf '●  SESSION START INCOMPLETE - OUTPUT CAPTURE FAILED\n'
+  elif fm_timed_out "$rc"; then
+    printf '●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE %ss HOOK BUDGET\n' "$HOOK_BUDGET"
+    printf '●  The session-open hook stopped it so this notice arrives before the\n'
+    printf '●  harness hook timeout would discard the whole digest.\n'
+  else
+    printf '●  SESSION START INCOMPLETE - IT EXITED WITH STATUS %s\n' "$rc"
+  fi
+  printf '●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,\n'
+  printf '●  before acting on anything else.\n'
+  printf '%s\n' "$bar"
+}
+
+if [ "${1:-}" != --hook-budget-child ]; then
+  HOOK_REMAINING=$(( HOOK_BUDGET - SECONDS ))
+  if [ "$HOOK_REMAINING" -gt 0 ]; then
+    (
+      fm_exec_timed "$HOOK_REMAINING" 1 "$BASH" "$SCRIPT_DIR/fm-sessionstart-run.sh" \
+        --hook-budget-child "$HOOK_REMAINING" "$@"
+    )
+    HOOK_STATUS=$?
+  else
+    HOOK_STATUS=124
+  fi
+  [ "$HOOK_STATUS" -ne 3 ] || exit 3
+  [ "$HOOK_STATUS" -eq 0 ] || incomplete_notice "$HOOK_STATUS"
+  exit 0
+fi
+HOOK_DEADLINE=$(( $(date +%s) + $2 - SECONDS ))
+shift 2
+
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
@@ -137,19 +208,41 @@ if [ -z "$SOURCE" ] && [ ! -t 0 ]; then
   ')
 fi
 
+run_session_start() {  # <fm-session-start.sh args...>
+  local out err rc remaining
+  out=$(mktemp "${TMPDIR:-/tmp}/fm-sessionstart-run.out.XXXXXX" 2>/dev/null) || out=
+  err=$(mktemp "${TMPDIR:-/tmp}/fm-sessionstart-run.err.XXXXXX" 2>/dev/null) || err=
+  if [ -n "$out" ] && [ -n "$err" ]; then
+    remaining=$(( HOOK_DEADLINE - $(date +%s) - 2 ))
+    if [ "$remaining" -gt 0 ]; then
+      fm_run_timed "$remaining" env FM_SESSION_START_DEADLINE="$HOOK_DEADLINE" \
+        "$SCRIPT_DIR/fm-session-start.sh" "$@" >"$out" 2>"$err"
+      rc=$?
+    else
+      rc=124
+    fi
+    cat "$out" 2>/dev/null
+    cat "$err" >&2 2>/dev/null
+  else
+    rc=capture
+  fi
+  rm -f "$out" "$err" 2>/dev/null
+  [ "$rc" = 0 ] || incomplete_notice "$rc"
+}
+
 case "$SOURCE" in
   resume|reload|fork)
     exec "$SCRIPT_DIR/fm-sessionstart-nudge.sh"
     ;;
   clear|compact)
     if session_start_completed; then
-      "$SCRIPT_DIR/fm-session-start.sh" --reemit --source "$SOURCE" || true
+      run_session_start --reemit --source "$SOURCE"
     else
-      "$SCRIPT_DIR/fm-session-start.sh" --source "$SOURCE" || true
+      run_session_start --source "$SOURCE"
     fi
     ;;
   *)
-    "$SCRIPT_DIR/fm-session-start.sh" --source "$SOURCE" || true
+    run_session_start --source "$SOURCE"
     ;;
 esac
 exit 0

@@ -596,6 +596,41 @@ fm_lock_claim() {
   return 0
 }
 
+# fm_lock_reap_abandoned_owners <lockdir> <own-ownerdir>
+# Run by a process that has just won <lockdir>. A process killed between
+# creating its owner directory and linking or discarding it (a bounded startup
+# sweep stopped mid-acquire, say) leaves an unlinked <lockdir>.owner.* behind
+# that no claim or release path ever names again. Remove only a directory the
+# lock link does not name whose recorded pid is dead and which is not a fresh
+# mid-acquire, the same evidence fm_lock_recheck_stale_owner demands of a
+# linked owner, and only a fm_lock_reap_dead_link tombstone whose reaper is dead
+# and whose original owner the link no longer names, since a tombstone the link
+# still needs is how a later reaper re-elects itself. A live recorded pid always
+# keeps its directory.
+fm_lock_reap_abandoned_owners() {
+  local lockdir=$1 own=$2 candidate pid
+  for candidate in "${own%.owner.*}".owner.*; do
+    [ "$candidate" != "$own" ] || continue
+    [ -d "$candidate" ] && [ ! -L "$candidate" ] || continue
+    fm_lock_points_to_owner "$lockdir" "$candidate" && continue
+    case "$candidate" in
+      *.reaped.*)
+        pid=${candidate##*.reaped.}
+        case "$pid" in ''|*[!0-9]*) continue ;; esac
+        fm_pid_alive "$pid" && continue
+        fm_lock_points_to_owner "$lockdir" "${candidate%.reaped.*}" && continue
+        ;;
+      *)
+        pid=
+        if [ -f "$candidate/pid" ]; then read -r pid 2>/dev/null < "$candidate/pid" || true; fi
+        fm_pid_alive "$pid" && continue
+        fm_lock_mid_acquire_is_fresh "$candidate" "$pid" && continue
+        ;;
+    esac
+    fm_lock_discard_owner "$candidate"
+  done
+}
+
 fm_lock_try_create() {
   local lockdir=$1 allowed_steal_owner=${2:-} ownerdir
   FM_LOCK_OWNER_DIR=
@@ -611,6 +646,7 @@ fm_lock_try_create() {
   if ln -s "$ownerdir" "$lockdir" 2>/dev/null && fm_lock_points_to_owner "$lockdir" "$ownerdir"; then
     if fm_lock_claim "$lockdir" "$ownerdir" "$allowed_steal_owner"; then
       FM_LOCK_OWNER_DIR=$ownerdir
+      fm_lock_reap_abandoned_owners "$lockdir" "$ownerdir"
       return 0
     fi
     if fm_lock_points_to_owner "$lockdir" "$ownerdir"; then

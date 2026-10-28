@@ -683,6 +683,94 @@ test_lock_does_not_steal_live_lock() {
   pass "live-held lock is not stolen"
 }
 
+test_lock_reaps_abandoned_unlinked_owner_dirs() {
+  # A bounded session start killed mid-acquire leaves an owner directory that
+  # was never linked or discarded. The next winner must remove it, while every
+  # directory a live process may still need survives.
+  local dir state lockdir orphan_holder live fresh rc leftover
+  dir=$(make_case lock-abandoned-owners)
+  state="$dir/state"
+  lockdir="$state/.contend.lock"
+  FM_STATE_OVERRIDE="$state" bash -c '
+    . "$1"
+    owner=$(fm_lock_owner_dir "$2") || exit 7
+    fm_lock_prepare_owner "$owner" || exit 7
+    exec sleep 30
+  ' _ "$LIB" "$lockdir" >/dev/null 2>&1 &
+  orphan_holder=$!
+  rc=0
+  for _ in $(seq 1 100); do
+    for leftover in "$lockdir".owner.*; do [ -s "$leftover/pid" ] && break 2; done
+    sleep 0.02
+  done
+  [ -s "$leftover/pid" ] || fail "mid-acquire fixture did not publish its owner directory"
+  kill -KILL "$orphan_holder" 2>/dev/null || true
+  wait "$orphan_holder" 2>/dev/null || true
+  # Pin a verified-dead pid so a loaded host reusing the killed pid cannot
+  # turn this into a live-owner case.
+  printf '%s\n' "$(dead_pid)" > "$leftover/pid"
+  mkdir "$lockdir.owner.oldnopid"
+  touch -t 200001010000 "$lockdir.owner.oldnopid"
+  mkdir "$lockdir.owner.deadtomb.reaped.$(dead_pid)"
+  printf '%s\n' "$(dead_pid)" > "$lockdir.owner.deadtomb.reaped.$(dead_pid)/pid"
+  sleep 300 &
+  live=$!
+  mkdir "$lockdir.owner.liveowner" "$lockdir.owner.livetomb.reaped.$live"
+  printf '%s\n' "$live" > "$lockdir.owner.liveowner/pid"
+  printf '%s\n' "$(dead_pid)" > "$lockdir.owner.livetomb.reaped.$live/pid"
+  fresh="$lockdir.owner.freshnopid"
+  mkdir "$fresh"
+
+  FM_STATE_OVERRIDE="$state" bash -c '
+    . "$1"
+    fm_lock_try_acquire "$2" || exit 8
+    fm_lock_release "$2"
+  ' _ "$LIB" "$lockdir" || rc=$?
+  kill "$live" 2>/dev/null || true
+  wait "$live" 2>/dev/null || true
+  [ "$rc" -eq 0 ] || fail "acquirer could not take a lock with abandoned owner directories (rc=$rc)"
+  [ ! -e "$leftover" ] || fail "owner directory of a process killed mid-acquire was not reaped"
+  [ ! -e "$lockdir.owner.oldnopid" ] || fail "old pid-less owner directory was not reaped"
+  [ ! -e "$lockdir.owner.deadtomb.reaped.$(dead_pid)" ] \
+    || fail "tombstone of a dead reaper the lock no longer names was not reaped"
+  [ -d "$lockdir.owner.liveowner" ] || fail "owner directory recording a live pid was removed"
+  [ -d "$lockdir.owner.livetomb.reaped.$live" ] || fail "tombstone of a live reaper was removed"
+  [ -d "$fresh" ] || fail "fresh mid-acquire owner directory was removed during its grace"
+  pass "abandoned unlinked owner directories are reaped and live ones survive"
+}
+
+test_lock_reap_keeps_tombstone_the_link_still_needs() {
+  # A dead reaper's tombstone is how the next reaper re-elects itself while the
+  # lock link still names the original owner, so a sibling lock win must never
+  # remove it; the link's own recovery then still succeeds.
+  local dir state lockdir owner tomb dead rc
+  dir=$(make_case lock-reap-needed-tomb)
+  state="$dir/state"
+  lockdir="$state/.contend.lock"
+  dead=$(dead_pid)
+  leave_dead_link_locks "$state" "$lockdir"
+  owner=$(readlink "$lockdir")
+  tomb="$owner.reaped.$dead"
+  mv -- "$owner" "$tomb"
+  # Past the empty-pid mid-acquire grace, so the link's own recovery may run.
+  touch -h -t 200001010000 "$lockdir" 2>/dev/null || sleep 2
+  rc=0
+  FM_STATE_OVERRIDE="$state" bash -c '
+    . "$1"
+    fm_lock_reap_abandoned_owners "$2" "$2.owner.winner"
+  ' _ "$LIB" "$lockdir" || rc=$?
+  [ "$rc" -eq 0 ] || fail "abandoned-owner sweep failed (rc=$rc)"
+  [ -d "$tomb" ] || fail "sweep removed a tombstone the lock link still needs for re-election"
+  FM_STATE_OVERRIDE="$state" bash -c '
+    . "$1"
+    fm_lock_try_acquire "$2" || exit 8
+    fm_lock_release "$2"
+  ' _ "$LIB" "$lockdir" || rc=$?
+  [ "$rc" -eq 0 ] || fail "dead reaper tombstone blocked recovering the lock (rc=$rc)"
+  [ ! -e "$tomb" ] || fail "recovered lock left the dead reaper tombstone behind"
+  pass "a tombstone the lock link still needs is kept until its own recovery"
+}
+
 test_lock_empty_pid_uses_minimum_grace() {
   local dir state lockdir out
   dir=$(make_case lock-empty-grace)
@@ -1589,6 +1677,8 @@ test_lock_reclaims_self_held_steal_mutex
 test_lock_resumes_own_interrupted_steal_reap
 test_lock_live_steal_mutex_is_not_reclaimed
 test_lock_does_not_steal_live_lock
+test_lock_reaps_abandoned_unlinked_owner_dirs
+test_lock_reap_keeps_tombstone_the_link_still_needs
 test_lock_empty_pid_uses_minimum_grace
 test_lock_late_claim_loses_after_recreate
 test_lock_paused_mid_acquire_claim_fails_during_steal
