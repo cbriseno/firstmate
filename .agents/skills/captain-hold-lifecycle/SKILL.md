@@ -22,7 +22,7 @@ The originating investigation or review is never its own inventory entry, so hol
 Keep the reason a short plain summary, and put the card the captain answers in the structured hold fields: `--context`, `--question`, one `--option` per choice, `--recommended`, and `--link` to the report.
 Never write options into the reason or the question text: a board shows that prose only as text, so the captain gets no real choices.
 Hold one task per independent captain decision, each with its own question and options, so every open captain question has a held task and its own one-click card.
-When two decisions gate the same work item, hold that item for one of them and a separate captain-held task for each other one.
+When several decisions gate one work item, create one captain-held decision task per question and mark the work item blocked by each of them with `bin/fm-tasks-axi.sh block <work> --by <decision>` instead of holding the work item for one decision, so it stays undispatchable until every decision is answered.
 Represent each held task with exactly one board card; never fan one task id into duplicate same-key cards.
 Register or re-hold through `bin/fm-captain-hold.sh hold`, which is idempotent per task id.
 Pass the card fields again on every re-hold: a re-hold after a release starts a new hold, which shows no options unless it gets them again.

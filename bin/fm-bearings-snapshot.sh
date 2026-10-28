@@ -792,7 +792,7 @@ TOON=$(printf '%s\n' "$MODEL" | jq -r '
     elif ($v | type) == "array" then
       if ($v | length) == 0 then "\($k): []"
       else
-        ($v[0] | keys_unsorted) as $ks
+        (reduce ($v[] | keys_unsorted[]) as $key ([]; if index([$key]) then . else . + [$key] end)) as $ks
         | ( "\($k)[\($v | length)]{\($ks | map(q) | join(","))}:",
             ($v[] as $row | "  " + ([ $ks[] as $kk | ($row[$kk] | scal) ] | join(","))) )
       end

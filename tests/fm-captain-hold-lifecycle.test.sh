@@ -4862,12 +4862,12 @@ hold_route_call() {  # <home> <task-id> [extra hold args...]
 ROUTE_CALL='{"question":"Which sample route do we take?","options":[{"id":"north","label":"Go north","detail":"Shorter, but steeper"},{"id":"south","label":"Go south","detail":null}],"recommended":"north","context":"Both routes reach the sample camp.","link":"data/sample-route-call/report.md"}'
 
 test_structured_call_fields_reach_the_snapshots() {
-  local home snap json rc
+  local home snap json toon rc
   home=$(make_home structured-call)
-  hold_route_call "$home" sample-route-call >/dev/null || fail "hold refused valid structured call fields"
   run_captain "$home" hold sample-plain-call --title "Choose the sample plain route" \
     --reason "captain plain route choice pending" --repo sample >/dev/null \
     || fail "a hold without call fields stopped working"
+  hold_route_call "$home" sample-route-call >/dev/null || fail "hold refused valid structured call fields"
   run_captain "$home" hold sample-dated-call --title "Revisit the sample route" \
     --reason "captain deferred the sample route" --repo sample --until 2026-08-01 \
     --question "Revisit the sample route?" --option "yes=Revisit it" >/dev/null \
@@ -4894,6 +4894,14 @@ test_structured_call_fields_reach_the_snapshots() {
       and $dated.call.options == [{"id":"yes","label":"Revisit it","detail":null}]
       and $dated.call.recommended == null and $dated.call.context == null and $dated.call.link == null
   ' >/dev/null || fail "bearings rows did not carry the call object beside the unchanged summary: $json"
+  printf '%s' "$json" | jq -e '.decisions_open[0] | has("call") | not' >/dev/null \
+    || fail "the fixture no longer leads Captain's Call with a row that has no call: $json"
+  toon=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_BEARINGS_NOW=2026-07-14T12:00:00Z "$BEARINGS") \
+    || fail "default bearings output failed with mixed call rows"
+  assert_contains "$(printf '%s\n' "$toon" | grep -E '^decisions_open\[[0-9]+\]\{')" ",call" \
+    "the default Captain's Call table dropped the call column when its first row had none"
+  assert_contains "$toon" "Which sample route do we take?" \
+    "the default Captain's Call table dropped a later row's call"
 
   for args in \
     "--option north=Go" \
@@ -5040,6 +5048,43 @@ test_independent_calls_from_one_origin_each_keep_their_card() {
       and ($budget.options | map(.id)) == ["yes", "no"]
   ' >/dev/null || fail "answering one call did not leave the other open with its own options: $json"
   pass "independent calls from one review each keep their own card, and answering one leaves the other open"
+}
+
+test_work_item_blocked_by_several_calls_waits_for_every_answer() {
+  local home snap json
+  home=$(make_home blocked-by-calls)
+  tasks_in "$home" add sample-trip-work "Plan the sample trip" --repo sample >/dev/null \
+    || fail "could not create the queued work item"
+  hold_route_call "$home" sample-route-call >/dev/null || fail "could not hold the route call"
+  run_captain "$home" hold sample-budget-call --title "Approve the sample budget" \
+    --reason "captain sample budget approval pending" --repo sample \
+    --question "Approve the sample budget?" --option "yes=Approve it" --option "no=Not now" >/dev/null \
+    || fail "could not hold the budget call"
+  tasks_in "$home" block sample-trip-work --by sample-route-call >/dev/null || fail "could not block the work on the route call"
+  tasks_in "$home" block sample-trip-work --by sample-budget-call >/dev/null || fail "could not block the work on the budget call"
+
+  printf 'sample-route-call\tnorth\tGo north\n' \
+    | run_captain "$home" answers --source "synthetic deck" >/dev/null || fail "could not answer the route call"
+  snap=$(run_fleet_snapshot "$home") || fail "fleet snapshot failed with one call still open"
+  printf '%s' "$snap" | jq -e '
+    [.backlog.records[] | select(.id == "sample-trip-work")][0]
+    | .state == "queued" and .unresolved_blocker_ids == ["sample-budget-call"]
+  ' >/dev/null || fail "answering one call unblocked work still gated by another: $snap"
+  json=$(run_bearings "$home") || fail "bearings failed with one call still open"
+  printf '%s' "$json" | jq -e '
+    [.gates[] | select(.id == "sample-trip-work")][0].blocked_by == "sample-budget-call"
+      and ([.decisions_open[] | select(.id == "sample-budget-call")] | length) == 1
+  ' >/dev/null || fail "Bearings did not keep the work blocked on the open call: $json"
+
+  printf 'sample-budget-call\tyes\tApprove it\n' \
+    | run_captain "$home" answers --source "synthetic deck" >/dev/null || fail "could not answer the budget call"
+  snap=$(run_fleet_snapshot "$home") || fail "fleet snapshot failed after every call was answered"
+  printf '%s' "$snap" | jq -e '[.backlog.records[] | select(.id == "sample-trip-work")][0].unresolved_blocker_ids == []' \
+    >/dev/null || fail "answering every call left the work blocked: $snap"
+  json=$(run_bearings "$home") || fail "bearings failed after every call was answered"
+  printf '%s' "$json" | jq -e '[.gates[] | select(.id == "sample-trip-work")][0].blocked_by == "-"' \
+    >/dev/null || fail "Bearings still showed the work blocked after every call was answered: $json"
+  pass "a work item blocked by several calls stays blocked until every call is answered"
 }
 
 test_structured_call_reaches_parent_bearings_from_a_secondmate() {
@@ -5363,6 +5408,7 @@ test_structured_call_fields_reach_the_snapshots
 test_structured_call_answer_by_option_id
 test_structured_call_follows_its_hold_lifecycle
 test_independent_calls_from_one_origin_each_keep_their_card
+test_work_item_blocked_by_several_calls_waits_for_every_answer
 test_structured_call_reaches_parent_bearings_from_a_secondmate
 test_hold_origins_precede_backend_holds
 test_historical_self_inventory_has_workable_repair

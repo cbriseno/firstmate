@@ -560,6 +560,8 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 - An option-id answer closes through the plain and guarded intakes with only the answer and its shown label recorded, replays idempotently for close and release, and free text stays free text.
 - An active repeat without fields keeps the call, and a new lifecycle without fields shows none.
 - Independent calls from one review complete as one inventory, and answering one leaves the other open with its own options.
+- A work item blocked by several calls stays blocked until every call is answered.
+- The default TOON Captain's Call table keeps a `call` column when its first row has none.
 
 ### Legacy paths
 

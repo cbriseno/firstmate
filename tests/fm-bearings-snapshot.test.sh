@@ -1103,7 +1103,8 @@ test_toon_json_parity() {
         [ -n "$hdr" ] || fail "TOON missing tabular header for $k"
         assert_contains "$hdr" "[$n]" "TOON $k row count must equal JSON length $n"
         local jfields tfields
-        jfields=$(printf '%s' "$json" | jq -r --arg k "$k" '.[$k][0] | keys_unsorted | join(",")')
+        jfields=$(printf '%s' "$json" | jq -r --arg k "$k" '
+          reduce (.[$k][] | keys_unsorted[]) as $key ([]; if index([$key]) then . else . + [$key] end) | join(",")')
         tfields=$(printf '%s' "$hdr" | sed -E 's/^[^{]*\{//; s/\}:.*$//; s/"//g')
         [ "$jfields" = "$tfields" ] || fail "TOON $k fields ($tfields) must equal JSON fields ($jfields)"
       fi
