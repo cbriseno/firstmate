@@ -377,7 +377,6 @@ So it cannot inject a re-emit digest.
 Delivering one needs its own design and is deliberately deferred to a follow-up.
 A Cursor primary does not re-emit its digest after a compaction.
 
-Cursor's compaction surface is uncovered in the same sense as [Codex's interactive TUI](#codex-interactive-tui).
 Firstmate registers nothing for `preCompact`.
 So a compacted Cursor session keeps whatever context survived rather than receiving a fresh digest.
 

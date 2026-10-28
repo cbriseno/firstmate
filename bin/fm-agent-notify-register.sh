@@ -15,7 +15,7 @@
 # still valid. A resumed session's stale same-ID binding is replaced only under
 # bind's own rule. Proof failures are silent and ordinary hooks keep their
 # behavior.
-# Exit status is always 0. Any argument is a manual run: -h/--help prints usage
+# Hook invocations exit 0. Any argument is a manual run: -h/--help prints usage
 # and anything else is refused, both before anything is read.
 set -u
 

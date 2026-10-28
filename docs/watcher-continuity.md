@@ -88,7 +88,7 @@ The hook fires on every Stop.
 On each Stop, an eligible primary with supervision need admits one home-scoped owner, which foregrounds `bin/fm-watch-arm.sh` inside the hook-owned process tree.
 If a session exits mid-cycle and leaves an orphaned Stop hook, the replacement session's first eligible Stop supersedes its claim, attaches to the running watcher through `bin/fm-watch-arm.sh`, and delivers the cycle's close.
 [`turnend-guard.md`](turnend-guard.md#auto-arm-generation-claim) owns the open-claim definition.
-While supervision is still needed and away mode remains inactive, an actionable close wakes the idle session through exit 2.
+The [auto-arm header](../bin/fm-claude-stop-autoarm.sh) owns eligibility for the exit-2 wake, including supervision-host hand-backs.
 
 A turn that ends on an API error, such as a rate limit, overload, authentication or billing failure, fires Claude's `StopFailure` instead of `Stop`.
 Claude ignores that event's exit code and output and gives it no decision control, so no hook can re-arm or rewake from it, and Firstmate registers none for the primary.

@@ -91,9 +91,8 @@ The third is recorded below.
 
 Two harness-specific consequences are load-bearing rather than incidental.
 
-Codex's interactive TUI fired no project `SessionStart` hook at all in the same lab where `codex exec` fired it reliably, which matches the earlier 2026-07-28 finding for 0.145.0.
-Codex's run tier is therefore verified only for `codex exec` startup and context-preserving resume.
-The interactive TUI is a known uncovered gap: Firstmate has no tracked session-open, compaction, or re-emit channel there, ships no global hook, and does not claim instruction-refresh delivery for that surface.
+Codex 0.146.0's interactive TUI fired no project `SessionStart` hook at all in the same lab where `codex exec` fired it reliably, matching the earlier 2026-07-28 finding for 0.145.0.
+At those versions, the run tier was verified only for `codex exec` startup and context-preserving resume.
 
 On 2026-10-27 codex-cli 0.164.0 changed that for startup.
 In a fresh clone on Linux, launched as `codex --no-daemon --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox` from the clone root, no `state/.session-start-complete` existed until the first prompt; that prompt fired the tracked `SessionStart` entry, `state/.lock` then named the `codex` process, and the session's own rollout carried the injected digest beginning `SUPERVISION OPERATING INSTRUCTIONS - primary harness: codex`.
@@ -341,7 +340,7 @@ Cursor compaction instruction refresh is DEFERRED and not shipped, so a Cursor p
 Two static facts decided that: `PreCompactRequestResponse` carries only `user_message`, and `preCompact` is absent from the `additional_context` step set (`index.js` @ 4814884), so the step cannot inject a digest and any delivery has to be routed through a later boundary.
 A staged-then-delivered design is rejected because carrying a digest across two concurrently running `stop` hooks can deliver it twice or strand it indefinitely, while closing those races enlarges a critical section inside a hook Cursor awaits at the turn boundary.
 Native `preCompact` firing was not observed because a real compaction could not be forced in the isolated session, so the surface has no empirical basis yet.
-It is therefore recorded as uncovered in the same sense as the Codex interactive TUI, and `tests/fm-cursor-primary.test.sh` asserts `preCompact` stays unregistered so it cannot return unnoticed without its own design and evidence.
+It is therefore recorded as uncovered; [the adapter guide](../sessionstart-nudge.md#cursor-compaction) owns that limit, and `tests/fm-cursor-primary.test.sh` asserts `preCompact` stays unregistered so it cannot return unnoticed without its own design and evidence.
 
 The Grok adaptive matrix ran on 2026-07-28 with separate scratch repositories and homes, dedicated tmux sockets, one target plus one control window, ambient tmux variables removed, and a socket-bound wrapper first in `PATH`.
 
@@ -945,5 +944,5 @@ worker first-cwd-index 5 attachment version 2.1.311 own-sid True
 
 `stat -c '%n birth=%W mtime=%Y'` on the 2.1.311 transcript and its SessionStart hook output file printed `birth=1793118589` and `birth=1793118587 mtime=1793118587`.
 The transcript is created after the SessionStart hooks finish, so a fresh session's startup registration cannot read it; the Claude hooks reference also states that the transcript is written asynchronously.
-The hermetic regressions in `tests/fm-agent-notify.test.sh` pin the skip, refusal, store-lookup, resume and Stop-retry behavior; refresh them with `bin/fm-test-run.sh tests/fm-agent-notify.test.sh`.
+The hermetic regressions in `tests/fm-agent-notify.test.sh` cover first-turn production without an earlier root binding for Claude and Codex, alongside skip, refusal, store-lookup, resume and Stop-retry behavior; refresh them with `bin/fm-test-run.sh tests/fm-agent-notify.test.sh`.
 They do not prove a live root registration, which still needs the in-session bind and receipt check named in the bridge header.
