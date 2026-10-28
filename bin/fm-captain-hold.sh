@@ -21,7 +21,9 @@
 #
 # Usage:
 #   fm-captain-hold.sh hold <task-id> --reason <reason> \
-#     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD]
+#     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD] \
+#     [--question <line> [--option <id>=<label>[|<detail>]]... [--recommended <id>] \
+#      [--context <line>] [--link <report path or URL>]]
 #   fm-captain-hold.sh answer <task-id> --decision-file <path> [--release] [--expected-identity <identity>]
 #   fm-captain-hold.sh answers [<legacy-origin> | --any-origin] --source <provenance> [--expected-identity <identity>]   (keyed answers on stdin)
 #   fm-captain-hold.sh reconcile-requests --source-id <source-id> --source <provenance> [--expected-identity <identity>]   (task ids on stdin)
@@ -59,6 +61,25 @@
 # --until`, so a "revisit later" answer is stored as a date instead of a live
 # card.
 #
+# STRUCTURED CALL FIELDS. `--question`, the repeatable `--option`,
+# `--recommended`, `--context`, and `--link` record the captain-facing card
+# beside the unchanged `--reason`, so a board can offer real choices instead of
+# options buried in prose. Any of them requires `--question`. Bounds, in
+# characters: question 160, option label 40, option detail 120, context 200,
+# link 500, at most 8 options. Option ids are slugs of at most 32 characters,
+# unique per call, and never the reserved answer `reconcile`; `--recommended`
+# must name one of them. Every field is one line without control characters,
+# and a field over its bound is refused rather than truncated. Validation runs
+# before any mutation. After the backend hold succeeds, the fields are written
+# atomically to the private record data/<task-id>/captain-call.json (schema
+# fm-captain-call.v1), bound to this hold lifecycle by its hold-set stamp and
+# resolution occurrence. A hold given no call fields leaves that record alone:
+# an active hold's repeat keeps its call, and a new lifecycle (new stamp) no
+# longer matches the old record, so readers show no call for it.
+# bin/fm-fleet-snapshot.sh exports a matching record as each open captain
+# hold's `call` object and omits it otherwise; nothing ever derives options
+# from reason or body prose.
+#
 # `answer` records the captain's exact words and resolves the call in the same
 # act. It requires a non-empty captain decision file of at most 8192 bytes and
 # writes a resolution block while preserving the leading hold-set stamp until
@@ -87,10 +108,15 @@
 # empty or `done` completes the task, `release` lifts the hold so held work
 # resumes; anything else is skipped. A key that names no task, a task that is
 # not held for the captain, or a task already closed is reported as `skipped:`
-# and feeds nothing. A replayed delivery whose answer digest and requested
-# close mode both match the newest record is reported `closed:` and is a no-op;
-# a mode mismatch is skipped. The command exits nonzero when any key was
-# skipped. `--source` is provenance text recorded in the
+# and feeds nothing. When the answer is exactly the id of an option in the
+# call's structured record (see STRUCTURED CALL FIELDS above), the durable
+# decision also records `Chosen option:` and `Chosen option label:` lines; any
+# other answer is recorded as free text exactly as before. An open call uses
+# the record whose hold-set stamp matches; a closed or released replay uses the
+# record whose occurrence is the newest resolution. A replayed delivery whose
+# answer digest and requested close mode both match the newest record is
+# reported `closed:` and is a no-op; a mode mismatch is skipped. The command
+# exits nonzero when any key was skipped. `--source` is provenance text recorded in the
 # durable decision, never a behavior switch: this command has no per-channel
 # branch and no knowledge of chat, review decks, or any transport.
 # Legacy input: an optional positional origin (or a stored concrete-origin
@@ -986,6 +1012,104 @@ write_hold_origin() {  # <task-id> <shown-body> <origin-or-empty>
   rm -f -- "$tmp"
 }
 
+# --- structured call fields (STRUCTURED CALL FIELDS in the header) ----------
+
+CALL_SCHEMA=fm-captain-call.v1
+CALL_JSON=''
+CALL_OPTION_LABEL=''
+
+captain_call_path() {  # <task-id>
+  local data
+  data=$(fm_backlog_data_absolute "$DATA") || return 1
+  printf '%s/%s/captain-call.json\n' "$data" "$1"
+}
+
+# Normalize the structured flags into one call object in CALL_JSON, or fail
+# before any mutation. jq measures the bounds, so they count characters rather
+# than bytes in either language.
+build_call_json() {  # <question> <recommended> <context> <link> [<option-spec>...]
+  local question=$1 recommended=$2 context=$3 link=$4 out
+  shift 4
+  [ -n "$question" ] || fail "--question is required with --option, --recommended, --context, or --link"
+  out=$(jq -cn --arg question "$question" --arg recommended "$recommended" \
+    --arg context "$context" --arg link "$link" '
+    def trim: gsub("^[[:space:]]+|[[:space:]]+$"; "");
+    def field($label; $max):
+      if test("[[:cntrl:]]") then error("\($label) must be one line without control characters")
+      elif (trim | length) == 0 then error("\($label) must not be empty")
+      elif (trim | length) > $max then error("\($label) has \(trim | length) characters; keep it within \($max)")
+      else trim end;
+    def optional($label; $max): if . == "" then null else field($label; $max) end;
+    ($ARGS.positional) as $specs
+    | if ($specs | length) > 8 then error("at most 8 --option values") else . end
+    | [ $specs[]
+        | (capture("^(?<id>[^=]*)=(?<rest>.*)$"; "s")
+           // error("--option must be <id>=<label>[|<detail>]: \(.)")) as $m
+        | ($m.rest | index("|")) as $bar
+        | {id:($m.id | trim),
+           label:(if $bar == null then $m.rest else $m.rest[:$bar] end | field("option label"; 40)),
+           detail:(if $bar == null then null else ($m.rest[($bar + 1):] | optional("option detail"; 120)) end)}
+        | if (.id | test("^[A-Za-z0-9._-]{1,32}$") | not) then
+            error("option id must be a slug of at most 32 characters: \(.id)")
+          elif .id == "reconcile" then error("option id reconcile is reserved")
+          else . end ] as $options
+    | if ($options | map(.id) | unique | length) != ($options | length) then
+        error("option ids must be unique") else . end
+    | if $recommended != "" and ([$options[].id] | index($recommended)) == null then
+        error("--recommended must name an --option id: \($recommended)") else . end
+    | {question:($question | field("question"; 160)),
+       options:$options,
+       recommended:(if $recommended == "" then null else $recommended end),
+       context:($context | optional("context"; 200)),
+       link:($link | optional("link"; 500)
+             | if . != null and test("[[:space:]]") then error("link must not contain spaces") else . end)}
+  ' --args "$@" 2>&1) || fail "${out#jq: error (at <unknown>): }"
+  CALL_JSON=$out
+}
+
+write_captain_call() {  # <task-id> <hold-set> <occurrence>
+  local id=$1 hold_set=$2 occurrence=$3 path dir tmp
+  path=$(captain_call_path "$id") || fail "data directory cannot be resolved: $DATA"
+  dir=${path%/*}
+  [ ! -L "$dir" ] || fail "refusing the symlinked task data directory $dir"
+  mkdir -p -- "$dir" && [ -d "$dir" ] && [ ! -L "$dir" ] \
+    || fail "cannot prepare the task data directory $dir"
+  tmp=$(umask 077; mktemp "$dir/.captain-call.XXXXXX") || fail "cannot stage the captain call for $id"
+  if ! printf '%s' "$CALL_JSON" | jq -c --arg schema "$CALL_SCHEMA" --arg id "$id" \
+      --arg hold_set "$hold_set" --argjson occurrence "$occurrence" \
+      '{schema:$schema,id:$id,hold_set:$hold_set,occurrence:$occurrence,call:.}' > "$tmp" \
+    || ! mv -f -- "$tmp" "$path"; then
+    rm -f -- "$tmp"
+    fail "task $id is held for the captain but its structured call was not recorded; retry the same hold"
+  fi
+}
+
+# Set CALL_OPTION_LABEL to the label of the option <answer> names in this
+# task's call record for the lifecycle the answer resolves: the open hold's
+# stamp, or the newest resolution's occurrence on a closed or released replay.
+# Anything else leaves it empty, so the answer stays free text.
+call_option_label() {  # <task-id> <answer> <shown-row>
+  local id=$1 answer=$2 show=$3 path body stamp='' occurrence=''
+  CALL_OPTION_LABEL=''
+  case "$answer" in ''|*[!A-Za-z0-9._-]*) return 0 ;; esac
+  path=$(captain_call_path "$id") || return 0
+  [ -f "$path" ] && [ ! -L "$path" ] || return 0
+  body=$(show_field "$show" body)
+  if [ "$(show_field "$show" state)" != "done" ] && [ "$(show_field_value "$show" hold_kind)" = captain ]; then
+    stamp=$(body_hold_set_timestamp "$(decode_shown_value "$body")")
+    [ -n "$stamp" ] || return 0
+  else
+    occurrence=$(resolution_record_count "$body") || return 0
+  fi
+  CALL_OPTION_LABEL=$(jq -r --arg schema "$CALL_SCHEMA" --arg id "$id" --arg stamp "$stamp" \
+    --arg occurrence "$occurrence" --arg option "$answer" '
+    select(.schema == $schema and .id == $id)
+    | select(if $stamp != "" then .hold_set == $stamp else (.occurrence | tostring) == $occurrence end)
+    | [.call.options[]? | select(.id == $option) | .label | strings][0] // empty' "$path" 2>/dev/null) \
+    || CALL_OPTION_LABEL=''
+  CALL_OPTION_LABEL=$(sanitize_field "$CALL_OPTION_LABEL")
+}
+
 refuse_self_inventory() {
   local origin=$1 entry=$2 meta="$STATE/$1.meta"
   if list_has_key "$(meta_value "$meta" decision_keys)" "$entry"; then
@@ -1172,6 +1296,8 @@ verify_entry_durable() {  # <origin-or-empty> <entry>; prints "<id> <how> <origi
 command_hold() {
   local id=${1:-} title='' reason='' repo='' origin='' until='' show state existing_title body='' hold_kind hold_set occurrence
   local existing_hold_kind='' existing_held='' preserve_hold_set=0 stored_reason previous_origin='' hold_status=0
+  local question='' recommended='' context='' link='' call_given=0
+  local -a call_options=()
   [ "$#" -ge 1 ] || { usage >&2; exit 2; }
   shift
   while [ "$#" -gt 0 ]; do
@@ -1181,12 +1307,21 @@ command_hold() {
       --repo) shift; repo=${1:-} ;;
       --origin) shift; origin=${1:-} ;;
       --until) shift; until=${1:-} ;;
+      --question) shift; question=${1:-}; call_given=1 ;;
+      --option) shift; call_options+=("${1:-}"); call_given=1 ;;
+      --recommended) shift; recommended=${1:-}; call_given=1 ;;
+      --context) shift; context=${1:-}; call_given=1 ;;
+      --link) shift; link=${1:-}; call_given=1 ;;
       *) usage >&2; exit 2 ;;
     esac
     shift
   done
   validate_slug task-id "$id"
   [ -n "$reason" ] || fail "reason must not be empty"
+  if [ "$call_given" = 1 ]; then
+    build_call_json "$question" "$recommended" "$context" "$link" \
+      "${call_options[@]+"${call_options[@]}"}"
+  fi
   # bin/fm-hold-reason-lib.sh owns the storage constraint and reversible encoding.
   stored_reason=$(fm_hold_reason_encode "$reason") || fail "could not encode the hold reason"
   if [ -n "$origin" ]; then
@@ -1274,8 +1409,9 @@ command_hold() {
   hold_kind=$(show_field_value "$show" hold_kind)
   [ "$hold_kind" = captain ] || fail "task $id did not retain its captain hold"
   occurrence=$(( $(resolution_record_count "$(show_field "$show" body)") + 1 ))
-  [ -n "$(body_hold_set_timestamp "$(show_field_value "$show" body)")" ] \
-    || fail "task $id lost its hold-set stamp while being held"
+  hold_set=$(body_hold_set_timestamp "$(show_field_value "$show" body)")
+  [ -n "$hold_set" ] || fail "task $id lost its hold-set stamp while being held"
+  [ "$call_given" = 0 ] || write_captain_call "$id" "$hold_set" "$occurrence"
   publish_parent_hold "$id" "$occurrence" needs-decision "$reason"
   printf '%s\n' "$id"
 }
@@ -1565,12 +1701,13 @@ command_binding() {
 
 # The durable captain decision one keyed answer records. Pure function of its
 # inputs, so the same answer delivered twice is idempotent rather than a
-# conflicting decision.
-keyed_decision_text() {  # <source> <task-id> <answer> <label>
+# conflicting decision. <option-label> is call_option_label's result.
+keyed_decision_text() {  # <source> <task-id> <answer> <label> [<option-label>]
   printf 'Captain answered this call through %s.\n' "$1"
   printf 'Task: %s\n' "$2"
   printf 'Answer: %s\n' "$3"
   [ -z "$4" ] || printf 'Answer as shown to the captain: %s\n' "$4"
+  [ -z "${5:-}" ] || printf 'Chosen option: %s\nChosen option label: %s\n' "$3" "$5"
 }
 
 legacy_keyed_decision_text() {  # <source> <key> <answer> <label>
@@ -1608,8 +1745,15 @@ command_guarded_answers() {  # <origin> <source> <expected-identity>
   label=$(sanitize_field "$label")
   [ -n "$answer" ] && [ "$answer" != "$RECONCILE_VALUE" ] || invalid_guarded_input
   case "$mode" in ''|done) ;; release) release_flag=--release ;; *) invalid_guarded_input ;; esac
+  # Only a task with a call record costs a read here; the locked answer below
+  # still owns the identity check, so a stale read can only drop the label.
+  CALL_OPTION_LABEL=''
+  if [ -f "$(captain_call_path "$key")" ] && task_show "$key" \
+    && [ "$(hold_lifecycle_identity "$(show_field "$TASK_SHOW_OUTPUT" body)")" = "$expected" ]; then
+    call_option_label "$key" "$answer" "$TASK_SHOW_OUTPUT"
+  fi
   tmp=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-keyed-decision.XXXXXX") || fail "cannot stage the captain decision"
-  keyed_decision_text "$source" "$key" "$answer" "$label" > "$tmp" \
+  keyed_decision_text "$source" "$key" "$answer" "$label" "$CALL_OPTION_LABEL" > "$tmp" \
     || { rm -f -- "$tmp"; fail "cannot stage the captain decision for $key"; }
   # shellcheck disable=SC2086  # Empty or one literal flag, including on Bash 3.2.
   bash "$0" answer "$key" --decision-file "$tmp" $release_flag \
@@ -1698,7 +1842,10 @@ command_answers() {
       skipped=$((skipped + 1))
       continue
     fi
-    keyed_decision_text "$source" "$id" "$answer" "$label" > "$tmp" \
+    task_show "$id" || { printf 'skipped: %s (absent)\n' "$id"; skipped=$((skipped + 1)); continue; }
+    show=$TASK_SHOW_OUTPUT
+    call_option_label "$id" "$answer" "$show"
+    keyed_decision_text "$source" "$id" "$answer" "$label" "$CALL_OPTION_LABEL" > "$tmp" \
       || fail "cannot stage the captain decision for $id"
     digest=$(sha256_text "$(cat "$tmp")")
     legacy_digest=''
@@ -1713,8 +1860,6 @@ command_answers() {
     if [ -n "$legacy_key" ]; then
       legacy_digest=$(sha256_text "$(legacy_keyed_decision_text "$source" "$legacy_key" "$answer" "$label")")
     fi
-    task_show "$id" || { printf 'skipped: %s (absent)\n' "$id"; skipped=$((skipped + 1)); continue; }
-    show=$TASK_SHOW_OUTPUT
     state=$(show_field "$show" state)
     hold_kind=$(show_field_value "$show" hold_kind)
     body=$(show_field "$show" body)

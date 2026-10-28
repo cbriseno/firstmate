@@ -59,6 +59,12 @@
 #     it under the same rule; its working active_children never do.
 #   presentation on backlog rows is the optional private owner declaration
 #     written by fm-tasks-axi.sh presentation; fm-flow-lib.sh owns its projection.
+#   call on an open captain-hold backlog row is its structured card
+#     {question,options[{id,label,detail}],recommended,context,link}, present
+#     only when fm-captain-hold.sh hold recorded call fields for the current
+#     hold-set stamp (bin/fm_delivery.py read_captain_call validates it) and
+#     absent otherwise. The secondmate-home summary carries it on its
+#     captain-hold decisions_open and queued rows.
 #   execution on task/linked backlog rows is the exact recorded crew, harness,
 #     backend target, remote host and generation. assignment_state=registered
 #     proves registration only, never native liveness. native_activity remains
@@ -1069,7 +1075,8 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
             reason:(.hold_reason | trunc(160)),
             hold_until:(.hold_until // null),
             hold_bucket:(.hold_bucket // null),
-            hold_age_days:(.hold_age_days // null),card_time,source:"backlog"} ]) as $captain_holds_all
+            hold_age_days:(.hold_age_days // null),card_time,source:"backlog"}
+         + (if .call != null then {call} else {} end) ]) as $captain_holds_all
     | ([ $backlog.records[]? | select(landed_record)
          | {id:(.id | trunc(120)),title:(.title | trunc(120)),
             flow:flow_context(.; null; null; "(main)"; $backlog.records; []),
@@ -1193,7 +1200,8 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
           captain_actionable:(.captain_actionable // false),
           repo:((.repo // null) | if . == null then null else trunc(120) end),
           kind:((.kind // null) | if . == null then null else trunc(40) end),
-          since:((.since // null) | if . == null then null else trunc(40) end)}]
+          since:((.since // null) | if . == null then null else trunc(40) end)}
+          + (if .call != null then {call} else {} end)]
           | ((map(select(.captain_actionable != true)) | newest_filed_first)
              + (map(select(.captain_actionable == true)) | newest_filed_first))
           | .[:$queued_n]),
