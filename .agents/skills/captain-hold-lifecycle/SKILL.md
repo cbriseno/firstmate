@@ -21,8 +21,9 @@ Prefer holding the work item the question gates over minting a new row; create a
 The originating investigation or review is never its own inventory entry, so hold a separate task for the call and pass `--origin <origin-id>` so `complete` can check it.
 Keep the reason a short plain summary, and put the card the captain answers in the structured hold fields: `--context`, `--question`, one `--option` per choice, `--recommended`, and `--link` to the report.
 Never write options into the reason or the question text: a board shows that prose only as text, so the captain gets no real choices.
-Keep one held task per genuine gate: a multi-question review is one held task whose question is the one that unblocks the work and whose link points at the report for the rest, not a row per question.
-Represent that task with exactly one board card; never fan one task id into duplicate same-key cards.
+Hold one task per independent captain decision, each with its own question and options, so every open captain question has a held task and its own one-click card.
+When two decisions gate the same work item, hold that item for one of them and a separate captain-held task for each other one.
+Represent each held task with exactly one board card; never fan one task id into duplicate same-key cards.
 Register or re-hold through `bin/fm-captain-hold.sh hold`, which is idempotent per task id.
 Pass the card fields again on every re-hold: a re-hold after a release starts a new hold, which shows no options unless it gets them again.
 After inventorying the whole report and review surface, run `bin/fm-captain-hold.sh complete` with every captain-held task id, or with `--none` only when the reviewed surface leaves nothing waiting on the captain.
@@ -70,7 +71,7 @@ Leave out internal terms such as task ids, hold, intake, reconcile, pipeline ste
 
 1. Read the complete investigation result and complete the visual review before declaring either complete.
 2. Inventory only genuine unresolved choices that require the captain, and find the task each one gates.
-3. Hold that task - or create one captain-held task for the review's open questions - with a short reason plus the structured card fields written as described in "Writing the card".
+3. Hold that task - or create one captain-held task per open decision the review raised - with a short reason plus the structured card fields written as described in "Writing the card".
 4. Run `complete` with the full captain-held inventory for that review pass.
 5. Relay the choices to the captain as decisions from Bearings' Captain's Call section under `AGENTS.md` section 9; do not use the word hold in captain chat.
 6. Close each call only through `answer` (or a channel that feeds `answers`), close a board-requested moot call through evidence-backed `reconcile close`, record a still-active reconciliation through `reconcile note`, use `--until` when the captain defers it, or confirm a channel already closed it.

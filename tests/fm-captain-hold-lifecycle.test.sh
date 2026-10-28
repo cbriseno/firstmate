@@ -4919,10 +4919,10 @@ test_structured_call_fields_reach_the_snapshots() {
   assert_equals 1 "$rc" "hold accepted a question over its bound"
   assert_grep "keep it within 160" "$home/refused.err" "an over-long question did not name its bound"
   run_captain "$home" hold sample-spanish-call --title "Elegir la ruta" --reason "ruta pendiente" \
-    --question "¿Qué ruta tomamos?" --option "norte=Ir al norte por la cañada ñandú" \
+    --question "¿Qué ruta tomamos?" --option "norte=Sí, ir al norte por la cañada del cañón." \
     --option "si=Sí, cámbialo|Tarda 5 min" >/dev/null \
     || fail "a label within 40 characters but over 40 bytes was refused"
-  jq -e '.call.options == [{"id":"norte","label":"Ir al norte por la cañada ñandú","detail":null},
+  jq -e '.call.options == [{"id":"norte","label":"Sí, ir al norte por la cañada del cañón.","detail":null},
                            {"id":"si","label":"Sí, cámbialo","detail":"Tarda 5 min"}]' \
     "$home/data/sample-spanish-call/captain-call.json" >/dev/null \
     || fail "an accented label was not split from its detail at the bar: $(cat "$home/data/sample-spanish-call/captain-call.json")"
@@ -5007,6 +5007,39 @@ test_structured_call_follows_its_hold_lifecycle() {
   printf '%s' "$snap" | jq -e '[.backlog.records[] | select(.id == "sample-route-call")][0] | has("call") | not' \
     >/dev/null || fail "a new hold lifecycle without call fields showed the old options: $snap"
   pass "a call record follows its hold lifecycle: an active repeat keeps it and a new lifecycle starts without it"
+}
+
+test_independent_calls_from_one_origin_each_keep_their_card() {
+  local home id json
+  home=$(make_home independent-calls)
+  id=sample-trip-review
+  mkdir -p "$home/data/$id"
+  tasks_in "$home" add "$id" "Review the sample trip" --kind scout --repo sample --start >/dev/null \
+    || fail "could not create the review fixture"
+  write_origin_meta "$home" "$id"
+  printf 'done: report complete\n' > "$home/state/$id.status"
+  hold_route_call "$home" sample-route-call --origin "$id" >/dev/null \
+    || fail "could not hold the route call for the review"
+  run_captain "$home" hold sample-budget-call --title "Approve the sample budget" \
+    --reason "captain sample budget approval pending" --repo sample --origin "$id" \
+    --question "Approve the sample budget?" --option "yes=Approve it" --option "no=Not now" >/dev/null \
+    || fail "could not hold the budget call for the same review"
+  run_captain "$home" complete "$id" sample-route-call sample-budget-call >/dev/null \
+    || fail "complete refused two independent calls from one review"
+  assert_grep "decision_keys=sample-budget-call,sample-route-call" "$home/state/$id.meta" \
+    "the inventory did not record both independent calls"
+
+  printf 'sample-route-call\tnorth\tGo north\n' \
+    | run_captain "$home" answers --source "synthetic deck" >/dev/null || fail "could not answer the route call"
+  run_captain "$home" verify "$id" >/dev/null || fail "answering one call broke the review's inventory"
+  json=$(run_bearings "$home") || fail "bearings failed with two calls from one review"
+  printf '%s' "$json" | jq -e '
+    ([.decisions_open[] | select(.id == "sample-budget-call")][0].call) as $budget
+    | ([.decisions_open[] | select(.id == "sample-route-call")] | length) == 0
+      and $budget.question == "Approve the sample budget?"
+      and ($budget.options | map(.id)) == ["yes", "no"]
+  ' >/dev/null || fail "answering one call did not leave the other open with its own options: $json"
+  pass "independent calls from one review each keep their own card, and answering one leaves the other open"
 }
 
 test_structured_call_reaches_parent_bearings_from_a_secondmate() {
@@ -5329,6 +5362,7 @@ test_hold_reason_round_trips_awkward_characters
 test_structured_call_fields_reach_the_snapshots
 test_structured_call_answer_by_option_id
 test_structured_call_follows_its_hold_lifecycle
+test_independent_calls_from_one_origin_each_keep_their_card
 test_structured_call_reaches_parent_bearings_from_a_secondmate
 test_hold_origins_precede_backend_holds
 test_historical_self_inventory_has_workable_repair
