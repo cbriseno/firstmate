@@ -17,15 +17,32 @@ fm_notify_call() {  # <task> <occurrence> <needs-decision|resolved> <hold-set>
     || printf 'warning: Agent Notify captain-call transition remains unaccepted for %s\n' "$1" >&2
 }
 
+# A primary may inherit the other harness's session variable from the pane that
+# launched it, so each present provider is tried; bind's lock-owner proof lets
+# only the harness that actually owns this session succeed.
 fm_notify_register() {
   fm_notify_enabled || return 0
-  local provider
-  if [ -n "${CODEX_THREAD_ID:-}" ]; then provider=codex
-  elif [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then provider=claude
-  else return 0
-  fi
-  printf '{}' | bash "$_FM_NOTIFY_BIN" --home "$FM_HOME" bind "$provider" >/dev/null \
-    || printf 'warning: Agent Notify native supervisor identity was not proven; ordinary hooks remain enabled\n' >&2
+  local provider err reasons=''
+  for provider in codex claude; do
+    case "$provider" in
+      codex) [ -n "${CODEX_THREAD_ID:-}" ] || continue ;;
+      claude) [ -n "${CLAUDE_CODE_SESSION_ID:-}" ] || continue ;;
+    esac
+    err=$(printf '{}' | bash "$_FM_NOTIFY_BIN" --home "$FM_HOME" bind "$provider" 2>&1 >/dev/null) && return 0
+    reasons="$reasons; $provider: ${err#fm-agent-notify: }"
+  done
+  [ -n "$reasons" ] || return 0
+  printf 'warning: Agent Notify native supervisor identity was not proven%s; ordinary hooks remain enabled\n' "$reasons" >&2
+}
+
+# Claude Stop retry for a root that startup could not prove because its
+# transcript did not exist yet, or whose resumed session left a stale same-ID
+# binding. Inert while this session's binding is still valid (bind
+# --unless-valid). Proof failures stay silent.
+fm_notify_register_claude_hook() {  # <claude-hook-payload>
+  fm_notify_enabled || return 0
+  [ -n "${CLAUDE_CODE_SESSION_ID:-}" ] || return 0
+  printf '%s' "$1" | bash "$_FM_NOTIFY_BIN" --home "$FM_HOME" bind claude --unless-valid >/dev/null 2>&1 || true
 }
 
 fm_notify_landed() {  # <data> <task> <tasks-axi done artifact flags...>

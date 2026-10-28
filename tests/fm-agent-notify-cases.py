@@ -1,4 +1,5 @@
 """Hermetic CLI fixtures, not evidence of native vendor/runtime acceptance."""
+import contextlib
 import datetime
 import hashlib
 import json
@@ -7,6 +8,51 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+
+
+NEVER_STARTED = "Thu Jan  1 00:00:00 1970"
+
+
+@contextlib.contextmanager
+def running():
+    """A live process this test owns, for records naming a live pid."""
+    other = subprocess.Popen(["sleep", "60"])
+    try:
+        yield other.pid
+    finally:
+        other.kill()
+        other.wait()
+
+
+def same_id_rebind(binding, bind, state):
+    """A resumed session reuses its native ID; only a stale record is replaced."""
+    bound = binding.read_bytes()
+    record = json.loads(bound)
+
+    def recorded(**proof):
+        binding.write_text(json.dumps({**record, "proof": {**record["proof"], **proof}}))
+
+    gone = subprocess.Popen(["true"])
+    gone.wait()
+    complete = state / ".session-start-complete"
+    saved = complete.read_bytes()
+    recorded(pid=gone.pid)
+    complete.write_text("1")
+    bind(1)  # Replacement still needs every current claimant proof.
+    assert json.loads(binding.read_text())["proof"]["pid"] == gone.pid
+    complete.write_bytes(saved)
+    with running() as pid:
+        # Process gone; pid alive with another start time.
+        for proof in ({"pid": gone.pid}, {"pid": pid, "started": NEVER_STARTED}):
+            recorded(**proof)
+            bind(0)
+            assert binding.read_bytes() == bound
+        started = subprocess.run(["ps", "-p", str(pid), "-o", "lstart="],
+                                 capture_output=True, text=True, check=True).stdout.strip()
+        recorded(pid=pid, started=started)
+        bind(1)  # A live recorded process still refuses until revoke.
+        assert json.loads(binding.read_text())["proof"]["pid"] == pid
+    binding.write_bytes(bound)
 
 
 def launch():
@@ -30,11 +76,12 @@ def launch():
         service.stdin.close()
         assert service.wait(timeout=15) == 0
         service.stdout.close()
-    for mode in ("shared", "claude"):
+    for mode in ("shared", "claude", "claude-metadata"):
         binary = native
-        if mode == "claude":
+        if mode.startswith("claude"):
             binary = tmp / "claude"
-            binary.symlink_to(sys.executable)
+            if not binary.exists():
+                binary.symlink_to(sys.executable)
         subprocess.run([str(binary), __file__, mode, str(code), str(tmp), "app-server" if mode == "shared" else "cli"],
                        env=env, check=True)
     routing_launch(code, tmp)
@@ -287,7 +334,9 @@ def additional():
         worktree.mkdir()
         worker_sid = "fixture-claude-worker"
         transcript = home / (worker_sid + ".jsonl")
-        transcript.write_text(json.dumps({"sessionId": worker_sid, "cwd": str(worktree)}) + "\n")
+        # Current Claude Code leads with a cwd-less record; adoption must skip it.
+        transcript.write_text(json.dumps({"type": "last-prompt", "sessionId": worker_sid}) + "\n"
+                              + json.dumps({"sessionId": worker_sid, "cwd": str(worktree)}) + "\n")
         (home / "state/claude-worker.meta").write_text(f"endpoint_task_id=claude-worker\nkind=ship\nharness=claude\nspawn_gen=generation-1\nworktree={worktree}\n")
         env.update(FM_TASK_ID="claude-worker", FM_TASK_INBOX=str(home / "state/claude-worker.inbox"),
                    FM_NOTIFY_SPAWN_GEN="generation-1")
@@ -299,6 +348,219 @@ def additional():
         record = json.loads((tmp / "consumer.jsonl").read_text().splitlines()[-1])
         assert record["binding"]["role"] == "ship" and record["binding"]["session_id"] == worker_sid
         print("ok - Claude native process/transcript/lock and automatic worker hook adoption without manual bind")
+
+
+def claude_metadata():
+    """Current Claude transcripts lead with records that carry no cwd."""
+    code, tmp = map(Path, sys.argv[2:4])
+    home = tmp / "claude-metadata-home"
+    (home / "state").mkdir(parents=True)
+    (home / "bin").mkdir()
+    (home / "AGENTS.md").write_text("fixture\n")
+    subprocess.run(["git", "init", "-q", str(home)], check=True)
+    for name in (".lock", ".session-start-complete"):
+        (home / "state" / name).write_text(str(os.getpid()))
+    sid = "fixture-claude-metadata"
+    (home / "state/.lock-session").write_text(sid)
+    store = tmp / "claude-config"
+    project = store / "projects" / "-fixture-project"
+    project.mkdir(parents=True)
+    transcript = project / (sid + ".jsonl")
+    consumer = tmp / "metadata-consumer.py"
+    log = tmp / "metadata-consumer.jsonl"
+    consumer.write_text('''import json,os,sys
+from pathlib import Path
+binding = Path(os.environ['AGENT_NOTIFY_FIRSTMATE_BINDING'])
+row = {'provider': sys.argv[2], 'payload': json.load(sys.stdin),
+       'binding': json.loads(binding.read_text())}
+with Path(__file__).with_suffix('.jsonl').open('a') as stream:
+    stream.write(json.dumps(row) + '\\n')
+''')
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("FM_", "CODEX_", "CLAUDE_"))}
+    env.update(FM_HOME=str(home), FM_ROOT_OVERRIDE=str(home), CLAUDE_CODE_SESSION_ID=sid,
+               CLAUDE_PID=str(os.getpid()), CLAUDE_CONFIG_DIR=str(store))
+    # Shapes observed on Claude Code 2.1.309-2.1.311, without any content.
+    lead = [{"type": "last-prompt", "leafUuid": "fixture-leaf", "sessionId": sid},
+            {"type": "permission-mode", "permissionMode": "default", "sessionId": sid},
+            {"type": "file-history-snapshot", "messageId": "fixture-message", "snapshot": {}}]
+    conversation = {"type": "attachment", "sessionId": sid, "cwd": str(home), "uuid": "fixture-uuid"}
+    state = home / "state/agent-notify"
+    binding = state / ("claude-" + sid + ".json")
+    hook_payload = {"session_id": sid, "transcript_path": str(transcript), "hook_event_name": "Stop"}
+    fresh = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    call = ("call", "first-turn-call", 1, "open", "--at", fresh)
+
+    def records(*rows, path=transcript):
+        path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+    def run(args, data="", expected=0, **extra):
+        completed = subprocess.run(args, input=data if isinstance(data, str) else json.dumps(data),
+                                   env={**env, **extra}, text=True, capture_output=True, timeout=30)
+        assert completed.returncode == expected, (args, completed.returncode, completed.stderr)
+        return completed
+
+    def bridge(*args, **kwargs):
+        return run(["bash", str(code / "bin/fm-agent-notify.sh"), "--home", str(home), *map(str, args)], **kwargs)
+
+    def register(data=hook_payload, **extra):
+        completed = run(["bash", str(code / "bin/fm-agent-notify-register.sh")], data=data, **extra)
+        assert completed.stdout == "" and completed.stderr == "", completed
+        return completed
+
+    def refused(reason, producer=True, **kwargs):
+        assert reason in bridge("bind", "claude", expected=1, **kwargs).stderr
+        if producer:
+            assert reason in bridge(*call, expected=1, **kwargs).stderr
+        assert not binding.exists() and not (state / "root.json").exists()
+        assert not log.exists() and not list((state / "events").glob("*.json"))
+
+    register()  # Unconfigured homes stay inert.
+    assert not state.exists()
+    bridge("initialize", "--consumer", consumer)
+    # Fresh startup: SessionStart runs before Claude writes any transcript.
+    refused("no unique native Claude transcript")
+    records(*lead)
+    refused("has no working directory")
+    for wrong in ([{**lead[0], "sessionId": "another-session"}, conversation],
+                  [*lead, {key: value for key, value in conversation.items() if key != "sessionId"}],
+                  [*lead, {**conversation, "sessionId": "another-session"}]):
+        records(*wrong)
+        refused("session metadata mismatch")
+    records(*lead, conversation)
+    duplicate = store / "projects/-another-project" / transcript.name
+    duplicate.parent.mkdir()
+    duplicate.write_text(transcript.read_text())
+    refused("no unique native Claude transcript")
+    duplicate.unlink()
+    # Skipping cwd-less records leaves every supervisor proof in force.
+    refused("native hook and tool session disagree", producer=False,
+            data={**hook_payload, "session_id": "another-session"})
+    refused("no unique native Claude transcript", CLAUDE_CODE_SESSION_ID="another-session")
+    refused("no trusted Claude process ancestor", CLAUDE_PID=str(os.getppid()))
+    for path, replacement, reason in ((home / "state/.lock", "1", "does not own completed supervisor startup"),
+                                      (home / "state/.session-start-complete", "1", "does not own completed supervisor startup"),
+                                      (home / "state/.lock-session", "another-session", "lock session mismatch")):
+        saved = path.read_bytes()
+        path.write_text(replacement)
+        refused(reason)
+        path.write_bytes(saved)
+    records(*lead, {**conversation, "cwd": str(tmp)})
+    refused("not this primary supervisor")
+    records(*lead, conversation)
+    (home / ".fm-secondmate-home").touch()
+    refused("not this primary supervisor")
+    (home / ".fm-secondmate-home").unlink()
+    bridge(*call, expected=1, FM_TASK_ID="worker")
+    assert not binding.exists() and not (state / "root.json").exists() and not log.exists()
+
+    (home / "data").mkdir()
+    (home / ".tasks.toml").write_text('backend = "markdown"\n[markdown]\npath = "data/backlog.md"\narchive = "data/done-archive.md"\ndone_keep = 20\n')
+    (home / "data/backlog.md").write_text("## In flight\n\n## Queued\n\n## Done\n")
+    run(["bash", str(code / "bin/fm-tasks-axi.sh"), "add", "first-turn-result", "first turn result"])
+
+    def first_turn(*args, **kwargs):
+        assert not binding.exists() and not (state / "root.json").exists()
+        bridge(*args, **kwargs)
+        assert json.loads(binding.read_text())["proof"]["transcript_path"] == str(transcript)
+        assert json.loads((state / "root.json").read_text()) == {"provider": "claude", "session_id": sid}
+        assert json.loads((home / "config/agent-notify.json").read_text())["root_stop_accepted"] is False
+        binding.unlink()
+        (state / "root.json").unlink()
+
+    first_turn(*call, CODEX_THREAD_ID="inherited-thread")
+    first_turn("call", "first-turn-call", 1, "resolved", "--at", fresh)
+    first_turn("response", "first-turn-response", "request-1", "open", "--at", fresh)
+    first_turn("response", "first-turn-response", "request-1", "resolved", "--at", fresh)
+    first_turn("designate", "first-turn-result", "first-turn-outcome")
+    assert json.loads((home / "data/agent-notify/designate/first-turn-result.json").read_text())["outcome"] == "first-turn-outcome"
+    first_turn("initiative", "first-turn-initiative", "--requires", "first-turn-outcome")
+    first_turn("landed", "first-turn-result", data={"state": "done", "structured": True,
+               "completion": {"verb": "done"}, "local_note": "local main"})
+    first_turn("complete", "first-turn-initiative")
+    delivered = [json.loads(line) for line in log.read_text().splitlines()]
+    assert [row["payload"]["firstmate_event"]["kind"] for row in delivered] == [
+        "captain_call", "captain_call", "response_required", "response_required",
+        "deliverable_landed", "initiative_completed"]
+    assert [row["payload"]["firstmate_event"].get("state") for row in delivered[:4]] == ["open", "resolved", "open", "resolved"]
+    assert all(row["provider"] == "claude" and row["payload"]["hook_event_name"] == "FirstmateEvent"
+               and row["binding"]["session_id"] == sid and row["binding"]["role"] == "firstmate"
+               and row["binding"]["proof"]["pid"] == os.getpid() for row in delivered)
+    persisted = [json.loads(path.read_text()) for path in (state / "events").glob("*.json")]
+    assert len(persisted) == 4 and all(row["accepted"] for row in persisted)
+    bridge(*call)
+    bridge("complete", "first-turn-initiative")
+    assert len(log.read_text().splitlines()) == len(delivered)
+    binding.unlink()
+    (state / "root.json").unlink()
+    print("ok - first-turn Claude producers establish root before declarations/events; all proofs enforced; isolated delivery and dedup")
+    # In-session bind with empty stdin resolves the session's own transcript.
+    assert bridge("bind", "claude").stdout.strip() == str(binding)
+    assert json.loads(binding.read_text())["proof"]["transcript_path"] == str(transcript)
+    assert json.loads((state / "root.json").read_text()) == {"provider": "claude", "session_id": sid}
+    bridge("accept-root")  # current_root revalidates through the recorded transcript.
+    same_id_rebind(binding, lambda expected: bridge("bind", "claude", expected=expected), home / "state")
+    saved = (home / "state/.lock-session").read_bytes()
+    proof = json.loads(binding.read_text())
+    with running() as pid:
+        binding.write_text(json.dumps({**proof, "proof": {**proof["proof"], "pid": pid, "started": NEVER_STARTED}}))
+        (home / "state/.lock-session").write_text("another-session")
+        assert "lock session mismatch" in bridge("bind", "claude", expected=1).stderr
+        assert json.loads(binding.read_text())["proof"]["pid"] == pid
+        (home / "state/.lock-session").write_bytes(saved)
+        bridge("bind", "claude")
+    assert json.loads(binding.read_text()) == proof
+    bridge("accept-root")
+    bridge("revoke", "claude")
+    assert not binding.exists()
+    bridge("bind", "claude")
+    print("ok - Claude transcript metadata skips cwd-less leading records; store lookup; stale resume rebinds; proofs kept")
+
+    # The Stop retry binds once the transcript exists and is otherwise inert.
+    def unbind():
+        binding.unlink()
+        (state / "root.json").unlink()
+
+    unbind()
+    register({**hook_payload, "cursor_version": "fixture"})
+    register(FM_ROOT_OVERRIDE=str(tmp))
+    register(CLAUDE_CODE_SESSION_ID="")
+    saved = (home / "state/.lock-session").read_bytes()
+    (home / "state/.lock-session").write_text("another-session")
+    register()
+    assert not binding.exists()
+    (home / "state/.lock-session").write_bytes(saved)
+    register()
+    bound = binding.read_bytes()
+    assert json.loads(bound)["proof"]["transcript_path"] == str(transcript)
+    assert json.loads((state / "root.json").read_text()) == {"provider": "claude", "session_id": sid}
+    # A resumed session's stale same-ID binding is replaced; a valid one is kept.
+    with running() as pid:
+        binding.write_text(json.dumps({**json.loads(bound), "proof": {**json.loads(bound)["proof"],
+                                                                       "pid": pid, "started": NEVER_STARTED}}))
+        register()
+    assert binding.read_bytes() == bound
+    kept = {**json.loads(bound), "proof": {**json.loads(bound)["proof"], "transcript_path": str(tmp / "kept.jsonl")}}
+    binding.write_text(json.dumps(kept))
+    assert bridge("bind", "claude", "--unless-valid", data=hook_payload).stdout.strip() == str(binding)
+    assert "revoke first" in bridge("bind", "claude", data=hook_payload, expected=1).stderr
+    register()
+    assert json.loads(binding.read_text()) == kept
+    binding.write_bytes(bound)
+    assert run(["bash", str(code / "bin/fm-agent-notify-register.sh"), "--help"]).stdout.startswith("Usage:")
+    run(["bash", str(code / "bin/fm-agent-notify-register.sh"), "manual"], expected=2)
+    print("ok - Claude Stop registration retry binds an unbound or stale root silently; inert unconfigured/foreign/out of scope/validly bound")
+
+    # Startup registration tries each present provider; only the lock owner wins.
+    script = '. "$1/bin/fm-agent-notify-lib.sh"; fm_notify_register'
+    unbind()
+    completed = run(["bash", "-c", script, "notify-test", str(code)], CODEX_THREAD_ID="inherited-thread")
+    assert completed.stderr == "" and binding.exists()
+    unbind()
+    transcript.unlink()
+    completed = run(["bash", "-c", script, "notify-test", str(code)], CODEX_THREAD_ID="inherited-thread")
+    assert "; codex: " in completed.stderr, completed.stderr
+    assert "claude: no unique native Claude transcript" in completed.stderr and not binding.exists()
+    print("ok - startup registration tries each present provider and names every refusal")
 
 
 def driver():
@@ -379,7 +641,53 @@ with (root/'consumer.jsonl').open('a') as f: f.write(json.dumps(row)+'\\n')
     for name in (".lock", ".session-start-complete"):
         (home / "state" / name).write_text(str(os.getpid()) + "\n")
     assert hook("SessionStart")["binding"] is None
-    cmd("accept-root", expected=1)  # A hook never auto-claims a supervisor.
+    state = home / "state/agent-notify"
+    binding_path = state / "codex-fixture-root.json"
+    # Codex SessionStart has a payload SID but no tool-local session variables.
+    script = '. "$1/bin/fm-agent-notify-lib.sh"; fm_notify_register'
+    startup = subprocess.run(["bash", "-c", script, "notify-test", str(code)],
+                             env={**env, "CODEX_THREAD_ID": "", "CODEX_SESSION_ID": ""},
+                             input=json.dumps({"session_id": "fixture-root"}),
+                             text=True, capture_output=True, check=True)
+    assert startup.stdout == startup.stderr == ""
+    assert not binding_path.exists() and not (state / "root.json").exists()
+    before = len(records())
+    first_call = ("call", "first-turn-call", 1, "open", "--at", fresh)
+    for name in (".lock", ".session-start-complete"):
+        marker = home / "state" / name
+        saved = marker.read_bytes()
+        marker.write_text("1")
+        cmd(*first_call, expected=1)
+        marker.write_bytes(saved)
+    for extra in ({"FM_TASK_ID": "worker"}, {"CODEX_THREAD_ID": "another-session"}):
+        cmd(*first_call, expected=1, more_env=extra)
+    assert not binding_path.exists() and not (state / "root.json").exists()
+    assert not list((state / "events").glob("*.json")) and len(records()) == before
+    # The first producer must bind through every native proof without
+    # accepting root Stop.
+    cmd(*first_call)
+    first = records()[-1]
+    assert first["provider"] == "codex" and first["payload"]["hook_event_name"] == "FirstmateEvent"
+    assert first["payload"]["firstmate_event"]["kind"] == "captain_call"
+    assert first["binding"]["role"] == "firstmate" and first["binding"]["session_id"] == "fixture-root"
+    assert first["binding"]["proof"]["pid"] == os.getpid()
+    assert json.loads((state / "root.json").read_text()) == {"provider": "codex", "session_id": "fixture-root"}
+    assert json.loads((home / "config/agent-notify.json").read_text()) == initial
+    persisted = list((state / "events").glob("*.json"))
+    assert len(persisted) == 1 and json.loads(persisted[0].read_text())["accepted"]
+    cmd(*first_call)
+    assert len(records()) == before + 1
+    # Recovery also handles stale proof and an inherited other-harness marker.
+    with running() as pid:
+        bound = json.loads(binding_path.read_text())
+        bound["proof"].update(pid=pid, started=NEVER_STARTED)
+        binding_path.write_text(json.dumps(bound))
+        cmd("response", "first-turn-response", "request-1", "open", "--at", fresh,
+            more_env={"CLAUDE_CODE_SESSION_ID": "inherited-session"})
+    assert records()[-1]["binding"]["proof"]["pid"] == os.getpid()
+    binding_path.unlink()
+    (state / "root.json").unlink()
+    print("ok - first-turn Codex producers recover skipped startup and stale roots; proofs, isolated delivery and dedup")
     binding_path = Path(cmd("bind", "codex"))
     assert json.loads(binding_path.read_text())["role"] == "firstmate"
     assert hook()["binding"] is None  # Root Stop filter not accepted.
@@ -395,6 +703,10 @@ with (root/'consumer.jsonl').open('a') as f: f.write(json.dumps(row)+'\\n')
     assert "firstmate_event" not in records()[-1]["payload"]
     assert hook(sid="invalid/id")["binding"] is None
     print("ok - native process/session plus supervisor ownership; unknown/personal fallback; operational input")
+
+    same_id_rebind(binding_path, lambda expected: cmd("bind", "codex", expected=expected), home / "state")
+    assert hook()["binding"]["session_id"] == "fixture-root"
+    print("ok - resumed Codex root replaces only a stale same-ID binding after every proof; a live one refuses")
 
     before = len(records())
     call("seeded", 1, "open", old)
@@ -593,5 +905,7 @@ if __name__ == "__main__":
         service()
     elif len(sys.argv) > 1 and sys.argv[1] in ("shared", "claude"):
         additional()
+    elif len(sys.argv) > 1 and sys.argv[1] == "claude-metadata":
+        claude_metadata()
     else:
         launch()

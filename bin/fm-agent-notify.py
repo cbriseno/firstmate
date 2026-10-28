@@ -13,13 +13,30 @@ is idempotent and never moves the cutoff. No historical scan or backfill occurs.
 with spawn's exact task inbox/generation. It takes NO supplied native session ID.
 Native metadata, process ancestry and launch/lock ownership must agree. A Codex
 app-server tool-local claim additionally requires equal CODEX_THREAD_ID and
-CODEX_SESSION_ID. Each authorized native hook then uses its genuine payload
-session_id to select and revalidate that exact binding, including shared hook
-runtimes without tool-local environment. Unknown sessions keep ordinary behavior.
+CODEX_SESSION_ID. Claude metadata is the first cwd-bearing record of the
+session's own transcript: the hook payload's transcript_path, or for an
+in-session command (empty stdin) the unique <sid>.jsonl in Claude's project
+store. Leading metadata-only records are skipped; any naming another session
+refuse. A fresh Claude startup writes that transcript only after its
+SessionStart hook, so startup registration cannot prove it there. Codex
+SessionStart may lack the tool-local session variables required by bind.
+Native-root operations establish a missing or stale Codex or Claude root
+through the same bind before producing declarations or events. Each present
+provider is tried; only the native process owning completed startup can bind.
+The tracked Claude Stop entry
+bin/fm-agent-notify-register.sh also retries once the transcript exists;
+`bind --unless-valid` keeps that retry inert while this session's
+recorded binding is still valid. Each authorized native hook then uses its
+genuine payload session_id to select and revalidate that exact binding,
+including shared hook runtimes without tool-local environment. Unknown
+sessions keep ordinary behavior.
 Bindings in state/agent-notify/<provider>-<native-id>.json carry consumer fields
 version/home/provider/session_id/role/task_id, plus revalidated producer proof.
-Replacement ownership never silently reuses a native ID. `revoke <provider>`
-revokes the current native session only. No pane or title is identity evidence.
+A resumed session reuses its native ID: bind replaces a same-ID binding only
+when its recorded proof process is gone or has another start time, and only
+after the new claimant passes every proof above. A live recorded process still
+refuses until `revoke <provider>`, which revokes the current native session
+only. No pane or title is identity evidence.
 
 With configuration present, the first existing native hook automatically binds
 an unbound CLI worker using its genuine payload session_id, native metadata and
@@ -184,11 +201,73 @@ def ancestry():
         pid = int(row["ppid"])
 
 
-def native(provider, home, payload, worker_hook=False):
+def stdin_payload():
+    """An in-session command may receive no payload at all; that means {}."""
+    text = "" if sys.stdin.isatty() else sys.stdin.read()
+    payload = json.loads(text) if text.strip() else {}
+    if not isinstance(payload, dict):
+        raise ValueError("native payload must be a JSON object")
+    return payload
+
+
+def claude_transcript(sid, payload, worker_hook):
+    # A hook payload names its own transcript. An in-session command has no
+    # payload path, so it takes the unique <sid>.jsonl in Claude's own project
+    # store, as Codex takes its unique session file.
+    if worker_hook or "transcript_path" in payload:
+        path = Path(payload.get("transcript_path", ""))
+    else:
+        store = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "projects"
+        paths = list(store.glob("*/" + sid + ".jsonl")) if store.is_absolute() else []
+        if len(paths) != 1:
+            raise ValueError("no unique native Claude transcript")
+        path = paths[0]
+    if not path.is_absolute() or path.stem != sid or not path.is_file():
+        raise ValueError("native Claude transcript required")
+    return path
+
+
+def claude_cwd(path, sid):
+    # Claude Code writes metadata-only records (last-prompt, mode,
+    # permission-mode, file-history-snapshot, ...) before its first
+    # conversation record, and only conversation records carry cwd. Skip them
+    # in a bounded leading read, but every record that names a session must
+    # name this one, including the first cwd-bearing record.
+    with path.open() as stream:
+        for index, line in enumerate(stream):
+            if index >= 256:
+                break
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if not isinstance(record, dict) or record.get("sessionId", sid) != sid:
+                raise ValueError("native Claude session metadata mismatch")
+            if "cwd" in record:
+                if "sessionId" not in record:
+                    raise ValueError("native Claude session metadata mismatch")
+                return record["cwd"]
+    raise ValueError("native Claude session metadata has no working directory")
+
+
+def native_sid(provider, payload, worker_hook=False):
     key = "CODEX_THREAD_ID" if provider == "codex" else "CLAUDE_CODE_SESSION_ID"
     sid = slug(payload.get("session_id", "") if worker_hook else os.environ.get(key, ""))
     if payload.get("session_id", sid) != sid:
         raise ValueError("native hook and tool session disagree")
+    return sid
+
+
+def live(binding):
+    """The binding's proof process still runs as the recorded incarnation."""
+    try:
+        proof = binding["proof"]
+        return process(proof["pid"])["lstart"] == proof["started"]
+    except (KeyError, TypeError, OSError, ValueError, subprocess.SubprocessError):
+        return False
+
+
+def native(provider, home, payload, worker_hook=False):
+    sid = native_sid(provider, payload, worker_hook)
     chain = list(ancestry())
     if provider == "codex":
         matches = [(p, r) for p, r in chain if Path(r["comm"]).name == "codex"]
@@ -212,6 +291,7 @@ def native(provider, home, payload, worker_hook=False):
             raise ValueError("shared hook alone cannot establish a new worker's launch ownership")
         if shared and os.environ.get("CODEX_SESSION_ID") != sid:
             raise ValueError("shared Codex runtime lacks matching tool-local session identity")
+        transcript = None
     else:
         pid = int(os.environ.get("CLAUDE_PID", "0"))
         runtime = next((r for p, r in chain if p == pid), None)
@@ -219,17 +299,11 @@ def native(provider, home, payload, worker_hook=False):
             # Native installer uses a version basename beneath a claude tree.
             if not runtime or "/claude/" not in runtime["args"].split()[0]:
                 raise ValueError("no trusted Claude process ancestor")
-        path = Path(payload.get("transcript_path", ""))
-        if not path.is_absolute() or path.stem != sid or not path.is_file():
-            raise ValueError("native Claude transcript required")
-        with path.open() as stream:
-            meta = next((json.loads(line) for line in stream
-                         if line.strip()), {})
-        if meta.get("sessionId") != sid:
-            raise ValueError("native Claude session metadata mismatch")
-        cwd = Path(meta["cwd"]).resolve(strict=True)
+        path = claude_transcript(sid, payload, worker_hook)
+        cwd = Path(claude_cwd(path, sid)).resolve(strict=True)
         shared = False
-    return sid, pid, runtime["lstart"], cwd, shared
+        transcript = str(path)
+    return sid, pid, runtime["lstart"], cwd, shared, transcript
 
 
 class Bridge:
@@ -259,7 +333,11 @@ class Bridge:
     def binding_path(self, provider, sid):
         return self.state / (provider + "-" + slug(sid) + ".json")
 
-    def bind(self, provider, payload, worker_hook=False):
+    def bind(self, provider, payload, worker_hook=False, unless_valid=False):
+        if unless_valid:
+            existing = self.binding_path(provider, native_sid(provider, payload, worker_hook))
+            if existing.exists() and self.valid_binding(read(existing)):
+                return existing
         task = os.environ.get("FM_TASK_ID")
         secondmate_hook = worker_hook and not task
         if secondmate_hook:
@@ -267,10 +345,10 @@ class Bridge:
             if inbox.parent != self.home / "state" or inbox.suffix != ".inbox":
                 raise ValueError("no exact worker launch inbox")
             task = slug(inbox.stem)
-        sid, pid, started, cwd, shared = native(provider, self.home, payload, worker_hook)
+        sid, pid, started, cwd, shared, transcript = native(provider, self.home, payload, worker_hook)
         proof = {"pid": pid, "started": started, "shared": shared}
         if provider == "claude":
-            proof["transcript_path"] = payload["transcript_path"]
+            proof["transcript_path"] = transcript
         if task:
             slug(task)
             inbox = Path(os.environ.get("FM_TASK_INBOX", ""))
@@ -306,7 +384,8 @@ class Bridge:
                        session_id=sid, role=role, task_id=task, proof=proof)
         path = self.binding_path(provider, sid)
         with self.locked():
-            if path.exists() and read(path) != binding:
+            previous = read(path) if path.exists() else binding
+            if previous != binding and live(previous):
                 raise ValueError("native session already belongs to another owner; revoke first")
             if role == "firstmate":
                 root = self.state / "root.json"
@@ -324,9 +403,9 @@ class Bridge:
         try:
             if binding["version"] != 1 or binding["home"] != str(self.home):
                 return False
-            proof = binding["proof"]
-            if process(proof["pid"])["lstart"] != proof["started"]:
+            if not live(binding):
                 return False
+            proof = binding["proof"]
             if binding["role"] == "firstmate":
                 state = self.home / "state"
                 owned = ((state / ".lock").read_text().strip() == str(proof["pid"])
@@ -352,8 +431,26 @@ class Bridge:
         return path, binding
 
     def current_root(self):
-        path, root = self.root()
-        sid, pid, started, cwd, _ = native(root["provider"], self.home, root["proof"])
+        try:
+            path, root = self.root()
+        except (ValueError, OSError, KeyError, subprocess.SubprocessError):
+            if os.environ.get("FM_TASK_ID"):
+                raise
+            reasons = []
+            for provider, key in (("codex", "CODEX_THREAD_ID"), ("claude", "CLAUDE_CODE_SESSION_ID")):
+                if not os.environ.get(key):
+                    continue
+                try:
+                    self.bind(provider, {})
+                    path, root = self.root()
+                    break
+                except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
+                    reasons.append(f"{provider}: {error}")
+            else:
+                if reasons:
+                    raise ValueError("; ".join(reasons)) from None
+                raise
+        sid, pid, started, cwd, _, _ = native(root["provider"], self.home, root["proof"])
         if (os.environ.get("FM_TASK_ID") or sid != root["session_id"] or
                 pid != root["proof"]["pid"] or started != root["proof"]["started"] or cwd != self.home):
             raise ValueError("operation requires the bound native root session")
@@ -453,6 +550,19 @@ class Bridge:
         slug(event["event_id"])
         event["version"] = 1
         path = self.state / "events" / (digest([event["kind"], event["task_id"], event["event_id"]]) + ".json")
+        try:
+            binding_path, root = self.current_root()
+        except (ValueError, OSError, KeyError, subprocess.SubprocessError):
+            if event["kind"] != "captain_call" or event.get("state") != "resolved":
+                raise
+            # Deck/services are not native root descendants. They may only
+            # cancel a resolution already committed by the hold owner.
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ("FM_ROOT_OVERRIDE", "FM_STATE_OVERRIDE", "FM_DATA_OVERRIDE")}
+            env["FM_HOME"] = str(self.home)
+            run(["bash", str(CODE / "fm-captain-hold.sh"), "resolved",
+                 event["task_id"], event["event_id"].removeprefix("hold:")], env=env)
+            binding_path, root = self.root()
         with self.locked():
             previous = read(path) if path.exists() else None
             resolved = event.get("state") == "resolved"
@@ -474,19 +584,6 @@ class Bridge:
                 self.present(event)
             historical = occurred is not None and occurred < self.config["since"]
             record = {"version": 1, "event": event, "accepted": historical}
-            try:
-                binding_path, root = self.current_root()
-            except (ValueError, OSError, KeyError, subprocess.SubprocessError):
-                if event["kind"] != "captain_call" or not resolved:
-                    raise
-                # Deck/services are not native root descendants. They may only
-                # cancel a resolution already committed by the hold owner.
-                env = {key: value for key, value in os.environ.items()
-                       if key not in ("FM_ROOT_OVERRIDE", "FM_STATE_OVERRIDE", "FM_DATA_OVERRIDE")}
-                env["FM_HOME"] = str(self.home)
-                run(["bash", str(CODE / "fm-captain-hold.sh"), "resolved",
-                     event["task_id"], event["event_id"].removeprefix("hold:")], env=env)
-                binding_path, root = self.root()
             write(path, record)
             if historical:
                 return
@@ -538,6 +635,8 @@ def main():
     init.add_argument("--consumer", required=True)
     for name in ("bind", "hook", "revoke"):
         commands.add_parser(name).add_argument("provider", choices=("codex", "claude"))
+    commands.choices["bind"].add_argument("--unless-valid", action="store_true",
+        help="succeed unchanged while this session's recorded binding is still valid")
     commands.choices["hook"].add_argument("--consumer", required=True,
         help="absolute installed consumer path; also forwards unknown/unconfigured sessions")
     commands.add_parser("accept-root")
@@ -592,13 +691,11 @@ def main():
     if not bridge.config:
         return
     if args.command == "bind":
-        payload = json.load(sys.stdin) if not sys.stdin.isatty() else {}
-        print(bridge.bind(args.provider, payload))
+        print(bridge.bind(args.provider, stdin_payload(), unless_valid=args.unless_valid))
     elif args.command == "hook":
         bridge.hook(args.provider, json.load(sys.stdin))
     elif args.command == "revoke":
-        payload = json.load(sys.stdin) if not sys.stdin.isatty() else {}
-        sid, _, _, _, _ = native(args.provider, bridge.home, payload)
+        sid, _, _, _, _, _ = native(args.provider, bridge.home, stdin_payload())
         bridge.binding_path(args.provider, sid).unlink(missing_ok=True)
     elif args.command == "accept-root":
         bridge.current_root()

@@ -88,6 +88,8 @@ It then works in this order:
    [`bin/fm-captain-hold.sh`](../bin/fm-captain-hold.sh)'s header owns delivery, retry, and failure semantics.
 
 The receiving supervisor reads the authoritative resolution and applies or relays its concrete scope before acknowledging the wake.
+That wake reaches an idle primary only while its supervision is armed, which needs in-flight work, a registered event source or a custom check.
+With none of those, as when a board such as Captain's Deck answers a main-owned call while no worker runs, the answer stays a durable queued wake that the primary handles at its next turn, so the captain may need to message the primary.
 Recording an answer does not itself resolve a worker's separate status key; the answerer uses `fm-send --resolve-key` when relaying that answer.
 The [Codex supervision protocol](supervision-protocols/codex.md) owns the foreground-only continuation limit.
 
