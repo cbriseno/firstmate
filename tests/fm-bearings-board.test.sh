@@ -727,14 +727,39 @@ test_every_decision_card_carries_the_reconcile_choice() {
     ([.captains_call[] | select(.type == "decision")] | length) > 0
     and ([.captains_call[]
       | select(.type == "decision")
-      | ([.options[] | select(.value == "reconcile")] | length) == 1
-        and ([.options[] | select(.value == "reconcile") | .label | length > 0] | all)] | all)
-  ' >/dev/null || fail "a decision card was published without the reconcile choice"
+      | [.options[] | select(.value == "reconcile")]
+        == [{"value":"reconcile","label":"Check again","hint":"Look at what changed and update this card"}]]
+      | all)
+  ' >/dev/null || fail "a decision card was published without the plain-worded reconcile choice"
   extract_payload "$board" | jq -e '
     ([.captains_call[] | select(.type != "decision")
       | .options[] | select(.value == "reconcile")] | length) == 0
   ' >/dev/null || fail "reconcile was injected into a non-decision card"
   pass "every decision card carries exactly one reconcile choice"
+}
+
+test_decision_detail_carries_a_report_path_that_pr_url_refuses() {
+  local home data board rc
+  home=$(make_home report-detail)
+  data="$home/payload.json"
+  board="$home/.lavish/bearings-board.html"
+  write_valid_payload "$data"
+  jq '.captains_call[0].detail = "Details: data/sample/report.md"' "$data" > "$data.tmp" && mv "$data.tmp" "$data"
+  run_board "$home" build "$data" >/dev/null || fail "a decision card carrying a report path in detail was refused"
+  extract_payload "$board" | jq -e '.captains_call[0].detail == "Details: data/sample/report.md"' >/dev/null \
+    || fail "the built board did not carry the report path in the decision detail"
+
+  home=$(make_home report-pr-url)
+  data="$home/payload.json"
+  write_valid_payload "$data"
+  jq '.captains_call[0].pr_url = "data/sample/report.md"' "$data" > "$data.tmp" && mv "$data.tmp" "$data"
+  set +e
+  run_board "$home" build "$data" >/dev/null 2>&1
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "a report path in pr_url was accepted"
+  assert_absent "$home/.lavish/bearings-board.html" "a refused report-path pr_url still produced a board"
+  pass "a decision card carries a report path in detail, while pr_url refuses it"
 }
 
 test_build_refuses_a_payload_that_occupies_the_reconcile_value() {
@@ -785,5 +810,6 @@ test_build_drops_decision_cards_whose_subject_already_landed
 test_build_keeps_a_decision_absent_from_the_main_backlog
 test_build_fails_when_reconcile_cannot_establish_a_listener
 test_every_decision_card_carries_the_reconcile_choice
+test_decision_detail_carries_a_report_path_that_pr_url_refuses
 test_build_refuses_a_payload_that_occupies_the_reconcile_value
 test_build_refuses_a_nondecision_reconcile_value
