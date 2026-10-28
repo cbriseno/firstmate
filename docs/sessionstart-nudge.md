@@ -158,7 +158,7 @@ So no supported host runs the digest unbounded.
 
 ### When the child stops early
 
-The child streams into the native transport as it runs.
+The child writes its output as it runs.
 So everything emitted before the child stopped is retained for delivery.
 The parent then prints a `STARTUP TRUNCATED` banner on any nonzero child exit, not only the bound, that names:
 
@@ -168,13 +168,21 @@ The parent then prints a `STARTUP TRUNCATED` banner on any nonzero child exit, n
 
 The parent still exits 0.
 The regression evidence for both shapes is in [`docs/verification/supervision.md`](verification/supervision.md#per-task-endpoint-reads-cannot-truncate-the-digest).
-The registered hook timeouts sit above that budget, so the harness never preempts the banner.
 
 The deferred startup stage deliberately runs in its own process group under its own deadline.
 So a truncated digest does neither of these:
 
 - Kill the network checks and inactive-outcome scan it was not waiting for.
 - Orphan unbounded network work.
+
+### Hook budget
+
+A hook harness discards everything a hook printed when it kills that hook at its registered timeout (180s for Claude, Codex, and Cursor).
+The digest bound alone does not keep a slow start under that timeout: a nested bounded call survives the digest's process-group kill while still holding the hook's output open, and a loaded host can spend the margin before the digest even starts.
+So `bin/fm-sessionstart-run.sh` gives the whole session start `FM_SESSION_START_HOOK_BUDGET` (default 150s, below every registered hook timeout) and captures its output privately, so no leftover descendant can hold the harness's pipe.
+It passes that deadline to `bin/fm-session-start.sh`, which shrinks its own bound to fit, so on a slow host the stage-naming `STARTUP TRUNCATED` banner normally arrives first.
+When the budget itself stops the start, or the start exits nonzero, the wrapper delivers what was printed plus a `SESSION START INCOMPLETE` notice telling the agent to run `bin/fm-session-start.sh`, so an overrun is never silent.
+The wrapper header owns the mechanics, and `tests/fm-sessionstart-nudge.test.sh` pins both outcomes.
 
 ## Shared wrapper and safety
 

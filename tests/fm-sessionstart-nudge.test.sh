@@ -932,7 +932,7 @@ test_pi_large_sessionstart_digest_is_delivered_loudly() {
     "$ROOT/.pi/extensions/lib/fm-sessionstart-supervisor.mjs" "$fixture/.pi/extensions/lib/"
   cp "$ROOT/bin/fm-sessionstart-run.sh" "$ROOT/bin/fm-sessionstart-nudge.sh" \
     "$ROOT/bin/fm-primary-scope-lib.sh" "$ROOT/bin/fm-gate-refuse-lib.sh" \
-    "$ROOT/bin/fm-hook-host-lib.sh" \
+    "$ROOT/bin/fm-hook-host-lib.sh" "$ROOT/bin/fm-timeout-lib.sh" \
     "$ROOT/bin/fm-operational-input.sh" "$fixture/bin/"
   cat > "$fixture/bin/fm-session-start.sh" <<'SH'
 #!/usr/bin/env bash
@@ -971,6 +971,90 @@ JS
   expect_code 0 "$status" "Pi large session-start delivery"
   [ -z "$out" ] || fail "Pi large session-start delivery printed output: $out"
   pass "Pi retains a bounded digest prefix and loudly marks oversized preflight delivery"
+}
+
+# A hook harness discards a killed hook's whole output, so the run wrapper must
+# hand back what it has, plus an explicit rerun notice, inside its own budget -
+# even while a descendant that escaped the digest's process group still holds
+# the digest's stdout open.
+test_run_hook_budget_delivers_partial_digest_and_rerun_notice() {
+  local fixture="$TMP_ROOT/run-hook-budget" out status=0 started elapsed stray
+  make_run_primary "$fixture"
+  cp "$ROOT/bin/fm-sessionstart-run.sh" "$ROOT/bin/fm-sessionstart-nudge.sh" \
+    "$ROOT/bin/fm-primary-scope-lib.sh" "$ROOT/bin/fm-gate-refuse-lib.sh" \
+    "$ROOT/bin/fm-hook-host-lib.sh" "$ROOT/bin/fm-session-lock-lib.sh" "$ROOT/bin/fm-cursor-lib.sh" \
+    "$ROOT/bin/fm-timeout-lib.sh" "$ROOT/bin/fm-operational-input.sh" "$fixture/bin/"
+  cat > "$fixture/bin/fm-session-start.sh" <<'SH'
+#!/usr/bin/env bash
+printf 'HOOK_BUDGET_DIGEST_HEAD deadline=%s\n' "${FM_SESSION_START_DEADLINE:-unset}"
+# A nested bound runs in a process group of its own, so it outlives a group
+# kill of this script while still holding this script's stdout.
+perl -e 'setpgrp(0, 0); exec @ARGV' sleep 60 &
+printf '%s\n' "$!" > "$FM_HOME/state/escaped.pid"
+# The slow sweep that runs past the hook budget.
+sleep 60
+printf 'HOOK_BUDGET_DIGEST_TAIL\n'
+SH
+  chmod +x "$fixture/bin/"*.sh
+
+  started=$(date +%s)
+  out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+    FM_SESSION_START_HOOK_BUDGET=3 FM_GATE_REFUSE_BYPASS=0 FM_ROOT_OVERRIDE="$fixture" \
+    FM_HOME="$fixture" PATH="$RUN_PATH" "$fixture/bin/fm-sessionstart-run.sh" --source startup \
+    </dev/null) || status=$?
+  elapsed=$(( $(date +%s) - started ))
+  stray=$(cat "$fixture/state/escaped.pid" 2>/dev/null || true)
+  [ -z "$stray" ] || kill "$stray" 2>/dev/null || true
+  expect_code 0 "$status" "run wrapper past its hook budget"
+  [ "$elapsed" -lt 10 ] \
+    || fail "run wrapper took ${elapsed}s against a 3s hook budget, so a harness timeout would discard it"
+  assert_contains "$out" "HOOK_BUDGET_DIGEST_HEAD deadline=" \
+    "the digest emitted before the budget was not delivered"
+  assert_not_contains "$out" "deadline=unset" "the digest was not told the hook delivery deadline"
+  assert_not_contains "$out" "HOOK_BUDGET_DIGEST_TAIL" "the digest claimed to finish past its budget"
+  assert_contains "$out" "SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 3s HOOK BUDGET" \
+    "an overrun hook budget was silent"
+  assert_contains "$out" "Run bin/fm-session-start.sh now, exactly once" \
+    "the overrun notice did not tell the agent how to finish taking the helm"
+  pass "run wrapper: a slow session start returns its partial digest and a rerun notice inside the hook budget"
+}
+
+# The real digest caps its own bound to the hook deadline, so a slow stage ends
+# with the stage-naming truncation banner instead of the coarser hook notice.
+test_run_real_digest_truncates_inside_the_hook_budget() {
+  local root="$TMP_ROOT/run-real-slow" fakebin="$TMP_ROOT/run-real-slow-bin" real_git
+  local out status=0 started elapsed stray
+  make_run_primary "$root"
+  mkdir -p "$fakebin"
+  real_git=$(PATH="$RUN_PATH" command -v git)
+  # Eligibility reads stay fast; every other git call is a sweep that hangs.
+  cat > "$fakebin/git" <<SH
+#!/usr/bin/env bash
+case " \$* " in *" rev-parse "*) exec "$real_git" "\$@" ;; esac
+printf '%s\n' "\$\$" >> "$fakebin/hung.pids"
+exec sleep 300
+SH
+  chmod +x "$fakebin/git"
+
+  started=$(date +%s)
+  out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+    FM_SESSION_START_HOOK_BUDGET=12 FM_SESSION_START_TIMEOUT=120 FM_STARTUP_NETWORK_TIMEOUT=2 \
+    FM_GATE_REFUSE_BYPASS=0 FM_ROOT_OVERRIDE="$root" FM_HOME="$root" PATH="$fakebin:$RUN_PATH" \
+    "$RUN" --source startup </dev/null) || status=$?
+  elapsed=$(( $(date +%s) - started ))
+  while read -r stray; do kill "$stray" 2>/dev/null || true; done 2>/dev/null < "$fakebin/hung.pids"
+  FM_HOME="$root" FM_ROOT_OVERRIDE="$root" FM_STARTUP_NETWORK_TIMEOUT=2 \
+    "$ROOT/bin/fm-startup-network.sh" wait 30 >/dev/null 2>&1 || true
+  expect_code 0 "$status" "run wrapper over a slow real digest"
+  [ "$elapsed" -lt 18 ] \
+    || fail "a slow real digest took ${elapsed}s against a 12s hook budget"
+  assert_contains "$out" "$FULL_BANNER$root" "the slow digest lost the output it had already produced"
+  assert_contains "$out" "STARTUP TRUNCATED - SESSION START HIT ITS" \
+    "the digest bound did not shrink to fit the hook budget"
+  assert_contains "$out" "Rerun bin/fm-session-start.sh now" \
+    "the truncated digest did not tell the agent to finish taking the helm"
+  assert_not_contains "$out" "NEXT STEP" "a truncated digest claimed to have reached its closing reminder"
+  pass "run wrapper: a slow real digest truncates with its stage banner inside the hook budget"
 }
 
 test_run_resume_delegates_to_the_nudge() {
@@ -1122,6 +1206,8 @@ test_run_gate_and_scope_are_silent
 test_run_creates_missing_state_on_a_fresh_primary
 test_run_reports_a_state_dir_it_cannot_create
 test_run_reports_a_failed_session_start_as_digest_text
+test_run_hook_budget_delivers_partial_digest_and_rerun_notice
+test_run_real_digest_truncates_inside_the_hook_budget
 test_pi_startup_classifies_cli_continuations
 test_pi_sessionstart_generation_prerequisite
 test_pi_reload_releases_sessionstart_exit_listener

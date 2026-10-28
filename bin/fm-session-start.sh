@@ -185,7 +185,9 @@
 # listing are unbounded subprocesses, while each per-task endpoint read runs
 # in its own crash-isolated child under FM_SESSION_START_ENDPOINT_TIMEOUT
 # (default 10s). So the whole digest still runs as ONE bounded child of this
-# script (FM_SESSION_START_TIMEOUT, default 120s). The deferred network stage
+# script (FM_SESSION_START_TIMEOUT, default 120s, capped to fit the hook
+# delivery deadline bin/fm-sessionstart-run.sh passes in
+# FM_SESSION_START_DEADLINE). The deferred network stage
 # deliberately sits OUTSIDE that bound,
 # in its own process group under its own aggregate deadline, so a truncated
 # digest neither waits for it nor orphans it unbounded. The
@@ -301,6 +303,20 @@ if [ -z "${FM_SESSION_START_STAGE_FILE:-}" ]; then
   # rather than silently removing the bound.
   case "$SESSION_START_BUDGET" in ''|*[!0-9]*) SESSION_START_BUDGET=120 ;; esac
   [ "$SESSION_START_BUDGET" -gt 0 ] 2>/dev/null || SESSION_START_BUDGET=120
+  # A session-open hook's delivery deadline (epoch seconds, set only by
+  # bin/fm-sessionstart-run.sh) caps the bound, so on a slow host this
+  # parent's own stage-naming banner, not the hook's coarser budget notice,
+  # reports the truncation. The margin leaves room for the bound's kill grace
+  # and the banner itself.
+  case "${FM_SESSION_START_DEADLINE:-}" in
+    ''|*[!0-9]*) ;;
+    *)
+      SESSION_START_REMAINING=$(( FM_SESSION_START_DEADLINE - $(date +%s) - 5 ))
+      [ "$SESSION_START_REMAINING" -ge 1 ] || SESSION_START_REMAINING=1
+      [ "$SESSION_START_REMAINING" -ge "$SESSION_START_BUDGET" ] \
+        || SESSION_START_BUDGET=$SESSION_START_REMAINING
+      ;;
+  esac
   SESSION_START_STAGE_FILE=$(mktemp "${TMPDIR:-/tmp}/fm-session-start-stage.XXXXXX" 2>/dev/null) || SESSION_START_STAGE_FILE=
   if [ -z "$SESSION_START_STAGE_FILE" ]; then
     # Without a breadcrumb the bound still holds; only the banner's precision
