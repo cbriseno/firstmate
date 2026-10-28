@@ -4,7 +4,7 @@
 //
 // Usage: node board-render-harness.mjs <built-board.html>
 // Prints one JSON document:
-//   { stats:[{n,label}], underway:[{title,sub,badges}],
+//   { stats:[{n,label}], calls:[{title,context,detail}], underway:[{title,sub,badges}],
 //     charted:[{title,sub,badges,pickable}], empty, more, error }
 import { readFileSync } from "node:fs";
 
@@ -27,6 +27,12 @@ class Node {
     this.classList = {
       add: (c) => { this.className = (this.className + " " + c).trim(); },
       contains: (c) => this.className.split(/\s+/).includes(c),
+      remove: (c) => { this.className = this.className.split(/\s+/).filter((x) => x && x !== c).join(" "); },
+      toggle: (c, force) => {
+        const on = force === undefined ? !this.classList.contains(c) : force;
+        if (!on) this.classList.remove(c);
+        else if (!this.classList.contains(c)) this.classList.add(c);
+      },
     };
   }
   get textContent() {
@@ -108,6 +114,16 @@ const rowsOf = (container) =>
       };
     });
 
+const textOf = (n, cls) => n.querySelectorAll("." + cls)[0]?.textContent ?? "";
+const deck = byId.get("bb-call") || new Node("div");
+const calls = deck.children
+  .filter((c) => c.className.split(/\s+/).includes("bb-decision"))
+  .map((card) => ({
+    title: textOf(card, "bb-decision__title"),
+    context: card.querySelectorAll(".bb-ctx__row").map((r) => r.textContent),
+    detail: textOf(card, "bb-decision__detail"),
+  }));
+
 const uw = byId.get("bb-underway") || new Node("div");
 const underway = rowsOf(uw);
 
@@ -123,4 +139,4 @@ const empty = ch.children.filter((c) => c.className.includes("bb-empty")).map((c
 const more = ch.children.filter((c) => c.className.includes("bb-morechip")).map((c) => c.textContent);
 
 process.stdout.write(
-  JSON.stringify({ stats, underway, charted, empty, more, error: errorText }) + "\n");
+  JSON.stringify({ stats, calls, underway, charted, empty, more, error: errorText }) + "\n");

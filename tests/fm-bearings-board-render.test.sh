@@ -94,12 +94,12 @@ require_listener_reached_poll() {  # <home>
 
 # Build the board from <underway-json> plus <charted-json> and return what the
 # renderer produced.
-render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charted_warning_more]
-  local home=$1 underway=$2 charted=$3 more=${4:-0} warning_more=${5:-0} data="$1/payload.json"
+render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charted_warning_more] [captains-call-json]
+  local home=$1 underway=$2 charted=$3 more=${4:-0} warning_more=${5:-0} calls=${6:-[]} data="$1/payload.json"
   jq -n --argjson underway "$underway" --argjson charted "$charted" \
-    --argjson more "$more" --argjson warning_more "$warning_more" '{
+    --argjson more "$more" --argjson warning_more "$warning_more" --argjson calls "$calls" '{
     schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-08-26T00:00Z",
-    prs_live:false, captains_call:[], underway:$underway, landed:[],
+    prs_live:false, captains_call:$calls, underway:$underway, landed:[],
     charted:$charted, charted_more:$more, charted_warning_more:$warning_more}' > "$data"
   PATH="$home/fakebin:$PATH" FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
@@ -203,6 +203,27 @@ test_an_omitted_kind_keeps_the_existing_queued_rendering() {
   pass "an omitted kind renders exactly as queued work always did"
 }
 
+test_a_decision_card_shows_its_detail_line() {
+  local home out
+  home=$(make_home decision-detail)
+  out=$(render_board "$home" '[]' '[]' 0 0 '[
+    {"key":"sample-route-call","type":"decision","repo":"sample","title":"Sample route",
+     "about":"Both routes reach camp.","decide":"Which route?","detail":"Details: data/sample/report.md",
+     "options":[{"value":"north","label":"Go north"},{"value":"south","label":"Go south"}]},
+    {"key":"sample-plain-call","type":"decision","repo":"sample","title":"Plain call",
+     "decide":"Ship it?","options":[{"value":"yes","label":"Ship it"}]}
+  ]')
+  printf '%s' "$out" | jq -e '.error == ""' >/dev/null \
+    || fail "the board rendered its fail-closed error instead of the cards: $out"
+  printf '%s' "$out" | jq -e '
+    (.calls | length) == 2
+      and (.calls[0] | .title == "Sample route" and .detail == "Details: data/sample/report.md"
+        and (.context | length) == 2)
+      and (.calls[1] | .title == "Plain call" and .detail == "")
+  ' >/dev/null || fail "a decision card did not show its detail line: $out"
+  pass "a decision card shows its detail line, and a card without one shows none"
+}
+
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status() {
   local home out
   home=$(make_home underway-name)
@@ -266,6 +287,7 @@ test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order() 
   pass "charted rows with no filed date follow the dated rows in payload order"
 }
 
+test_a_decision_card_shows_its_detail_line
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status
 test_an_underway_identifier_label_is_not_replaced_by_run_status
 test_charted_next_reads_newest_filed_first
