@@ -179,7 +179,10 @@ So a truncated digest does neither of these:
 
 A hook harness discards everything a hook printed when it kills that hook at its registered timeout (180s for Claude, Codex, and Cursor).
 The digest bound alone does not keep a slow start under that timeout: a nested bounded call survives the digest's process-group kill while still holding the hook's output open, and a loaded host can spend the margin before the digest even starts.
-So `bin/fm-sessionstart-run.sh` gives the whole session start `FM_SESSION_START_HOOK_BUDGET` (default 150s, below every registered hook timeout) and captures its output privately, so no leftover descendant can hold the harness's pipe.
+So `bin/fm-sessionstart-run.sh` gives preparation and execution together `FM_SESSION_START_HOOK_BUDGET` (default 150s, below every registered hook timeout), starting at wrapper entry.
+Eligibility checks, hook-payload reads and parsing, completion checks, and capture-file allocation all spend that same budget.
+If the shared timeout library cannot bound preparation on the host, the wrapper emits the incomplete notice without launching the digest.
+The digest runs only with its output captured privately, so no leftover digest descendant can hold the harness's pipe; capture failure instead emits `SESSION START INCOMPLETE` with the manual session-start instruction.
 It passes that deadline to `bin/fm-session-start.sh`, which shrinks its own bound to fit, so on a slow host the stage-naming `STARTUP TRUNCATED` banner normally arrives first.
 When the budget itself stops the start, or the start exits nonzero, the wrapper delivers what was printed plus a `SESSION START INCOMPLETE` notice telling the agent to run `bin/fm-session-start.sh`, so an overrun is never silent.
 The wrapper header owns the mechanics, and `tests/fm-sessionstart-nudge.test.sh` pins both outcomes.
