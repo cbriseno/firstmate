@@ -1,0 +1,258 @@
+
+=== stalled eligibility ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/fault-eligibility/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "2"}
+exit=0 EOF_elapsed=2.173s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+
+=== source parser stalled dependency ===
+exit=0 EOF_elapsed=2.133s
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+
+=== stalled completion-clear ===
+argv=["--source", "clear"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/fault-completion-clear/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "2"}
+exit=0 EOF_elapsed=2.231s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+
+=== stalled completion-compact ===
+argv=["--source", "compact"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/fault-completion-compact/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "2"}
+exit=0 EOF_elapsed=2.135s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+
+=== stalled capture-allocation ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/fault-capture-allocation/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "2"}
+exit=0 EOF_elapsed=2.200s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+OBSERVED: Stalled eligibility, JSON parser, clear/compact completion reads and capture allocation all returned explicit recovery notices with exit 0 and EOF under 4s for a 2s budget.
+
+=== real digest overrun with independent nested timeout ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "12", "FM_SESSION_START_TIMEOUT": "120", "FM_HOME_SUMMARY_TIMEOUT": "30"}
+exit=0 EOF_elapsed=7.236s
+STDOUT:
+
+================================================================================
+SESSION START - /home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 6s RUNTIME BOUND
+●  It stopped during the "lock" stage, so everything above is COMPLETE
+●  only up to that point.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    lock role bootstrap wake-queue supervision-instructions read-once fleet-state network-checks context next-step
+●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates
+●  again, raise FM_SESSION_START_TIMEOUT and report the slow stage - a stage that
+●  cannot finish inside the bound is a fleet problem, not a reporting detail.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+
+=== real digest overrun with independent nested timeout ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest-long/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "40", "FM_SESSION_START_TIMEOUT": "120", "FM_HOME_SUMMARY_TIMEOUT": "80"}
+exit=0 EOF_elapsed=35.174s
+STDOUT:
+
+================================================================================
+SESSION START - /home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest-long
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 4134090
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 33s RUNTIME BOUND
+●  It stopped during the "lock" stage, so everything above is COMPLETE
+●  only up to that point.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    lock role bootstrap wake-queue supervision-instructions read-once fleet-state network-checks context next-step
+●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates
+●  again, raise FM_SESSION_START_TIMEOUT and report the slow stage - a stage that
+●  cannot finish inside the bound is a fleet problem, not a reporting detail.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+
+=== interrupted real wake append ===
+owner=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/orphan-recovery/state/.wake-queue.lock.owner.s4AA8p recorded_pid=116761
+BEFORE next append: ['.wake-queue.lock.owner.fresh', '.wake-queue.lock.owner.live', '.wake-queue.lock.owner.s4AA8p']
+Next real append exit=0 elapsed=1.902s stderr=
+AFTER next append: ['.wake-queue', '.wake-queue.lock.owner.fresh', '.wake-queue.lock.owner.live', '.wake-queue.seq', '.watcher-down']
+Persisted wake queue:
+1793204180	1	check	budget-recovery	queued after interrupted startup
+
+OBSERVED: After SIGKILL interrupted a real wake append mid-acquire, the next append removed its abandoned owner, preserved a live owner and fresh pid-less owner, persisted the event and released the lock.
+
+=== real digest overrun with independent nested timeout ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest-90/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "90", "FM_SESSION_START_TIMEOUT": "120", "FM_HOME_SUMMARY_TIMEOUT": "180"}
+exit=0 EOF_elapsed=85.609s
+STDOUT:
+
+================================================================================
+SESSION START - /home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest-90
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 4134090
+
+HOME ROLE
+--------------------------------------------------------------------------------
+fm-role: user (default)
+
+BOOTSTRAP
+--------------------------------------------------------------------------------
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 84s RUNTIME BOUND
+●  It stopped during the "bootstrap" stage, so everything above is COMPLETE
+●  only up to that point.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    bootstrap wake-queue supervision-instructions read-once fleet-state network-checks context next-step
+●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates
+●  again, raise FM_SESSION_START_TIMEOUT and report the slow stage - a stage that
+●  cannot finish inside the bound is a fleet problem, not a reporting detail.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+Nested slow processes still alive after hook EOF (pid,pgid)=[]
+
+=== real digest overrun with independent nested timeout ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-nested-real-digest/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "70", "FM_SESSION_START_TIMEOUT": "120", "FM_HOME_SUMMARY_TIMEOUT": "180"}
+exit=0 EOF_elapsed=65.973s
+STDOUT:
+
+================================================================================
+SESSION START - /home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-nested-real-digest
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 4134090
+
+HOME ROLE
+--------------------------------------------------------------------------------
+fm-role: user (default)
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 64s RUNTIME BOUND
+●  It stopped during the "role" stage, so everything above is COMPLETE
+●  only up to that point.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    role bootstrap wake-queue supervision-instructions read-once fleet-state network-checks context next-step
+●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates
+●  again, raise FM_SESSION_START_TIMEOUT and report the slow stage - a stage that
+●  cannot finish inside the bound is a fleet problem, not a reporting detail.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+Nested slow processes still alive after hook EOF (pid,pgid)=[(205397, 204843)]
+OBSERVED: Real digest delivered partial output and stage-specific truncation before the hook deadline while a nested slow process was still alive; its output could not retain the hook pipe. Nested group was then killed.
+
+=== stalled scope-only ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/fault-scope-only/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "2"}
+exit=0 EOF_elapsed=2.158s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+
+=== stalled state-create ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/fault-state-create/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "2"}
+exit=0 EOF_elapsed=2.264s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+
+=== stalled capture-err ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/fault-capture-err/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "2"}
+exit=0 EOF_elapsed=2.127s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+OBSERVED: Real scope git reads, initial state creation and stderr capture allocation also exhausted a 2s budget with exit 0 and explicit recovery notices.

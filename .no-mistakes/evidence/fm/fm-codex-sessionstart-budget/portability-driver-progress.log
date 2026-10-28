@@ -1,0 +1,28 @@
+BASELINE executable, real open stdin, requested budget=2s: still running after 4.016s, no notice, required external kill. stdout=b'' stderr=b''
+
+MODE=timeout-only exit=0 EOF_elapsed=0.647s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - OUTPUT CAPTURE FAILED
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+
+MODE=no-binder exit=0 EOF_elapsed=0.171s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT EXITED WITH STATUS 127
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+fm_exec_timed: cannot bound bash within 4s: none of perl, timeout, or gtimeout is available
+
+
+OBSERVED: baseline reproduced the silent stalled preparation. Current real wrapper recovered on timeout-only hosts with failed capture and on hosts with no supported whole-wrapper timer, without launching the digest.

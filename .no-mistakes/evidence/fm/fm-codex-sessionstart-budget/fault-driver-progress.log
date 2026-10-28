@@ -1,0 +1,110 @@
+
+=== real digest overrun with independent nested timeout ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest-long/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "40", "FM_SESSION_START_TIMEOUT": "120", "FM_HOME_SUMMARY_TIMEOUT": "80"}
+exit=0 EOF_elapsed=35.174s
+STDOUT:
+
+================================================================================
+SESSION START - /home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest-long
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 4134090
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 33s RUNTIME BOUND
+●  It stopped during the "lock" stage, so everything above is COMPLETE
+●  only up to that point.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    lock role bootstrap wake-queue supervision-instructions read-once fleet-state network-checks context next-step
+●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates
+●  again, raise FM_SESSION_START_TIMEOUT and report the slow stage - a stage that
+●  cannot finish inside the bound is a fleet problem, not a reporting detail.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+Traceback (most recent call last):
+  File "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/drive-failures.py", line 55, in <module>
+    pids=[int(x) for x in (h/'slow-git.pids').read_text().split()];alive=[]
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/pathlib.py", line 1059, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/pathlib.py", line 1045, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest-long/slow-git.pids'
+
+=== real digest overrun with independent nested timeout ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest-90/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "90", "FM_SESSION_START_TIMEOUT": "120", "FM_HOME_SUMMARY_TIMEOUT": "180"}
+exit=0 EOF_elapsed=85.609s
+STDOUT:
+
+================================================================================
+SESSION START - /home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-real-digest-90
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 4134090
+
+HOME ROLE
+--------------------------------------------------------------------------------
+fm-role: user (default)
+
+BOOTSTRAP
+--------------------------------------------------------------------------------
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 84s RUNTIME BOUND
+●  It stopped during the "bootstrap" stage, so everything above is COMPLETE
+●  only up to that point.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    bootstrap wake-queue supervision-instructions read-once fleet-state network-checks context next-step
+●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates
+●  again, raise FM_SESSION_START_TIMEOUT and report the slow stage - a stage that
+●  cannot finish inside the bound is a fleet problem, not a reporting detail.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+Nested slow processes still alive after hook EOF (pid,pgid)=[]
+Traceback (most recent call last):
+  File "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/drive-slow.py", line 61, in <module>
+    assert alive,'did not reproduce escaped descendant'
+AssertionError: did not reproduce escaped descendant
+
+=== real digest overrun with independent nested timeout ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-nested-real-digest/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "70", "FM_SESSION_START_TIMEOUT": "120", "FM_HOME_SUMMARY_TIMEOUT": "180"}
+exit=0 EOF_elapsed=65.973s
+STDOUT:
+
+================================================================================
+SESSION START - /home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/slow-nested-real-digest
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 4134090
+
+HOME ROLE
+--------------------------------------------------------------------------------
+fm-role: user (default)
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 64s RUNTIME BOUND
+●  It stopped during the "role" stage, so everything above is COMPLETE
+●  only up to that point.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    role bootstrap wake-queue supervision-instructions read-once fleet-state network-checks context next-step
+●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates
+●  again, raise FM_SESSION_START_TIMEOUT and report the slow stage - a stage that
+●  cannot finish inside the bound is a fleet problem, not a reporting detail.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+Nested slow processes still alive after hook EOF (pid,pgid)=[(205397, 204843)]
+OBSERVED: Real digest delivered partial output and stage-specific truncation before the hook deadline while a nested slow process was still alive; its output could not retain the hook pipe. Nested group was then killed.

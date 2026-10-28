@@ -1,0 +1,22 @@
+[
+  {
+    "name": "preparation-budget",
+    "result": "pass",
+    "checks": "Stalled eligibility, JSON parser, clear/compact completion reads and capture allocation all returned explicit recovery notices with exit 0 and EOF under 4s for a 2s budget."
+  },
+  {
+    "name": "orphan-recovery",
+    "result": "pass",
+    "checks": "After SIGKILL interrupted a real wake append mid-acquire, the next append removed its abandoned owner, preserved a live owner and fresh pid-less owner, persisted the event and released the lock."
+  },
+  {
+    "name": "slow-digest-pipe-isolation",
+    "result": "pass",
+    "checks": "Real digest delivered partial output and stage-specific truncation before the hook deadline while a nested slow process was still alive; its output could not retain the hook pipe. Nested group was then killed."
+  },
+  {
+    "name": "remaining-preparation-boundaries",
+    "result": "pass",
+    "checks": "Real scope git reads, initial state creation and stderr capture allocation also exhausted a 2s budget with exit 0 and explicit recovery notices."
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "name": "normal-routing",
+    "checks": "Real startup emitted the complete digest and persisted its owner; clear/compact re-emitted; resume stayed silent.",
+    "result": "pass"
+  },
+  {
+    "name": "blocked-payload",
+    "checks": "Open stdin could not hold the hook: explicit recovery notice, exit 0 and EOF before 4s; digest never acquired a lock.",
+    "result": "pass"
+  },
+  {
+    "name": "capture-failure",
+    "checks": "Real mktemp failure on startup, clear and compact, with and without completion proof: every call returned exit 0 plus recovery notice and left state unchanged.",
+    "result": "pass"
+  },
+  {
+    "name": "ineligible-silence",
+    "checks": "Gate environment and gate worktree stayed silent; Pi prerequisite retained its silent exit 3.",
+    "result": "pass"
+  }
+]

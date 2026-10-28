@@ -1,0 +1,10 @@
+
+=== interrupted real wake append ===
+owner=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/orphan-recovery/state/.wake-queue.lock.owner.s4AA8p recorded_pid=116761
+BEFORE next append: ['.wake-queue.lock.owner.fresh', '.wake-queue.lock.owner.live', '.wake-queue.lock.owner.s4AA8p']
+Next real append exit=0 elapsed=1.902s stderr=
+AFTER next append: ['.wake-queue', '.wake-queue.lock.owner.fresh', '.wake-queue.lock.owner.live', '.wake-queue.seq', '.watcher-down']
+Persisted wake queue:
+1793204180	1	check	budget-recovery	queued after interrupted startup
+
+OBSERVED: After SIGKILL interrupted a real wake append mid-acquire, the next append removed its abandoned owner, preserved a live owner and fresh pid-less owner, persisted the event and released the lock.

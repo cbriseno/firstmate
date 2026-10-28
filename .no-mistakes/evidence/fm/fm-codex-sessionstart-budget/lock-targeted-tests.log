@@ -1,0 +1,5 @@
+ok - disposable watcher refuses inherited state outside its marked lab
+ok - abandoned unlinked owner directories are reaped and live ones survive
+ok - a tombstone the lock link still needs is kept until its own recovery
+ok - live-held lock is not stolen
+ok - live steal mutex is not reclaimed

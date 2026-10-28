@@ -1,0 +1,49 @@
+
+=== stalled scope-only ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/fault-scope-only/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "2"}
+exit=0 EOF_elapsed=2.158s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+
+=== stalled state-create ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/fault-state-create/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "2"}
+exit=0 EOF_elapsed=2.264s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+
+=== stalled capture-err ===
+argv=["--source", "startup"] env={"PATH": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M61HXY8QCRXPBQ9RKDQF2QJN/.validation-sessionstart/fault-capture-err/fault-bin:/usr/bin:/bin", "FM_SESSION_START_HOOK_BUDGET": "2"}
+exit=0 EOF_elapsed=2.127s
+STDOUT:
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  SESSION START INCOMPLETE - IT DID NOT FINISH INSIDE THE 2s HOOK BUDGET
+●  The session-open hook stopped it so this notice arrives before the
+●  harness hook timeout would discard the whole digest.
+●  Anything above is partial. Run bin/fm-session-start.sh now, exactly once,
+●  before acting on anything else.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STDERR:
+
+OBSERVED: Real scope git reads, initial state creation and stderr capture allocation also exhausted a 2s budget with exit 0 and explicit recovery notices.
