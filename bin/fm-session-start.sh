@@ -190,9 +190,9 @@
 # FM_SESSION_START_DEADLINE). The deferred network stage
 # deliberately sits OUTSIDE that bound,
 # in its own process group under its own aggregate deadline, so a truncated
-# digest neither waits for it nor orphans it unbounded. The
-# child writes the digest straight to this script's stdout, so everything it
-# emitted before the child stopped is already delivered; the parent then prints
+# digest neither waits for it nor orphans it unbounded. The child writes the
+# digest to this script's stdout; bin/fm-sessionstart-run.sh owns native hook
+# delivery. The parent then prints
 # a loud STARTUP TRUNCATED banner on ANY nonzero child exit - the runtime bound
 # or an unexpected child death, named with its exit status - naming the stage
 # that did not finish and the sections that were therefore never emitted, and
