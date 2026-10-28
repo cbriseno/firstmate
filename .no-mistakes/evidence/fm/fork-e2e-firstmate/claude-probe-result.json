@@ -1,0 +1,205 @@
+{
+  "provider": "claude",
+  "operations": [
+    {
+      "args": [
+        "bash",
+        "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/bin/fm-harness.sh"
+      ],
+      "exit": 0,
+      "stdout": "claude\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "native-result",
+        "Native requested outcome"
+      ],
+      "exit": 0,
+      "stdout": "ok: added native-result -> Queued\ntask:\n  id: native-result\n  title: Native requested outcome\n  state: queued\n  blocked: no\n  blocked_by: none\n  held: no\n  hold_reason: \"-\"\n  hold_kind: \"-\"\n  hold_until: \"-\"\n  kind: task\n  repo: \"-\"\n  priority: \"-\"\n  created: 2026-10-27\n  closed: \"-\"\n  deps: none\n  links: none\n  body: \"\"\nhelp[2]:\n  - Run `tasks-axi start native-result` to move it to in flight\n  - Run `tasks-axi block native-result --by <other>` to record a dependency\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "call",
+        "native-first-turn",
+        "1",
+        "open",
+        "--at",
+        "2026-10-27T23:38:30Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "call",
+        "native-first-turn",
+        "1",
+        "resolved",
+        "--at",
+        "2026-10-27T23:38:30Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "response",
+        "native-response",
+        "req1",
+        "open",
+        "--at",
+        "2026-10-27T23:38:30Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "response",
+        "native-response",
+        "req1",
+        "resolved",
+        "--at",
+        "2026-10-27T23:38:30Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "designate",
+        "native-result",
+        "native-outcome"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "initiative",
+        "native-initiative",
+        "--requires",
+        "native-outcome"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "landed",
+        "native-result"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "complete",
+        "native-initiative"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "complete",
+        "native-initiative"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "bind",
+        "claude"
+      ],
+      "exit": 0,
+      "stdout": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/state/agent-notify/claude-7bf2628e-39fe-45f7-b6da-99e148033bad.json\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "bind",
+        "claude"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: native session already belongs to another owner; revoke first\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:38:30Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: Claude supervisor lock session mismatch\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:38:30Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: native process does not own completed supervisor startup\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:38:30Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: native Claude transcript required\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:38:30Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: operation requires the bound native root session\n"
+    }
+  ],
+  "harness": "claude",
+  "before_root": false,
+  "delivered_kinds": [
+    "captain_call",
+    "captain_call",
+    "response_required",
+    "response_required",
+    "deliverable_landed",
+    "initiative_completed"
+  ],
+  "guards": "stale binding rebinds; live binding refuses replacement; wrong lock session/start completion/native ID/worker role refuse without event delivery",
+  "stop_retry_requested": true
+}

@@ -1,0 +1,33 @@
+{
+  "task": "live-base-ship",
+  "exit": "0",
+  "local_main": "dbf73d48bbf2af6501c753e689feee8943cfb1fe",
+  "origin_main": "e1461e6ee5ff928a972caccebf35910e5020b453",
+  "spawn_output": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch\nwarning: herdr presentation could not publish an exact restart binding; this task will use flat fallback after a restart\nwarning: local main (dbf73d48bbf2af6501c753e689feee8943cfb1fe) does not contain origin/main (e1461e6ee5ff928a972caccebf35910e5020b453); starting from local main, so upstream commits are not included until the operator syncs local main with origin/main\nspawned live-base-ship harness=codex kind=ship mode=local-only yolo=off window=fm-lab-local-base-4110042-22360:w2:p2 worktree=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/pool/.treehouse/sample-188edd/1/sample\n",
+  "metadata": {
+    "window": "fm-lab-local-base-4110042-22360:w2:p2",
+    "endpoint_task_id": "live-base-ship",
+    "worktree": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/pool/.treehouse/sample-188edd/1/sample",
+    "project": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/projects/sample",
+    "harness": "codex",
+    "approval_mode": "bypass",
+    "kind": "ship",
+    "mode": "local-only",
+    "yolo": "off",
+    "branch": "fm/live-base-ship",
+    "tasktmp": "/tmp/fm-live-base-ship",
+    "model": "default",
+    "effort": "default",
+    "spawn_gen": "s1793145509.4110548.18351",
+    "spawned_at": "2026-10-27T23:58:29Z",
+    "status_start_bytes": "0",
+    "backend": "herdr",
+    "herdr_session": "fm-lab-local-base-4110042-22360",
+    "herdr_workspace_id": "w2",
+    "herdr_tab_id": "w2:t2",
+    "herdr_pane_id": "w2:p2"
+  },
+  "worker_head": "dbf73d48bbf2af6501c753e689feee8943cfb1fe",
+  "landed_file": true,
+  "upstream_file": false
+}

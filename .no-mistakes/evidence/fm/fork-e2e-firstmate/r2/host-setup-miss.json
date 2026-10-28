@@ -1,0 +1,16 @@
+{
+  "reason": "Engine selected routine verdict; attended routine outcomes intentionally do not wake main. Rerun will require explicit captain verdict to exercise final-task captain handback.",
+  "outcomes": [
+    {
+      "seq": 1,
+      "epoch": 1793145498,
+      "task": "final-scout",
+      "wake": "signal: /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/state/final-scout.status",
+      "verdict": "routine",
+      "summary": "Disposable validation scout finished; its report is at data/final-scout/report.md with no findings or captain decisions. Recorded the empty captain-call inventory, then retired the scout's worktree and window cleanly.",
+      "silent": false,
+      "statusEndpoint": 0,
+      "statusIdent": "-"
+    }
+  ]
+}

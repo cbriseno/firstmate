@@ -1,0 +1,149 @@
+{
+  "provider": "codex",
+  "snapshot_row": {
+    "blocked_by_ids": [],
+    "current_role": "queued",
+    "report_path": null,
+    "links": [],
+    "blocked_by": null,
+    "merged": null,
+    "hold_kind": "captain",
+    "kind": "captain",
+    "body_lines": [
+      "Captain hold set: 2026-10-28T00:00:17Z"
+    ],
+    "delivered_time": null,
+    "done": null,
+    "captain_actionable": true,
+    "card_time": {
+      "source": "backlog.hold_set",
+      "value": "2026-10-28T00:00:17Z",
+      "kind": "asked",
+      "precision": "second"
+    },
+    "id": "deck-call",
+    "unresolved_blocker_ids": [],
+    "reported": null,
+    "since": "2026-10-27",
+    "local_note": null,
+    "hold_set": "2026-10-28T00:00:17Z",
+    "checked": false,
+    "body_excerpt": "Captain hold set: 2026-10-28T00:00:17Z",
+    "pr_url": null,
+    "repo": "firstmate",
+    "title": "Disposable captain question",
+    "priority": null,
+    "state": "queued",
+    "hold_bucket": "live",
+    "completion": {
+      "verb": null,
+      "date": null
+    },
+    "structured": true,
+    "requires_child_metadata": false,
+    "raw": "- [ ] deck-call - Disposable captain question (repo: firstmate) (kind: captain) (since 2026-10-27) (hold: fm-hold-v1:Q2hvb3NlIHdoZXRoZXIgdG8gY29udGludWUgdGhlIGRpc3Bvc2FibGUgbGFi) (hold-kind: captain)",
+    "hold_reason": "Choose whether to continue the disposable lab",
+    "order": 1,
+    "hold_age_days": 0,
+    "hold_until": null,
+    "blocked_reason": null,
+    "presentation": {
+      "summary": null,
+      "waiting_for": null,
+      "next_action": null
+    },
+    "presentation_evidence": null,
+    "dependency_records": [],
+    "execution": null,
+    "native_activity": null,
+    "run_step": null
+  },
+  "identity": "2026-10-28T00:00:17Z#0",
+  "notification_states": [
+    "open",
+    "resolved"
+  ],
+  "external_forged_open_refused": true,
+  "operations": [
+    {
+      "script": "fm-captain-hold.sh",
+      "args": [
+        "hold",
+        "deck-call",
+        "--title",
+        "Disposable captain question",
+        "--reason",
+        "Choose whether to continue the disposable lab"
+      ],
+      "external": false,
+      "exit": 0,
+      "stdout": "deck-call\n",
+      "stderr": ""
+    },
+    {
+      "script": "fm-fleet-snapshot.sh",
+      "args": [
+        "--json"
+      ],
+      "external": true,
+      "exit": 0,
+      "stdout": "{\n  \"schema\": \"fm-fleet-snapshot.v1\",\n  \"generated\": \"2026-10-28T00:00:22Z\",\n  \"fm_home\": \"/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b\",\n  \"roots\": {\n    \"fm_root\": \"/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b\",\n    \"state\": \"/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/state\",\n    \"data\": \"/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/data\",\n    \"config\": \"/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/config\",\n    \"projects\": \"/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/projects\"\n  },\n  \"backlog\": {\n    \"path\": \"/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/data/backlog.md\",\n    \"present\": true,\n    \"records\": [\n      {\n        \"blocked_by_ids\": [],\n        \"current_role\": \"queued\",\n        \"report_path\": null,\n        \"links\": [],\n        \"blocked_by\": null,\n        \"merged\": null,\n        \"hold_kind\": \"captain\",\n        \"kind\": \"captain\",\n        \"body_lines\": [\n          \"Captain hold set: 2026-10-28T00:00:17Z\"\n        ],\n        \"delivered_time\": null,\n        \"done\": null,\n        \"captain_actionable\": true,\n        \"card_time\": {\n          \"source\": \"backlog.hold_set\",\n          \"value\": \"2026-10-28T00:00:17Z\",\n          \"kind\": \"asked\",\n          \"precision\": \"second\"\n        },\n        \"id\": \"deck-call\",\n        \"unresolved_blocker_ids\": [],\n        \"reported\": null,\n        \"since\": \"2026-10-27\",\n        \"local_note\": null,\n        \"hold_set\": \"2026-10-28T00:00:17Z\",\n        \"checked\": false,\n        \"body_excerpt\": \"Captain hold set: 2026-10-28T00:00:17Z\",\n        \"pr_url\": null,\n        \"repo\": \"firstmate\",\n        \"title\": \"Disposable captain question\",\n        \"priority\": null,\n        \"state\": \"queued\",\n        \"hold_bucket\": \"live\",\n        \"completion\": {\n          \"verb\": null,\n          \"date\": null\n        },\n        \"structured\": true,\n        \"requires_child_metadata\": false,\n        \"raw\": \"- [ ] deck-call - Disposable captain question (repo: firstmate) (kind: captain) (since 2026-10-27) (hold: fm-hold-v1:Q2hvb3NlIHdoZXRoZXIgdG8gY29udGludWUgdGhlIGRpc3Bvc2FibGUgbGFi) (hold-kind: captain)\",\n        \"hold_reason\": \"Choose whether to continue the disposable lab\",\n        \"order\": 1,\n        \"hold_age_days\": 0,\n        \"hold_until\": null,\n        \"blocked_reason\": null,\n        \"presentation\": {\n          \"summary\": null,\n          \"waiting_for\": null,\n          \"next_action\": null\n        },\n        \"presentation_evidence\": null,\n        \"dependency_records\": [],\n        \"execution\": null,\n        \"native_activity\": null,\n        \"run_step\": null\n      }\n    ]\n  },\n  \"tasks\": [],\n  \"main_inventory\": {\n    \"valid\": true,\n    \"reason\": null,\n    \"orphan_in_flight\": [],\n    \"unstructured_current_count\": 0\n  },\n  \"contributions\": {\n    \"known\": 0,\n    \"checked\": 0,\n    \"counts\": {\n      \"captain\": 0,\n      \"fleet\": 0,\n      \"maintainer\": 0,\n      \"nobody\": 0\n    },\n    \"unmeasured\": 0,\n    \"complete\": true,\n    \"proven_clear\": true,\n    \"stale_verdicts\": 0,\n    \"missing_verdicts\": 0,\n    \"unreadable_records\": 0,\n    \"valid_until\": 900,\n    \"captain\": [],\n    \"captain_omitted\": 0\n  },\n  \"scout_reports\": [],\n  \"secondmate_current\": {\n    \"registry\": {\n      \"present\": false,\n      \"available\": true,\n      \"complete\": true,\n      \"reason\": null,\n      \"provenance\": \"registered-table\",\n      \"path\": \"/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/data/secondmates.md\",\n      \"freshness\": {\n        \"status\": \"fresh\",\n        \"observed_at\": \"2026-10-28T00:00:22Z\"\n      },\n      \"records\": [],\n      \"input_truncated\": false,\n      \"records_truncated\": false,\n      \"reasons\": [],\n      \"lines_in_window\": 0,\n      \"records_in_window\": 0\n    },\n    \"records\": [],\n    \"total_registered\": 0,\n    \"total\": 0,\n    \"shown\": 0,\n    \"truncated\": 0\n  },\n  \"secondmate_landed\": {\n    \"records\": [],\n    \"truncated\": [],\n    \"unreadable\": [],\n    \"partial\": []\n  },\n  \"secondmate_guidance\": {\n    \"note\": \"For kind=secondmate, bearings selects validated structured state from that registered home; parent events and bounded terminal evidence are fallback-only supplements and never current-state authority.\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "script": "fm-captain-hold.sh",
+      "args": [
+        "open",
+        "deck-call",
+        "--identity"
+      ],
+      "external": true,
+      "exit": 0,
+      "stdout": "2026-10-28T00:00:17Z#0\n",
+      "stderr": ""
+    },
+    {
+      "script": "fm-captain-hold.sh",
+      "args": [
+        "answers",
+        "--source",
+        "isolated-deck-live",
+        "--expected-identity",
+        "2026-10-28T00:00:17Z#0"
+      ],
+      "external": true,
+      "exit": 0,
+      "stdout": "closed: deck-call\nanswers: closed=1 skipped=0\n",
+      "stderr": ""
+    },
+    {
+      "script": "fm-captain-hold.sh",
+      "args": [
+        "resolved",
+        "deck-call",
+        "1"
+      ],
+      "external": true,
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "script": "fm-agent-notify.sh",
+      "args": [
+        "--home",
+        "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b",
+        "call",
+        "forged-service",
+        "1",
+        "open",
+        "--at",
+        "2026-10-28T00:00:31Z"
+      ],
+      "external": true,
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: invalid stable identity\n"
+    }
+  ]
+}

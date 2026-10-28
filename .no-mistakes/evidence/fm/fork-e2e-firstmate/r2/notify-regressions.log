@@ -1,0 +1,17 @@
+ok - first-turn Codex producers recover skipped startup and stale roots; proofs, isolated delivery and dedup
+ok - native process/session plus supervisor ownership; unknown/personal fallback; operational input
+ok - resumed Codex root replaces only a stale same-ID binding after every proof; a live one refuses
+ok - stable call identity, historical seed, retry, dedup and resolve-before-open
+ok - explicit deliverables and main requirements, artifact eligibility, no Any-Done/backfill, session replacement dedup
+ok - bounded canonical context, immutable result prose, exact question/artifact targets; no URL/path, root acceptance or replay
+ok - ordinary hooks auto-adopt ship/scout/secondmate with exact launch proof; absent config/legacy/stale/foreign stay unclassified
+ok - canonical service answer cancels through root without native ancestry; forged calls refused; lifecycle seams
+ok - shared native payload selects proven binding; other/missing SID and unbound shared worker retain fallback
+ok - Claude native process/transcript/lock and automatic worker hook adoption without manual bind
+ok - first-turn Claude producers establish root before declarations/events; all proofs enforced; isolated delivery and dedup
+ok - Claude transcript metadata skips cwd-less leading records; store lookup; stale resume rebinds; proofs kept
+ok - Claude Stop registration retry binds an unbound or stale root silently; inert unconfigured/foreign/out of scope/validly bound
+ok - startup registration tries each present provider and names every refusal
+ok - root hook receipts, retained fallback, accepted forwarding, privacy and failure isolation: cli
+ok - root hook receipts, retained fallback, accepted forwarding, privacy and failure isolation: app-server
+ok - root hook receipts, retained fallback, accepted forwarding, privacy and failure isolation: claude

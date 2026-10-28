@@ -1,0 +1,263 @@
+START codex fm-lab-native-parity-4053409-14986 w1:p1
+WAIT codex 0 env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED CODEX_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/native NATIVE_FIXTURE_PROVIDER=codex FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CLAUDECODE=1 codex --no-alt-screen --enable hooks --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox -c 'notify=[]' -c 'model_reasoning_effort="low"' 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.'
+bri@mx:~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b
+$ env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED CODEX_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/native NATIVE_FIXTURE_PROVIDER=codex FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CLAUDECODE=1 codex --no-alt-screen --enable hooks --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox -c 'notify=[]' -c 'model_reasoning_effort="low"' 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.'
+
+  >_ OpenAI Codex (v0.164.0)
+     ~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b
+
+
+› Ask Codex to do anything
+WAIT codex 30 bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CLAUDECODE=1 codex --no-alt-screen --enable hooks --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox -c 'notify=[]' -c 'model_reasoning_effort="low"' 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.'
+bri@mx:~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b
+$ env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED CODEX_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/native NATIVE_FIXTURE_PROVIDER=codex FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CLAUDECODE=1 codex --no-alt-screen --enable hooks --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox -c 'notify=[]' -c 'model_reasoning_effort="low"' 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.'
+
+  >_ OpenAI Codex (v0.164.0)
+     ~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b
+  permissions: YOLO mode
+
+  Tip: Maximize usage with GPT-6.1 Sol. Try it on complex work for near-Astra performance at a lower cost.
+
+
+› This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell
+  tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other
+  homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage
+  belong to this marked disposable home.
+
+
+• Captain, I’ll run the exact probe command in this disposable home.
+
+◦ Working (28s • esc to interrupt) · 1 background terminal running · /ps to view · /stop to close
+
+
+› Ask Codex to do anything
+
+  GPT-6.1-Sol low · ~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test…  ⚠ 2 warnings · f2 to view
+WAIT codex 60 mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CLAUDECODE=1 codex --no-alt-screen --enable hooks --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox -c 'notify=[]' -c 'model_reasoning_effort="low"' 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.'
+bri@mx:~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b
+$ env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED CODEX_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/native NATIVE_FIXTURE_PROVIDER=codex FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CLAUDECODE=1 codex --no-alt-screen --enable hooks --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox -c 'notify=[]' -c 'model_reasoning_effort="low"' 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.'
+
+  >_ OpenAI Codex (v0.164.0)
+     ~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b
+  permissions: YOLO mode
+
+  Tip: Maximize usage with GPT-6.1 Sol. Try it on complex work for near-Astra performance at a lower cost.
+
+
+› This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell
+  tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other
+  homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage
+  belong to this marked disposable home.
+
+
+• Captain, I’ll run the exact probe command in this disposable home.
+
+◦ Waiting for background terminal (58s • esc to interrupt) · 1 background terminal running · /ps to view · /stop to cl…
+  └ python3 probe.py
+
+
+› Ask Codex to do anything
+
+  GPT-6.1-Sol low · ~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test…  ⚠ 2 warnings · f2 to view
+RESULT codex {
+  "provider": "codex",
+  "operations": [
+    {
+      "args": [
+        "bash",
+        "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/bin/fm-harness.sh"
+      ],
+      "exit": 0,
+      "stdout": "codex\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "native-result",
+        "Native requested outcome"
+      ],
+      "exit": 0,
+      "stdout": "ok: added native-result -> Queued\ntask:\n  id: native-result\n  title: Native requested outcome\n  state: queued\n  blocked: no\n  blocked_by: none\n  held: no\n  hold_reason: \"-\"\n  hold_kind: \"-\"\n  hold_until: \"-\"\n  kind: task\n  repo: \"-\"\n  priority: \"-\"\n  created: 2026-10-27\n  closed: \"-\"\n  deps: none\n  links: none\n  body: \"\"\nhelp[2]:\n  - Run `tasks-axi start native-result` to move it to in flight\n  - Run `tasks-axi block native-result --by <other>` to record a dependency\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "call",
+        "native-first-turn",
+        "1",
+        "open",
+        "--at",
+        "2026-10-27T23:57:01Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "call",
+        "native-first-turn",
+        "1",
+        "resolved",
+        "--at",
+        "2026-10-27T23:57:01Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "response",
+        "native-response",
+        "req1",
+        "open",
+        "--at",
+        "2026-10-27T23:57:01Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "response",
+        "native-response",
+        "req1",
+        "resolved",
+        "--at",
+        "2026-10-27T23:57:01Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "designate",
+        "native-result",
+        "native-outcome"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "initiative",
+        "native-initiative",
+        "--requires",
+        "native-outcome"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "landed",
+        "native-result"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "complete",
+        "native-initiative"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "complete",
+        "native-initiative"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "bind",
+        "codex"
+      ],
+      "exit": 0,
+      "stdout": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/state/agent-notify/codex-01a17fcb-5520-70d3-84cb-d681485ca604.json\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "bind",
+        "codex"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: native session already belongs to another owner; revoke first\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:57:01Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: codex: native process does not own completed supervisor startup\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:57:01Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: native Codex session metadata is not unique\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:57:01Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: operation requires the bound native root session\n"
+    },
+    {
+      "args": [
+        "--seconds",
+        "1"
+      ],
+      "exit": 124,
+      "stdout": "checkpoint: no actionable wake within 1s\n",
+      "stderr": ""
+    }
+  ],
+  "harness": "codex",
+  "before_root": false,
+  "delivered_kinds": [
+    "captain_call",
+    "captain_call",
+    "response_required",
+    "response_required",
+    "deliverable_landed",
+    "initiative_completed"
+  ],
+  "guards": "stale binding rebinds; live binding refuses replacement; wrong lock session/start completion/native ID/worker role refuse without event delivery",
+  "checkpoint_exit": 124
+}
+TEARDOWN 0  

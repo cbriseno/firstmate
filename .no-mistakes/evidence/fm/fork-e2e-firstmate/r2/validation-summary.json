@@ -1,0 +1,70 @@
+{
+  "target": "b8ed8efe0215805d518232278c596b55e5e45b23",
+  "focused_regressions": {
+    "tests/fm-agent-notify.test.sh": 0,
+    "tests/fm-claude-stop-autoarm.test.sh": 0,
+    "tests/fm-harness-precedence.test.sh": 0,
+    "tests/fm-spawn-pool-base-freshen.test.sh": 0
+  },
+  "native_notifications": {
+    "claude": {
+      "before_root": false,
+      "delivered_kinds": [
+        "captain_call",
+        "captain_call",
+        "response_required",
+        "response_required",
+        "deliverable_landed",
+        "initiative_completed"
+      ],
+      "guards": "stale binding rebinds; live binding refuses replacement; wrong lock session/start completion/native ID/worker role refuse without event delivery"
+    },
+    "codex": {
+      "before_root": false,
+      "delivered_kinds": [
+        "captain_call",
+        "captain_call",
+        "response_required",
+        "response_required",
+        "deliverable_landed",
+        "initiative_completed"
+      ],
+      "guards": "stale binding rebinds; live binding refuses replacement; wrong lock session/start completion/native ID/worker role refuse without event delivery"
+    }
+  },
+  "deck": {
+    "claude": {
+      "notification_states": [
+        "open",
+        "resolved"
+      ],
+      "external_forged_open_refused": true
+    },
+    "codex": {
+      "notification_states": [
+        "open",
+        "resolved"
+      ],
+      "external_forged_open_refused": true
+    }
+  },
+  "host": {
+    "wake_drain": "BRANCH OUTCOMES (captain outcomes the supervision session recorded for you, one line per task, oldest first; each says what was true when it was recorded, so check the task's current state first, including its still-open decisions listed above under OPEN DECISIONS, and sort them into still open and already settled, such as a decision since answered, a PR since merged, or a task since finished - process the still-open ones as firstmate: tell the captain, land or merge what is ready, answer or escalate a decision, or act on a blocker; your reply to the captain covers only those, as if the settled ones had never been listed, and a settled one needs only the acknowledgement):\n[seq 1, recorded 0m ago] final-scout: Final scout finished: report at data/final-scout/report.md reads the local checkout with no findings and no captain decisions. Scout retired; its scratch worktree was returned to the pool.\nBRANCH OUTCOMES: after processing them run bin/fm-branch-outcome.sh mark-processed --through 1; until then every drain presents them again\n",
+    "stderr": "WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 4154124.1793145621.zMkmlk\n",
+    "exit": 0,
+    "remaining_tasks": 0
+  },
+  "local_landing": {
+    "exit": "0",
+    "output": "\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 15s ago).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the guarded operation WILL still run.\n\u25cf  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nmerged fm/live-base-ship into local main (dbf73d4 -> 1b13737) in /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/projects/sample\n",
+    "ship_head": "1b1373729473b4228e44f382be796e6d2033b2a5",
+    "local_main": "1b1373729473b4228e44f382be796e6d2033b2a5",
+    "result_present": true,
+    "upstream_present": false
+  },
+  "setup_retries": [
+    "Landing fixture initially committed detached HEAD; corrected to the task branch and real local landing passed.",
+    "Supervision engine initially recorded a routine outcome; clarified captain verdict in disposable report and native final-task handback passed."
+  ],
+  "cleanup": "All named Herdr labs completed guarded teardown with unchanged-default-session tripwires; disposable worktree-contained homes and scratch removed."
+}

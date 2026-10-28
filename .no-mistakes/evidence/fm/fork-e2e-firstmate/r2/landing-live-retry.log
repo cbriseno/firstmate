@@ -1,0 +1,73 @@
+/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch
+{
+  "task": "live-base-ship",
+  "exit": "0",
+  "local_main": "dbf73d48bbf2af6501c753e689feee8943cfb1fe",
+  "origin_main": "e1461e6ee5ff928a972caccebf35910e5020b453",
+  "spawn_output": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch\nwarning: herdr presentation could not publish an exact restart binding; this task will use flat fallback after a restart\nwarning: local main (dbf73d48bbf2af6501c753e689feee8943cfb1fe) does not contain origin/main (e1461e6ee5ff928a972caccebf35910e5020b453); starting from local main, so upstream commits are not included until the operator syncs local main with origin/main\nspawned live-base-ship harness=codex kind=ship mode=local-only yolo=off window=fm-lab-local-base-4110042-22360:w2:p2 worktree=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/pool/.treehouse/sample-188edd/1/sample\n",
+  "metadata": {
+    "window": "fm-lab-local-base-4110042-22360:w2:p2",
+    "endpoint_task_id": "live-base-ship",
+    "worktree": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/pool/.treehouse/sample-188edd/1/sample",
+    "project": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/projects/sample",
+    "harness": "codex",
+    "approval_mode": "bypass",
+    "kind": "ship",
+    "mode": "local-only",
+    "yolo": "off",
+    "branch": "fm/live-base-ship",
+    "tasktmp": "/tmp/fm-live-base-ship",
+    "model": "default",
+    "effort": "default",
+    "spawn_gen": "s1793145509.4110548.18351",
+    "spawned_at": "2026-10-27T23:58:29Z",
+    "status_start_bytes": "0",
+    "backend": "herdr",
+    "herdr_session": "fm-lab-local-base-4110042-22360",
+    "herdr_workspace_id": "w2",
+    "herdr_tab_id": "w2:t2",
+    "herdr_pane_id": "w2:p2"
+  },
+  "worker_head": "dbf73d48bbf2af6501c753e689feee8943cfb1fe",
+  "landed_file": true,
+  "upstream_file": false
+}
+{
+  "exit": "0",
+  "output": "\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 15s ago).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the guarded operation WILL still run.\n\u25cf  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nmerged fm/live-base-ship into local main (dbf73d4 -> 1b13737) in /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/projects/sample\n",
+  "ship_head": "1b1373729473b4228e44f382be796e6d2033b2a5",
+  "local_main": "1b1373729473b4228e44f382be796e6d2033b2a5",
+  "result_present": true,
+  "upstream_present": false
+}
+{
+  "task": "live-base-scout",
+  "exit": "0",
+  "local_main": "1b1373729473b4228e44f382be796e6d2033b2a5",
+  "origin_main": "e1461e6ee5ff928a972caccebf35910e5020b453",
+  "spawn_output": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch\nWARNING: watcher still down (same stale episode; last beat: 19s ago, grace 300s) - full banner already printed this episode.\nwarning: herdr presentation could not publish an exact restart binding; this task will use flat fallback after a restart\nwarning: local main (1b1373729473b4228e44f382be796e6d2033b2a5) does not contain origin/main (e1461e6ee5ff928a972caccebf35910e5020b453); starting from local main, so upstream commits are not included until the operator syncs local main with origin/main\nspawned live-base-scout harness=codex kind=scout window=fm-lab-local-base-4110042-22360:w4:p2 worktree=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/pool/.treehouse/sample-188edd/2/sample\n",
+  "metadata": {
+    "window": "fm-lab-local-base-4110042-22360:w4:p2",
+    "endpoint_task_id": "live-base-scout",
+    "worktree": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/pool/.treehouse/sample-188edd/2/sample",
+    "project": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/projects/sample",
+    "harness": "codex",
+    "approval_mode": "bypass",
+    "kind": "scout",
+    "tasktmp": "/tmp/fm-live-base-scout",
+    "model": "default",
+    "effort": "default",
+    "spawn_gen": "s1793145524.4121190.7172",
+    "spawned_at": "2026-10-27T23:58:44Z",
+    "status_start_bytes": "0",
+    "backend": "herdr",
+    "herdr_session": "fm-lab-local-base-4110042-22360",
+    "herdr_workspace_id": "w4",
+    "herdr_tab_id": "w4:t2",
+    "herdr_pane_id": "w4:p2"
+  },
+  "worker_head": "1b1373729473b4228e44f382be796e6d2033b2a5",
+  "landed_file": true,
+  "upstream_file": false
+}
+TEARDOWN 0 

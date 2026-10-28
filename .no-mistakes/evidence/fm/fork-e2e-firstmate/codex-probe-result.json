@@ -1,0 +1,44 @@
+{
+  "provider": "codex",
+  "native_env_present": {
+    "CLAUDE_CODE_SESSION_ID": false,
+    "CLAUDE_PID": false,
+    "CODEX_THREAD_ID": true
+  },
+  "harness": {
+    "exit": 0,
+    "stdout": "codex\n",
+    "stderr": ""
+  },
+  "ancestry": {
+    "exit": 0,
+    "stdout": "comm codex\n",
+    "stderr": ""
+  },
+  "before_root": false,
+  "before_events": 0,
+  "first_call": {
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-agent-notify: [Errno 2] No such file or directory: '/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/state/agent-notify/root.json'\n"
+  },
+  "startup_lock": "3897084\n",
+  "startup_complete": "3897084\n",
+  "explicit_bind": {
+    "exit": 0,
+    "stdout": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/state/agent-notify/codex-01a17fc3-0412-7d52-a157-05ac1923535f.json\n",
+    "stderr": ""
+  },
+  "retry_call": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "after_root": true,
+  "after_events": 1,
+  "checkpoint": {
+    "exit": 124,
+    "stdout": "checkpoint: no actionable wake within 1s\n",
+    "stderr": ""
+  }
+}

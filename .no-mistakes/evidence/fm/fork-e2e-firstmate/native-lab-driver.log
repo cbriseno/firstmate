@@ -1,0 +1,60 @@
+START claude fm-lab-native-parity-3632617-8252 w1:p1
+WAIT claude 0
+WAIT claude 30
+RESULT claude {
+  "provider": "claude",
+  "native_env_present": {
+    "CLAUDE_CODE_SESSION_ID": true,
+    "CLAUDE_PID": true,
+    "CODEX_THREAD_ID": true
+  },
+  "harness": {
+    "exit": 0,
+    "stdout": "claude\n",
+    "stderr": ""
+  },
+  "before_root": false,
+  "before_events": 0,
+  "first_call": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "after_root": true,
+  "after_events": 1
+}
+START codex fm-lab-native-parity-3632617-8252 w2:p1
+WAIT codex 0
+RESULT codex {
+  "provider": "codex",
+  "native_env_present": {
+    "CLAUDE_CODE_SESSION_ID": false,
+    "CLAUDE_PID": false,
+    "CODEX_THREAD_ID": true
+  },
+  "startup": {
+    "exit": 0,
+    "stdout": "\n================================================================================\nSESSION START - /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/codex\n================================================================================\n\nLOCK\n--------------------------------------------------------------------------------\nlock acquired: harness pid 3651397\n\nHOME ROLE\n--------------------------------------------------------------------------------\nfm-role: user (default)\n\nBOOTSTRAP\n--------------------------------------------------------------------------------\n(silent - all good)\n\nWAKE QUEUE\n--------------------------------------------------------------------------------\n(no queued wakes)\n================================================================================\nSUPERVISION OPERATING INSTRUCTIONS - primary harness: claude\n================================================================================\nCurrent state:\n- Lock: held by this session; this session owns normal supervision unless away mode says otherwise.\n- Away/quiet mode: inactive.\n- X mode: inactive; use the default watcher cadence.\n- Ordinary wake: the Stop-owned auto-arm (bin/fm-claude-stop-autoarm.sh) already owns watcher continuity; drain and handle the wake, and do not arm another cycle yourself.\n\nMode: Claude Stop-hook-owned supervision.\n\nWhen this session owns supervision and away mode is not active:\n1. Drain first with `bin/fm-wake-drain.sh`.\n   After handling all emitted wakes and reconciling open decisions and unread status lines, run the exact `--ack-through` command printed as `WAKE_ACK_REQUIRED`; until then the work remains durable for idempotent re-handling after interruption.\n2. Routine watcher arm and re-arm are owned by the Stop `asyncRewake` hook (`bin/fm-claude-stop-autoarm.sh`), never by you.\n   Every turn end while supervision is needed launches or attaches one home-scoped watcher cycle with no model command and no model tokens.\n   An actionable close wakes you through the hook's exit-2 rewake, delivered as a `Stop hook feedback` message.\n3. On a `Stop hook feedback` wake (`signal:`, `stale:`, `check:`, or `heartbeat`), run `bin/fm-wake-drain.sh` first and handle the wake.\n   Do not run `bin/fm-watch-arm.sh` after an ordinary wake; the next turn end re-arms automatically when supervision is still needed.\n   Do not invent a wake from an attach-status line alone; drain and act only on real wake records, the drain's `OPEN DECISIONS` and `UNREAD STATUS` entries, or a real watcher reason line.\n4. On the one `Stop hook feedback` automatic-mechanism failure notice (`firstmate watcher auto-arm FAILED ...`), drain, inspect the automatic mechanism failure, and do not turn the notice into a repeating manual-arm loop.\n5. If the Stop hook does not claim the home or reports an exhausted failure, inspect its registration and watcher startup path before ending blind.\n   Keep the Stop-owned automatic mechanism as the only Claude arm owner.\n6. Treat `watcher: started ...` and `watcher: attached ...` inside automatic arm output as proof that one live cycle exists.\n   On attach, the arm follows verified identity-matched successors instead of exiting when the first cycle ends.\n7. The durable wake queue preserves actionable events between a rewake and the next Stop-launched arm, while the bounded turn-end guard prevents a blind Stop when recovery did not start.\n   No PreToolUse hook denies fleet commands based on watcher status.\n   [`watcher-continuity.md`](../watcher-continuity.md) owns the exact session-lock recovery boundary.\n8. The turn-end guard (`bin/fm-turnend-guard.sh --claude`) remains the final backstop.\n   It requires the PID-strict live-watcher and fresh-beacon predicate at the Stop boundary, except for the Claude-specific foreign-live-owner safe exit owned by [`turnend-guard.md`](../turnend-guard.md#guard-predicates); that document also owns the distinct model-aware mid-turn pull-guard rules.\n   Otherwise, it allows the stop when a watcher is healthy or an open auto-arm generation claim owns recovery, while fresh failure epochs advance the bounded one-time attended fail-open progression described there.\n9. Waiting on the hook-owned cycle is silent: do not send idle progress while the watcher is parked.\n\nThe watcher itself remains `bin/fm-watch.sh`, and `bin/fm-watch-arm.sh` remains the verified arm wrapper that the Stop hook foregrounds on a home that opted out of the [supervision host](../supervision-host.md) (`config/supervision-host-off`).\nRe-arm attaches to an existing healthy cycle when one is already present and follows its verified successor chain.\nSee [`watcher-continuity.md`](../watcher-continuity.md) for the arm-layer successor and clean-close failure contract and the Claude ownership model.\n\n\n================================================================================\nREAD-ONCE CONTRACT\n================================================================================\nEverything below is printed in full for this session start: every state/*.meta,\na compact data/backlog.md listing, a bounded tail of every state/*.status,\ndata/projects.md, data/secondmates.md, data/captain.md, data/captain-shared.md,\nand data/learnings.md.\nDo NOT re-read any of them after reading this digest, and do NOT bulk-read\ndata/backlog.md or state/*.status: re-reading everything defeats the entire\npoint of this command.\n\nGo to a source directly only when:\n  - this digest flagged it ABSENT (then rebuild or create it per AGENTS.md),\n  - its contents looked unparseable or corrupt,\n  - an individual full status log is needed for older wake-event history, or a\n    status line was capped and its tail matters (each task's full log path is\n    printed with its tail),\n  - a full task body is needed (bin/fm-tasks-axi.sh show <id> --full, or data/backlog.md),\n  - the backlog listing disclosed omitted queued items and this turn needs them,\n  - the NETWORK CHECKS section reported its checks still IN PROGRESS and this\n    turn needs their verdict (bin/fm-startup-network.sh report),\n  - or a STARTUP TRUNCATED banner named the stage that would have printed it, in\n    which case that stage's sources were never emitted and must be reconciled,\n  - or a context re-emit opened with a read cue because the\n    harness cut the digest short.\n\n================================================================================\nFLEET STATE\n================================================================================\n\ndata/backlog.md\n--------------------------------------------------------------------------------\nABSENT\n\nWork under way (state/*.meta)\n--------------------------------------------------------------------------------\n(none)\n\nOrphan status logs (state/*.status without matching .meta)\n--------------------------------------------------------------------------------\n(none)\n\nAFK\n--------------------------------------------------------------------------------\nabsent\n\n================================================================================\nNETWORK CHECKS\n================================================================================\ncompleted off the startup path in 4s: GitHub authentication, dead-secondmate relaunch, secondmate convergence, pending handoff delivery, project clone refresh with its drift reporting, and inactive terminal-outcome reconciliation.\n(silent - no problems found)\n\n================================================================================\nCONTEXT\n================================================================================\n\ndata/projects.md\n--------------------------------------------------------------------------------\nABSENT\n\ndata/secondmates.md\n--------------------------------------------------------------------------------\nABSENT\n\ndata/captain.md\n--------------------------------------------------------------------------------\nABSENT\n\ndata/captain-shared.md (shared, main-authoritative, read-only in secondmate homes)\n--------------------------------------------------------------------------------\nABSENT\n\ndata/learnings.md\n--------------------------------------------------------------------------------\nABSENT\n\n================================================================================\nNEXT STEP\n================================================================================\nFollow the supervision operating instructions block above for harness 'claude'.\nThis script never starts supervision itself.\n\nThe digest above is complete for this session start. The READ-ONCE CONTRACT\nsection near the top of it governs what may still be read from disk.\n",
+    "stderr": "warning: Agent Notify native supervisor identity was not proven; codex: unowned Codex source; ordinary hooks remain enabled\n"
+  },
+  "harness": {
+    "exit": 0,
+    "stdout": "claude\n",
+    "stderr": ""
+  },
+  "before_root": false,
+  "before_events": 0,
+  "first_call": {
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-agent-notify: [Errno 2] No such file or directory: '/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/codex/state/agent-notify/root.json'\n"
+  },
+  "after_root": false,
+  "after_events": 0,
+  "checkpoint": {
+    "exit": 124,
+    "stdout": "checkpoint: no actionable wake within 1s\n",
+    "stderr": ""
+  }
+}
+TEARDOWN 0  

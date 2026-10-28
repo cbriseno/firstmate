@@ -1,0 +1,16 @@
+{
+  "failure_reproduced": "First Codex call exited 1 because state/agent-notify/root.json did not exist",
+  "root_cause": "current_root recovered missing or stale Claude roots only",
+  "focused_test": {
+    "command": "TMPDIR=\"$PWD/.test-validation-tmp\" bash tests/fm-agent-notify.test.sh",
+    "exit_code": 0
+  },
+  "native_check": {
+    "version": "codex-cli 0.164.0",
+    "driver": "drivers/codex-first-turn-fixed.py",
+    "result": "codex-first-turn-fixed.json",
+    "exit_code": 0
+  },
+  "scope": "Assigned test phase only; no linters, formatters, static analysis, full suite, pipeline controls, or publication",
+  "cleanup": "Removed disposable native lab and worktree test scratch directory"
+}

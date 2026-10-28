@@ -1,0 +1,20 @@
+[
+  {
+    "type": "session_meta",
+    "payload": {
+      "id": "01a17fc3-0412-7d52-a157-05ac1923535f",
+      "timestamp": "2026-10-27T23:47:29.475Z",
+      "cwd": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b",
+      "originator": "codex-tui",
+      "cli_version": "0.164.0",
+      "source": "cli",
+      "model_provider": "openai"
+    }
+  },
+  {
+    "type": "startup_context",
+    "native_record_type": "response_item",
+    "role": "developer",
+    "artifact": "codex-native-startup-digest.txt"
+  }
+]

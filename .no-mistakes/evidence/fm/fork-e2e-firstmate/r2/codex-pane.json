@@ -1,0 +1,31 @@
+env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED CODEX_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/native NATIVE_FIXTURE_PROVIDER=codex FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CLAUDECODE=1 codex --no-alt-screen --enable hooks --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox -c 'notify=[]' -c 'model_reasoning_effort="low"' 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.'
+bri@mx:~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b
+$ env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED CODEX_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/native NATIVE_FIXTURE_PROVIDER=codex FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CLAUDECODE=1 codex --no-alt-screen --enable hooks --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox -c 'notify=[]' -c 'model_reasoning_effort="low"' 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.'
+
+  >_ OpenAI Codex (v0.164.0)
+     ~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b
+  permissions: YOLO mode
+
+  Tip: Maximize usage with GPT-6.1 Sol. Try it on complex work for near-Astra performance at a lower cost.
+
+
+› This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell
+  tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other
+  homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage
+  belong to this marked disposable home.
+
+
+• Captain, I’ll run the exact probe command in this disposable home.
+
+• Ran python3 probe.py
+  └ {
+      "provider": "codex",
+      "operations": [
+    +198 lines (^t to view transcript)
+
+◦ Working (1m 10s • esc to interrupt)
+
+
+› Ask Codex to do anything
+
+  GPT-6.1-Sol low · ~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test…  ⚠ 2 warnings · f2 to view

@@ -1,0 +1,17 @@
+{
+  "first_call_exit": 0,
+  "before_root": false,
+  "after_root": {
+    "provider": "codex",
+    "session_id": "01a17fc7-87c6-7041-a665-dcab8fa64a6f"
+  },
+  "event_kind": "captain_call",
+  "deduplicated": true,
+  "root_stop_accepted": false,
+  "startup": {
+    "event": "SessionStart",
+    "has_payload_session": true,
+    "has_thread_env": false,
+    "has_session_env": false
+  }
+}

@@ -1,0 +1,42 @@
+START codex fm-lab-native-parity-3841988-16400 w1:p1
+WAIT codex 0 bri@mx:~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b
+$ env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED CODEX_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/native NATIVE_FIXTURE_PROVIDER=codex FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CLAUDECODE=1 codex --no-alt-screen --enable hooks --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox -c 'notify=[]' -c 'model_reasoning_effort="low"' 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.'
+
+  >_ OpenAI Codex (v0.164.0)
+     ~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b
+
+
+› Ask Codex to do anything
+RESULT codex {
+  "provider": "codex",
+  "native_env_present": {
+    "CLAUDE_CODE_SESSION_ID": false,
+    "CLAUDE_PID": false,
+    "CODEX_THREAD_ID": true
+  },
+  "harness": {
+    "exit": 0,
+    "stdout": "codex\n",
+    "stderr": ""
+  },
+  "ancestry": {
+    "exit": 0,
+    "stdout": "comm codex\n",
+    "stderr": ""
+  },
+  "before_root": false,
+  "before_events": 0,
+  "first_call": {
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-agent-notify: [Errno 2] No such file or directory: '/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-b/state/agent-notify/root.json'\n"
+  },
+  "after_root": false,
+  "after_events": 0,
+  "checkpoint": {
+    "exit": 124,
+    "stdout": "checkpoint: no actionable wake within 1s\n",
+    "stderr": ""
+  }
+}
+TEARDOWN 0  

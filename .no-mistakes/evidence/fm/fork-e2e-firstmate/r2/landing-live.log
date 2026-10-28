@@ -1,0 +1,48 @@
+/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch
+{
+  "task": "live-base-ship",
+  "exit": "0",
+  "local_main": "65502bcf38f86d3976bbd9edb6f0986fd9273e5d",
+  "origin_main": "c0fe5e80372b0a7de500f3dce559d80454a9dfd1",
+  "spawn_output": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch\nwarning: herdr presentation could not publish an exact restart binding; this task will use flat fallback after a restart\nwarning: local main (65502bcf38f86d3976bbd9edb6f0986fd9273e5d) does not contain origin/main (c0fe5e80372b0a7de500f3dce559d80454a9dfd1); starting from local main, so upstream commits are not included until the operator syncs local main with origin/main\nspawned live-base-ship harness=codex kind=ship mode=local-only yolo=off window=fm-lab-local-base-4070614-6927:w2:p2 worktree=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/pool/.treehouse/sample-188edd/1/sample\n",
+  "metadata": {
+    "window": "fm-lab-local-base-4070614-6927:w2:p2",
+    "endpoint_task_id": "live-base-ship",
+    "worktree": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/pool/.treehouse/sample-188edd/1/sample",
+    "project": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/projects/sample",
+    "harness": "codex",
+    "approval_mode": "bypass",
+    "kind": "ship",
+    "mode": "local-only",
+    "yolo": "off",
+    "branch": "fm/live-base-ship",
+    "tasktmp": "/tmp/fm-live-base-ship",
+    "model": "default",
+    "effort": "default",
+    "spawn_gen": "s1793145448.4071993.1592",
+    "spawned_at": "2026-10-27T23:57:28Z",
+    "status_start_bytes": "0",
+    "backend": "herdr",
+    "herdr_session": "fm-lab-local-base-4070614-6927",
+    "herdr_workspace_id": "w2",
+    "herdr_tab_id": "w2:t2",
+    "herdr_pane_id": "w2:p2"
+  },
+  "worker_head": "65502bcf38f86d3976bbd9edb6f0986fd9273e5d",
+  "landed_file": true,
+  "upstream_file": false
+}
+{
+  "exit": "1",
+  "output": "\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 28s ago).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the guarded operation WILL still run.\n\u25cf  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nerror: branch fm/live-base-ship does not exist in /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/projects/sample\n",
+  "ship_head": "de6bccf51138d974750de83edcd99382c8e0b2a0",
+  "local_main": "65502bcf38f86d3976bbd9edb6f0986fd9273e5d",
+  "result_present": false,
+  "upstream_present": false
+}
+TEARDOWN 0 
+Traceback (most recent call last):
+  File "/home/bri/.no-mistakes/evidence/01M5ZT3KVT2CC9WSJ8XY2KA747/r2/drivers/landing-live.py", line 75, in <module>
+    assert landing['exit']=='0' and landing['local_main']==ship_head and landing['result_present'] and not landing['upstream_present'],landing
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'exit': '1', 'output': '●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n●  WATCHER DOWN - SUPERVISION IS OFF\n●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 28s ago).\n●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n●  This is a supervision warning only; the guarded operation WILL still run.\n●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.\n●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nerror: branch fm/live-base-ship does not exist in /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/dispatch/projects/sample\n', 'ship_head': 'de6bccf51138d974750de83edcd99382c8e0b2a0', 'local_main': '65502bcf38f86d3976bbd9edb6f0986fd9273e5d', 'result_present': False, 'upstream_present': False}

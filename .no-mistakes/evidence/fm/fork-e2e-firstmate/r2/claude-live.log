@@ -1,0 +1,216 @@
+START claude fm-lab-native-parity-4001015-14023 w1:p1
+WAIT claude 0 env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED NATIVE_FIXTURE_PROVIDER=claude FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CODEX_THREAD_ID=inherited-foreign-thread python3 stream-primary.py 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.' > /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/native-output.log 2>&1; printf NATIVE_EXIT=%s "$?"
+bri@mx:~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a
+$ env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED NATIVE_FIXTURE_PROVIDER=claude FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CODEX_THREAD_ID=inherited-foreign-thread python3 stream-primary.py 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.' > /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/native-output.log 2>&1; printf NATIVE_EXIT=%s "$?"
+WAIT claude 30 env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED NATIVE_FIXTURE_PROVIDER=claude FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CODEX_THREAD_ID=inherited-foreign-thread python3 stream-primary.py 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.' > /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/native-output.log 2>&1; printf NATIVE_EXIT=%s "$?"
+bri@mx:~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a
+$ env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED NATIVE_FIXTURE_PROVIDER=claude FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CODEX_THREAD_ID=inherited-foreign-thread python3 stream-primary.py 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.' > /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/native-output.log 2>&1; printf NATIVE_EXIT=%s "$?"
+WAIT claude 60 env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED NATIVE_FIXTURE_PROVIDER=claude FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CODEX_THREAD_ID=inherited-foreign-thread python3 stream-primary.py 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.' > /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/native-output.log 2>&1; printf NATIVE_EXIT=%s "$?"
+bri@mx:~/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a
+$ env -u CODEX_VERSION -u CODEX_SESSION_ID -u NO_MISTAKES_GATE -u CODEX_THREAD_ID -u CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS -u CODEX_CI -u CODEX_TOOL_CALL_ID -u CODEX_SANDBOX_NETWORK_DISABLED NATIVE_FIXTURE_PROVIDER=claude FM_HOME=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a TMPDIR=/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/tmp DISABLE_AUTOUPDATER=1 FM_BOOTSTRAP_DETECT_ONLY=1 CODEX_THREAD_ID=inherited-foreign-thread python3 stream-primary.py 'This is an isolated validation primary. Follow any session-start context already delivered, then use your Bash/shell tool to execute exactly `python3 probe.py`. Do not delegate, edit files, run no-mistakes, publish, or access other homes. After it returns, reply NATIVE_PROBE_DONE and stop. All fixture operations and offline notification storage belong to this marked disposable home.' > /home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/native-output.log 2>&1; printf NATIVE_EXIT=%s "$?"
+RESULT claude {
+  "provider": "claude",
+  "operations": [
+    {
+      "args": [
+        "bash",
+        "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/bin/fm-harness.sh"
+      ],
+      "exit": 0,
+      "stdout": "claude\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "native-result",
+        "Native requested outcome"
+      ],
+      "exit": 0,
+      "stdout": "ok: added native-result -> Queued\ntask:\n  id: native-result\n  title: Native requested outcome\n  state: queued\n  blocked: no\n  blocked_by: none\n  held: no\n  hold_reason: \"-\"\n  hold_kind: \"-\"\n  hold_until: \"-\"\n  kind: task\n  repo: \"-\"\n  priority: \"-\"\n  created: 2026-10-27\n  closed: \"-\"\n  deps: none\n  links: none\n  body: \"\"\nhelp[2]:\n  - Run `tasks-axi start native-result` to move it to in flight\n  - Run `tasks-axi block native-result --by <other>` to record a dependency\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "call",
+        "native-first-turn",
+        "1",
+        "open",
+        "--at",
+        "2026-10-27T23:55:17Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "call",
+        "native-first-turn",
+        "1",
+        "resolved",
+        "--at",
+        "2026-10-27T23:55:17Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "response",
+        "native-response",
+        "req1",
+        "open",
+        "--at",
+        "2026-10-27T23:55:17Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "response",
+        "native-response",
+        "req1",
+        "resolved",
+        "--at",
+        "2026-10-27T23:55:17Z"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "designate",
+        "native-result",
+        "native-outcome"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "initiative",
+        "native-initiative",
+        "--requires",
+        "native-outcome"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "landed",
+        "native-result"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "complete",
+        "native-initiative"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "complete",
+        "native-initiative"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "bind",
+        "claude"
+      ],
+      "exit": 0,
+      "stdout": "/home/bri/.no-mistakes/worktrees/f8c40d516811/01M5ZT3KVT2CC9WSJ8XY2KA747/.test-validation-tmp/primary-a/state/agent-notify/claude-84f697dc-3f73-42a3-be61-80204d0a6ba1.json\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "bind",
+        "claude"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: native session already belongs to another owner; revoke first\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:55:17Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: codex: no native Codex process ancestor; claude: Claude supervisor lock session mismatch\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:55:17Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: codex: no native Codex process ancestor; claude: native process does not own completed supervisor startup\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:55:17Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: native Claude transcript required\n"
+    },
+    {
+      "args": [
+        "response",
+        "forged",
+        "req-guard",
+        "open",
+        "--at",
+        "2026-10-27T23:55:17Z"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "fm-agent-notify: operation requires the bound native root session\n"
+    }
+  ],
+  "harness": "claude",
+  "before_root": false,
+  "delivered_kinds": [
+    "captain_call",
+    "captain_call",
+    "response_required",
+    "response_required",
+    "deliverable_landed",
+    "initiative_completed"
+  ],
+  "guards": "stale binding rebinds; live binding refuses replacement; wrong lock session/start completion/native ID/worker role refuse without event delivery",
+  "stop_retry_requested": true
+}
+TEARDOWN 0  
