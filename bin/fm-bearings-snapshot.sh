@@ -453,12 +453,13 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   def with_call:
     (.call // null) as $c
     | if ($c | type) != "object" or ($c.question | call_field(160)) == null then {}
-      else ([($c.options // [])[:8][]?
+      else ([($c.options | if type == "array" then .[:8][] else empty end)
              | select(type == "object" and (.id | type) == "string"
                       and (.id | test("^[A-Za-z0-9._-]{1,32}$")) and (.label | call_field(40)) != null)
              | {id, label, detail:(.detail | call_field(120))}]) as $options
       | {call:{question:$c.question, options:$options,
-               recommended:(if ([$options[].id] | index($c.recommended)) != null then $c.recommended else null end),
+               recommended:(if ($c.recommended | type) == "string" and ([$options[].id] | index($c.recommended)) != null
+                            then $c.recommended else null end),
                context:($c.context | call_field(200)), link:($c.link | call_field(500))}}
       end;
   def compact_blockers:

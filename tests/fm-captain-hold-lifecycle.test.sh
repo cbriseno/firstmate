@@ -4919,8 +4919,13 @@ test_structured_call_fields_reach_the_snapshots() {
   assert_equals 1 "$rc" "hold accepted a question over its bound"
   assert_grep "keep it within 160" "$home/refused.err" "an over-long question did not name its bound"
   run_captain "$home" hold sample-spanish-call --title "Elegir la ruta" --reason "ruta pendiente" \
-    --question "¿Qué ruta tomamos?" --option "norte=Ir al norte por la cañada ñandú" >/dev/null \
+    --question "¿Qué ruta tomamos?" --option "norte=Ir al norte por la cañada ñandú" \
+    --option "si=Sí, cámbialo|Tarda 5 min" >/dev/null \
     || fail "a label within 40 characters but over 40 bytes was refused"
+  jq -e '.call.options == [{"id":"norte","label":"Ir al norte por la cañada ñandú","detail":null},
+                           {"id":"si","label":"Sí, cámbialo","detail":"Tarda 5 min"}]' \
+    "$home/data/sample-spanish-call/captain-call.json" >/dev/null \
+    || fail "an accented label was not split from its detail at the bar: $(cat "$home/data/sample-spanish-call/captain-call.json")"
   assert_absent "$home/data/sample-refused-call" "an invalid call left a call record behind"
   pass "hold records structured call fields that snapshots export exactly, legacy holds export none, and invalid fields mutate nothing"
 }
@@ -4941,8 +4946,9 @@ test_structured_call_answer_by_option_id() {
     || fail "an option-id answer did not close the call: $(cat "$home/answer.out")"
   show=$(tasks_in "$home" show sample-route-call --full)
   assert_contains "$show" "state: done" "the option-id answer did not close the call"
-  assert_contains "$show" 'Answer: north\nAnswer as shown to the captain: Go north\nChosen option: north\nChosen option label: Go north' \
-    "the resolution did not record the chosen option id with its label"
+  assert_contains "$show" 'Answer: north\nAnswer as shown to the captain: Go north' \
+    "the resolution did not record the answer with its shown label"
+  assert_not_contains "$show" "Chosen option" "the resolution recorded a label derived from the call record"
   out=$(printf 'sample-route-call\tnorth\tGo north\n' | run_captain "$home" answers --source "synthetic deck") \
     || fail "an exact replay of an option answer was not idempotent: $out"
   assert_contains "$out" "closed: sample-route-call" "the option answer replay was not reported closed"
@@ -4962,8 +4968,9 @@ test_structured_call_answer_by_option_id() {
   out=$(printf 'sample-release-call\tsouth\tGo south\trelease\n' | run_captain "$home" answers --source "synthetic deck") \
     || fail "an option-id release replay was not idempotent: $out"
   show=$(tasks_in "$home" show sample-release-call --full)
-  assert_contains "$show" 'Chosen option: south\nChosen option label: Go south' \
-    "the released option answer did not record its label"
+  assert_contains "$show" 'Answer: south\nAnswer as shown to the captain: Go south' \
+    "the released option answer did not record its shown label"
+  assert_not_contains "$show" "Chosen option" "the released answer recorded a label derived from the call record"
   assert_equals 1 "$(printf '%s' "$show" | grep -o 'Resolution recorded by fm-captain-hold' | wc -l | tr -d ' ')" \
     "the release replay wrote a second resolution record"
 
@@ -4972,13 +4979,15 @@ test_structured_call_answer_by_option_id() {
     | run_captain "$home" answers --source "synthetic deck" --expected-identity "$identity" >/dev/null \
     || fail "a guarded option-id answer failed"
   show=$(tasks_in "$home" show sample-guarded-call --full)
-  assert_contains "$show" 'Chosen option: south\nChosen option label: Go south' \
-    "the guarded intake did not record the chosen option"
-  pass "an option-id answer records the id and label, replays idempotently, and free text stays free text"
+  assert_contains "$show" "state: done" "the guarded option-id answer did not close the call"
+  assert_contains "$show" 'Answer: south\nAnswer as shown to the captain: Go south' \
+    "the guarded intake did not record the answer with its shown label"
+  assert_not_contains "$show" "Chosen option" "the guarded intake recorded a label derived from the call record"
+  pass "an option-id answer records only the answer and its shown label, replays idempotently, and free text stays free text"
 }
 
 test_structured_call_follows_its_hold_lifecycle() {
-  local home snap show
+  local home snap
   home=$(make_home structured-lifecycle)
   FM_CAPTAIN_HOLD_NOW=2026-07-14T10:00:00Z hold_route_call "$home" sample-route-call >/dev/null \
     || fail "could not hold the structured call"
@@ -4997,10 +5006,6 @@ test_structured_call_follows_its_hold_lifecycle() {
   snap=$(run_fleet_snapshot "$home") || fail "fleet snapshot failed after a re-hold"
   printf '%s' "$snap" | jq -e '[.backlog.records[] | select(.id == "sample-route-call")][0] | has("call") | not' \
     >/dev/null || fail "a new hold lifecycle without call fields showed the old options: $snap"
-  printf 'sample-route-call\tnorth\tGo north\n' \
-    | run_captain "$home" answers --source "synthetic deck" >/dev/null || fail "could not answer the re-held call"
-  show=$(tasks_in "$home" show sample-route-call --full)
-  assert_not_contains "$show" "Chosen option: north" "an old lifecycle's option resolved a new lifecycle's answer"
   pass "a call record follows its hold lifecycle: an active repeat keeps it and a new lifecycle starts without it"
 }
 
@@ -5031,7 +5036,16 @@ test_structured_call_reaches_parent_bearings_from_a_secondmate() {
   printf '%s' "$json" | jq -e --argjson want "$ROUTE_CALL" '
     [.decisions_open[] | select(.owner == "structured-mate" and (.id | endswith("sample-route-call")))][0].call == $want
   ' >/dev/null || fail "a secondmate call did not reach the parent Captain's Call row: $json"
-  pass "a secondmate's structured call reaches the parent Captain's Call row"
+
+  jq '(.decisions_open[] | select(.id == "sample-route-call") | .call) |= (.options = {"id":"north"} | .recommended = ["north"])' \
+    "$mate/state/home-summary.json" > "$mate/state/home-summary.json.tmp" \
+    && mv "$mate/state/home-summary.json.tmp" "$mate/state/home-summary.json"
+  json=$(run_bearings "$parent") || fail "parent Bearings failed on a malformed secondmate call"
+  printf '%s' "$json" | jq -e '
+    [.decisions_open[] | select(.owner == "structured-mate" and (.id | endswith("sample-route-call")))][0].call
+    | .question == "Which sample route do we take?" and .options == [] and .recommended == null
+  ' >/dev/null || fail "a malformed secondmate call was not re-bounded to an empty choice list: $json"
+  pass "a secondmate's structured call reaches the parent Captain's Call row, and a malformed one cannot break Bearings"
 }
 
 intake_snapshot() {  # <home>

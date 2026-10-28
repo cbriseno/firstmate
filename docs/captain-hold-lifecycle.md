@@ -68,7 +68,7 @@ Repeat and edge cases:
 - The reason may contain parentheses, semicolons, quotes, and line breaks.
   [`bin/fm-hold-reason-lib.sh`](../bin/fm-hold-reason-lib.sh) owns the storage encoding and compatibility rules; [`bin/fm-tasks-axi.sh --help`](../bin/fm-tasks-axi.sh) owns the public read commands and output contract.
 - The optional structured call fields (`--question`, `--option`, `--recommended`, `--context`, `--link`) are validated before any mutation and written to the private `data/<task-id>/captain-call.json` record only after the backend hold succeeds.
-  The record names the hold-set stamp and resolution occurrence it belongs to, so a new lifecycle never inherits an older call, while an active hold's repeat without fields keeps it.
+  The record names the hold-set stamp it belongs to, so a new lifecycle never inherits an older call, while an active hold's repeat without fields keeps it.
   The script header's STRUCTURED CALL FIELDS section owns the bounds and record schema.
 
 ### Answering a call (`answer`)
@@ -224,10 +224,6 @@ Each key is reported as follows:
 
 The command exits nonzero when any key was skipped.
 `--source` is provenance text recorded in the durable decision, never a behavior switch, and the command carries no per-channel branch.
-
-An answer that is exactly an option id of the call's structured record also records that id and its label in the durable decision.
-An open call matches its record by hold-set stamp and a closed or released replay matches by the newest resolution occurrence, so replays keep the same digest.
-Any other answer, including one that only resembles an option, is recorded as free text, and nothing ever derives options from prose.
 
 ### Source bindings
 
@@ -561,8 +557,8 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 - Deferral through `--until` leaves `captain_actionable` false until due.
 - Structured call fields reach the fleet snapshot, the secondmate summary, and the parent's Bearings rows exactly, while a hold without them exports no `call` key.
   Invalid fields are refused before any mutation, and bounds count characters rather than bytes.
-- An option-id answer records the id and label through the plain and guarded intakes, replays idempotently for close and release, and free text stays free text.
-- An active repeat without fields keeps the call, and a new lifecycle without fields shows none and resolves no old option.
+- An option-id answer closes through the plain and guarded intakes with only the answer and its shown label recorded, replays idempotently for close and release, and free text stays free text.
+- An active repeat without fields keeps the call, and a new lifecycle without fields shows none.
 
 ### Legacy paths
 
