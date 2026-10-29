@@ -54,6 +54,10 @@
 # floored age), and are counted in omitted[].
 # --all-decisions reveals every captain hold available within the bounded snapshot
 # and drops its gate, so a hold is never in both Captain's Call and Charted Next.
+# Captain-hold decisions_open and gate rows, main and secondmate alike, add the
+# canonical snapshot's structured `call` object (bin/fm-fleet-snapshot.sh),
+# re-bounded, and omit the key entirely when no call was recorded; `summary`
+# and `reason` are unchanged either way.
 # Aging is a projection safety net only; the durable
 # deferral remains re-holding with --until.
 #
@@ -173,6 +177,8 @@ Default fields: schema, home, generated, prs, in_flight{id,kind,state,repo,name,
   unhealthy_endpoints{...} (only when non-empty), omitted{surface,reveal}.
 Default gates are selected newest filed first before their bound; undated gates
   retain input order after dated gates.
+Captain-hold decisions_open and gates rows add call{question,options[{id,label,detail}],
+  recommended,context,link} only when fm-captain-hold.sh hold recorded one.
 landed merges this home's Done with registered secondmate homes' Done, bounded by
   a per-home cap (FM_BEARINGS_LANDED_PER_HOME) and an overall cap (FM_BEARINGS_LANDED),
   with omitted[] disclosure. Default selection is balanced across deterministic home
@@ -440,6 +446,22 @@ MODEL=$(printf '%s' "$SNAP" | jq \
            + ($base | fit($context_n - $title_n)))
         end
       end;
+  def call_field($n):
+    if type == "string" and (test("[[:cntrl:]]") | not) and length > 0 and length <= $n then . else null end;
+  # The structured card fm-captain-hold.sh recorded, re-bounded because a
+  # secondmate summary comes from another home; absent or malformed stays absent.
+  def with_call:
+    (.call // null) as $c
+    | if ($c | type) != "object" or ($c.question | call_field(160)) == null then {}
+      else ([($c.options | if type == "array" then .[:8][] else empty end)
+             | select(type == "object" and (.id | type) == "string"
+                      and (.id | test("^[A-Za-z0-9._-]{1,32}$")) and (.label | call_field(40)) != null)
+             | {id, label, detail:(.detail | call_field(120))}]) as $options
+      | {call:{question:$c.question, options:$options,
+               recommended:(if ($c.recommended | type) == "string" and ([$options[].id] | index($c.recommended)) != null
+                            then $c.recommended else null end),
+               context:($c.context | call_field(200)), link:($c.link | call_field(500))}}
+      end;
   def compact_blockers:
     ((.unresolved_blocker_ids // []) | if length > 0 then join(",") else "-" end | trunc(120));
   def flow_owner($owner):
@@ -451,7 +473,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
      blocked_by:compact_blockers,
      reason:(hold_gate_reason | trunc(40)), owner:$owner,
      filed:((.since // null) | trunc(40)),
-     card_time:(.card_time // backlog_card_time)};
+     card_time:(.card_time // backlog_card_time)} + with_call;
   def round_robin_landed($n):
     . as $groups
     | [range(0; (($groups | map(length) | max) // 0)) as $i
@@ -559,7 +581,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
          | flow_registration($now) + {id,key:.id,verb:"captain-hold",
             flow:flow_context(.; null; null; "(main)"; $canonical.backlog.records; []),
             summary:hold_summary(.title; .hold_reason),owner:"(main)",
-            card_time:(.card_time // backlog_card_time)} ]
+            card_time:(.card_time // backlog_card_time)} + with_call ]
      + [ (.secondmate_current.records // [])[] as $m
          | ([ $m.decisions_open[]?
               | select(.source == "backlog" and .verb == "captain-hold")
@@ -568,7 +590,8 @@ MODEL=$(printf '%s' "$SNAP" | jq \
               | flow_registration($now) + {id:($m.id + "/" + .id),key,verb,
                  flow:((.flow // ([$m.queued[]? | select(.id == $call.id)][0].flow) // null) | flow_owner($m.id)),
                  summary:hold_summary((.summary // .id);
-                                      (.reason // "captain decision pending")),owner:$m.id,card_time:(.card_time // null)} ]
+                                      (.reason // "captain decision pending")),owner:$m.id,card_time:(.card_time // null)}
+                 + with_call ]
             + [ $m.queued[]?
                 | select($all_decisions == 1 and .hold_kind == "captain")
                 | select(.id as $id
@@ -579,7 +602,8 @@ MODEL=$(printf '%s' "$SNAP" | jq \
                 | flow_registration($now) + {id:($m.id + "/" + .id),key:.id,verb:"captain-hold",
                    flow:((.flow // null) | flow_owner($m.id)),
                    summary:hold_summary((.title // .id);
-                                        (.hold_reason // "captain decision pending")),owner:$m.id,card_time:(.card_time // null)} ])[] ]) as $decisions_all
+                                        (.hold_reason // "captain decision pending")),owner:$m.id,card_time:(.card_time // null)}
+                   + with_call ])[] ]) as $decisions_all
   | ([ .backlog.records[]
          | . as $record
          | select(.structured and projected_deferred_hold) ]
@@ -768,7 +792,7 @@ TOON=$(printf '%s\n' "$MODEL" | jq -r '
     elif ($v | type) == "array" then
       if ($v | length) == 0 then "\($k): []"
       else
-        ($v[0] | keys_unsorted) as $ks
+        (reduce ($v[] | keys_unsorted[]) as $key ([]; if index([$key]) then . else . + [$key] end)) as $ks
         | ( "\($k)[\($v | length)]{\($ks | map(q) | join(","))}:",
             ($v[] as $row | "  " + ([ $ks[] as $kk | ($row[$kk] | scal) ] | join(","))) )
       end

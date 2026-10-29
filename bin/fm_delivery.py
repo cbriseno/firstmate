@@ -471,6 +471,53 @@ def read_presentation(home, task_id, data=None):
         return dict(presentation=empty, evidence=dict(available=False, reason=str(exc), current_state=False))
 
 
+CALL_BOUNDS = dict(question=160, label=40, detail=120, context=200, link=500)
+CALL_OPTION_ID = re.compile(r'[A-Za-z0-9._-]{1,32}')
+
+
+def call_text(value, bound, optional=False):
+    if value is None and optional:
+        return None
+    if (not isinstance(value, str) or not value.strip() or len(value) > bound
+            or any(ord(c) < 32 or ord(c) == 127 for c in value)):
+        raise ValueError('captain call text is outside its bound')
+    return value
+
+
+def read_captain_call(task, data):
+    """The open captain hold's call record, written by fm-captain-hold.sh hold.
+
+    It is exported only while the row is an open captain hold whose hold-set
+    stamp matches the record, so an older lifecycle's options never resurface.
+    Anything absent or malformed yields None: the row keeps its plain reason.
+    """
+    task_id = task.get('id')
+    if (not task.get('structured') or task.get('hold_kind') != 'captain' or task.get('state') == 'done'
+            or task.get('hold_reason') is None or not task.get('hold_set')
+            or not isinstance(task_id, str) or not re.fullmatch(r'[A-Za-z0-9._-]{1,128}', task_id)):
+        return None
+    try:
+        value = json.loads(read_text(Path(data), task_id + '/captain-call.json', 16384))
+        if (value.get('schema') != 'fm-captain-call.v1' or value.get('id') != task_id
+                or value.get('hold_set') != task['hold_set']):
+            return None
+        call = value['call']
+        options = [dict(id=o['id'], label=call_text(o['label'], CALL_BOUNDS['label']),
+                        detail=call_text(o.get('detail'), CALL_BOUNDS['detail'], True))
+                   for o in call['options']]
+        ids = [o['id'] for o in options]
+        if (len(options) > 8 or len(set(ids)) != len(ids)
+                or not all(isinstance(i, str) and CALL_OPTION_ID.fullmatch(i) for i in ids)
+                or (call.get('recommended') is not None and call['recommended'] not in ids)):
+            return None
+        return dict(question=call_text(call['question'], CALL_BOUNDS['question']), options=options,
+                    recommended=call.get('recommended'),
+                    context=call_text(call.get('context'), CALL_BOUNDS['context'], True),
+                    link=call_text(call.get('link'), CALL_BOUNDS['link'], True))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
 def presentation(home, args):
     path = presentation_path(home, args.task, args.data)
     patch = {key: getattr(args, key) or None for key in PRESENTATION_FIELDS
@@ -566,6 +613,9 @@ def main():
                 authored = read_presentation(home, task.get('id'), args.data)
                 task['presentation'] = authored['presentation']
                 task['presentation_evidence'] = authored['evidence']
+                call = read_captain_call(task, args.data or str(home / 'data'))
+                if call:
+                    task['call'] = call
                 receipt = completion_receipt(home, task)
                 if receipt:
                     task['delivered_time'] = receipt

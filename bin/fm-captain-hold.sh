@@ -21,7 +21,9 @@
 #
 # Usage:
 #   fm-captain-hold.sh hold <task-id> --reason <reason> \
-#     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD]
+#     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD] \
+#     [--question <line> [--option <id>=<label>[|<detail>]]... [--recommended <id>] \
+#      [--context <line>] [--link <report path or URL>]]
 #   fm-captain-hold.sh answer <task-id> --decision-file <path> [--release] [--expected-identity <identity>]
 #   fm-captain-hold.sh answers [<legacy-origin> | --any-origin] --source <provenance> [--expected-identity <identity>]   (keyed answers on stdin)
 #   fm-captain-hold.sh reconcile-requests --source-id <source-id> --source <provenance> [--expected-identity <identity>]   (task ids on stdin)
@@ -58,6 +60,25 @@
 # `--until` records the captain's own deferral date through `tasks-axi hold
 # --until`, so a "revisit later" answer is stored as a date instead of a live
 # card.
+#
+# STRUCTURED CALL FIELDS. `--question`, the repeatable `--option`,
+# `--recommended`, `--context`, and `--link` record the captain-facing card
+# beside the unchanged `--reason`, so a board can offer real choices instead of
+# options buried in prose. Any of them requires `--question`. Bounds, in
+# characters: question 160, option label 40, option detail 120, context 200,
+# link 500, at most 8 options. Option ids are slugs of at most 32 characters,
+# unique per call, and never the reserved answer `reconcile`; `--recommended`
+# must name one of them. Every field is one line without control characters,
+# and a field over its bound is refused rather than truncated. Validation runs
+# before any mutation. After the backend hold succeeds, the fields are written
+# atomically to the private record data/<task-id>/captain-call.json (schema
+# fm-captain-call.v1), bound to this hold lifecycle by its hold-set stamp. A
+# hold given no call fields leaves that record alone: an active hold's repeat
+# keeps its call, and a new lifecycle (new stamp) no longer matches the old
+# record, so readers show no call for it.
+# bin/fm-fleet-snapshot.sh exports a matching record as each open captain
+# hold's `call` object and omits it otherwise; nothing ever derives options
+# from reason or body prose.
 #
 # `answer` records the captain's exact words and resolves the call in the same
 # act. It requires a non-empty captain decision file of at most 8192 bytes and
@@ -986,6 +1007,75 @@ write_hold_origin() {  # <task-id> <shown-body> <origin-or-empty>
   rm -f -- "$tmp"
 }
 
+# --- structured call fields (STRUCTURED CALL FIELDS in the header) ----------
+
+CALL_SCHEMA=fm-captain-call.v1
+CALL_JSON=''
+
+captain_call_path() {  # <task-id>
+  local data
+  data=$(fm_backlog_data_absolute "$DATA") || return 1
+  printf '%s/%s/captain-call.json\n' "$data" "$1"
+}
+
+# Normalize the structured flags into one call object in CALL_JSON, or fail
+# before any mutation. jq measures the bounds, so they count characters rather
+# than bytes in either language.
+build_call_json() {  # <question> <recommended> <context> <link> [<option-spec>...]
+  local question=$1 recommended=$2 context=$3 link=$4 out
+  shift 4
+  [ -n "$question" ] || fail "--question is required with --option, --recommended, --context, or --link"
+  out=$(jq -cn --arg question "$question" --arg recommended "$recommended" \
+    --arg context "$context" --arg link "$link" '
+    def trim: gsub("^[[:space:]]+|[[:space:]]+$"; "");
+    def field($label; $max):
+      if test("[[:cntrl:]]") then error("\($label) must be one line without control characters")
+      elif (trim | length) == 0 then error("\($label) must not be empty")
+      elif (trim | length) > $max then error("\($label) has \(trim | length) characters; keep it within \($max)")
+      else trim end;
+    def optional($label; $max): if . == "" then null else field($label; $max) end;
+    ($ARGS.positional) as $specs
+    | if ($specs | length) > 8 then error("at most 8 --option values") else . end
+    | [ $specs[]
+        | (capture("^(?<id>[^=]*)=(?<label>[^|]*)(?:\\|(?<detail>.*))?$"; "s")
+           // error("--option must be <id>=<label>[|<detail>]: \(.)")) as $m
+        | {id:($m.id // "" | trim),
+           label:($m.label // "" | field("option label"; 40)),
+           detail:($m.detail // "" | optional("option detail"; 120))}
+        | if (.id | test("^[A-Za-z0-9._-]{1,32}$") | not) then
+            error("option id must be a slug of at most 32 characters: \(.id)")
+          elif .id == "reconcile" then error("option id reconcile is reserved")
+          else . end ] as $options
+    | if ($options | map(.id) | unique | length) != ($options | length) then
+        error("option ids must be unique") else . end
+    | if $recommended != "" and ([$options[].id] | index($recommended)) == null then
+        error("--recommended must name an --option id: \($recommended)") else . end
+    | {question:($question | field("question"; 160)),
+       options:$options,
+       recommended:(if $recommended == "" then null else $recommended end),
+       context:($context | optional("context"; 200)),
+       link:($link | optional("link"; 500)
+             | if . != null and test("[[:space:]]") then error("link must not contain spaces") else . end)}
+  ' --args "$@" 2>&1) || fail "${out#jq: error (at <unknown>): }"
+  CALL_JSON=$out
+}
+
+write_captain_call() {  # <task-id> <hold-set>
+  local id=$1 hold_set=$2 path dir tmp
+  path=$(captain_call_path "$id") || fail "data directory cannot be resolved: $DATA"
+  dir=${path%/*}
+  [ ! -L "$dir" ] || fail "refusing the symlinked task data directory $dir"
+  mkdir -p -- "$dir" && [ -d "$dir" ] && [ ! -L "$dir" ] \
+    || fail "cannot prepare the task data directory $dir"
+  tmp=$(umask 077; mktemp "$dir/.captain-call.XXXXXX") || fail "cannot stage the captain call for $id"
+  if ! printf '%s' "$CALL_JSON" | jq -c --arg schema "$CALL_SCHEMA" --arg id "$id" \
+      --arg hold_set "$hold_set" '{schema:$schema,id:$id,hold_set:$hold_set,call:.}' > "$tmp" \
+    || ! mv -f -- "$tmp" "$path"; then
+    rm -f -- "$tmp"
+    fail "task $id is held for the captain but its structured call was not recorded; retry the same hold"
+  fi
+}
+
 refuse_self_inventory() {
   local origin=$1 entry=$2 meta="$STATE/$1.meta"
   if list_has_key "$(meta_value "$meta" decision_keys)" "$entry"; then
@@ -1172,6 +1262,8 @@ verify_entry_durable() {  # <origin-or-empty> <entry>; prints "<id> <how> <origi
 command_hold() {
   local id=${1:-} title='' reason='' repo='' origin='' until='' show state existing_title body='' hold_kind hold_set occurrence
   local existing_hold_kind='' existing_held='' preserve_hold_set=0 stored_reason previous_origin='' hold_status=0
+  local question='' recommended='' context='' link='' call_given=0
+  local -a call_options=()
   [ "$#" -ge 1 ] || { usage >&2; exit 2; }
   shift
   while [ "$#" -gt 0 ]; do
@@ -1181,12 +1273,21 @@ command_hold() {
       --repo) shift; repo=${1:-} ;;
       --origin) shift; origin=${1:-} ;;
       --until) shift; until=${1:-} ;;
+      --question) shift; question=${1:-}; call_given=1 ;;
+      --option) shift; call_options+=("${1:-}"); call_given=1 ;;
+      --recommended) shift; recommended=${1:-}; call_given=1 ;;
+      --context) shift; context=${1:-}; call_given=1 ;;
+      --link) shift; link=${1:-}; call_given=1 ;;
       *) usage >&2; exit 2 ;;
     esac
     shift
   done
   validate_slug task-id "$id"
   [ -n "$reason" ] || fail "reason must not be empty"
+  if [ "$call_given" = 1 ]; then
+    build_call_json "$question" "$recommended" "$context" "$link" \
+      "${call_options[@]+"${call_options[@]}"}"
+  fi
   # bin/fm-hold-reason-lib.sh owns the storage constraint and reversible encoding.
   stored_reason=$(fm_hold_reason_encode "$reason") || fail "could not encode the hold reason"
   if [ -n "$origin" ]; then
@@ -1274,8 +1375,9 @@ command_hold() {
   hold_kind=$(show_field_value "$show" hold_kind)
   [ "$hold_kind" = captain ] || fail "task $id did not retain its captain hold"
   occurrence=$(( $(resolution_record_count "$(show_field "$show" body)") + 1 ))
-  [ -n "$(body_hold_set_timestamp "$(show_field_value "$show" body)")" ] \
-    || fail "task $id lost its hold-set stamp while being held"
+  hold_set=$(body_hold_set_timestamp "$(show_field_value "$show" body)")
+  [ -n "$hold_set" ] || fail "task $id lost its hold-set stamp while being held"
+  [ "$call_given" = 0 ] || write_captain_call "$id" "$hold_set"
   publish_parent_hold "$id" "$occurrence" needs-decision "$reason"
   printf '%s\n' "$id"
 }

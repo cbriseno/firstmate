@@ -330,8 +330,8 @@ effective_payload() {  # <data.json> <dest.json>
       | if .type == "decision"
         then .options += [{
           value: "reconcile",
-          label: "Reconcile",
-          hint: "Re-check the latest state, then close this with evidence or keep it open with a note"
+          label: "Check again",
+          hint: "Look at what changed and update this card"
         }]
         else . end
     ]' "$data" > "$dest" || return 1

@@ -4840,6 +4840,292 @@ EOF
 # Focused public-intake regressions; all backlog, request, queue, and parent
 # records are inside this suite's disposable homes. No notification config is
 # installed, so these transitions cannot reach the operator's notification path.
+run_fleet_snapshot() {  # <home>
+  local home=$1
+  PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
+    FM_DATA_OVERRIDE="$home/data" FM_CONFIG_OVERRIDE="$home/config" \
+    FM_PROJECTS_OVERRIDE="$home/projects" FM_SNAPSHOT_NOW=2026-07-14T12:00:00Z \
+    "$ROOT/bin/fm-fleet-snapshot.sh" --json
+}
+
+hold_route_call() {  # <home> <task-id> [extra hold args...]
+  local home=$1 id=$2
+  shift 2
+  run_captain "$home" hold "$id" --title "Choose the sample route" \
+    --reason "captain sample route choice pending" --repo sample \
+    --question "Which sample route do we take?" \
+    --option "north=Go north|Shorter, but steeper" --option "south=Go south" \
+    --recommended north --context "Both routes reach the sample camp." \
+    --link "data/$id/report.md" "$@"
+}
+
+ROUTE_CALL='{"question":"Which sample route do we take?","options":[{"id":"north","label":"Go north","detail":"Shorter, but steeper"},{"id":"south","label":"Go south","detail":null}],"recommended":"north","context":"Both routes reach the sample camp.","link":"data/sample-route-call/report.md"}'
+
+test_structured_call_fields_reach_the_snapshots() {
+  local home snap json toon rc
+  home=$(make_home structured-call)
+  run_captain "$home" hold sample-plain-call --title "Choose the sample plain route" \
+    --reason "captain plain route choice pending" --repo sample >/dev/null \
+    || fail "a hold without call fields stopped working"
+  hold_route_call "$home" sample-route-call >/dev/null || fail "hold refused valid structured call fields"
+  run_captain "$home" hold sample-dated-call --title "Revisit the sample route" \
+    --reason "captain deferred the sample route" --repo sample --until 2026-08-01 \
+    --question "Revisit the sample route?" --option "yes=Revisit it" >/dev/null \
+    || fail "a deferred hold refused call fields"
+
+  snap=$(run_fleet_snapshot "$home") || fail "fleet snapshot failed with a structured call"
+  printf '%s' "$snap" | jq -e --argjson want "$ROUTE_CALL" '
+    ([.backlog.records[] | select(.id == "sample-route-call")][0]) as $route
+    | ([.backlog.records[] | select(.id == "sample-plain-call")][0]) as $plain
+    | $route.call == $want and $route.hold_reason == "captain sample route choice pending"
+      and ($plain | has("call") | not) and $plain.hold_reason == "captain plain route choice pending"
+  ' >/dev/null || fail "fleet snapshot did not export the call object exactly, or invented one: $snap"
+
+  json=$(run_bearings "$home") || fail "bearings failed with a structured call"
+  printf '%s' "$json" | jq -e --argjson want "$ROUTE_CALL" '
+    ([.decisions_open[] | select(.id == "sample-route-call")][0]) as $route
+    | ([.decisions_open[] | select(.id == "sample-plain-call")][0]) as $plain
+    | ([.gates[] | select(.id == "sample-dated-call")][0]) as $dated
+    | $route.call == $want
+      and $route.summary == "Choose the sample route: captain sample route choice pending"
+      and ($plain | has("call") | not)
+      and $plain.summary == "Choose the sample plain route: captain plain route choice pending"
+      and $dated.call.question == "Revisit the sample route?"
+      and $dated.call.options == [{"id":"yes","label":"Revisit it","detail":null}]
+      and $dated.call.recommended == null and $dated.call.context == null and $dated.call.link == null
+  ' >/dev/null || fail "bearings rows did not carry the call object beside the unchanged summary: $json"
+  printf '%s' "$json" | jq -e '.decisions_open[0] | has("call") | not' >/dev/null \
+    || fail "the fixture no longer leads Captain's Call with a row that has no call: $json"
+  toon=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_BEARINGS_NOW=2026-07-14T12:00:00Z "$BEARINGS") \
+    || fail "default bearings output failed with mixed call rows"
+  assert_contains "$(printf '%s\n' "$toon" | grep -E '^decisions_open\[[0-9]+\]\{')" ",call" \
+    "the default Captain's Call table dropped the call column when its first row had none"
+  assert_contains "$toon" "Which sample route do we take?" \
+    "the default Captain's Call table dropped a later row's call"
+
+  for args in \
+    "--option north=Go" \
+    "--question Pick --option reconcile=Check" \
+    "--question Pick --option north=Go --option north=Again" \
+    "--question Pick --option north=Go --recommended south" \
+    "--question Pick --option bad/id=Go" \
+    "--question Pick --option north"; do
+    rc=0
+    # shellcheck disable=SC2086  # Each case is a deliberately word-split flag list.
+    run_captain "$home" hold sample-refused-call --title "Refused sample call" \
+      --reason "captain choice" --repo sample $args > "$home/refused.out" 2> "$home/refused.err" || rc=$?
+    assert_equals 1 "$rc" "hold accepted invalid call fields: $args"
+    assert_no_grep sample-refused-call "$home/data/backlog.md" "an invalid call field still created the task: $args"
+  done
+  rc=0
+  run_captain "$home" hold sample-refused-call --title "Refused sample call" --reason "captain choice" \
+    --question Pick --link "two words" > "$home/refused.out" 2> "$home/refused.err" || rc=$?
+  assert_equals 1 "$rc" "hold accepted a link with spaces"
+  rc=0
+  run_captain "$home" hold sample-refused-call --title "Refused sample call" --reason "captain choice" \
+    --question "$(printf 'q%.0s' $(seq 1 161))" > "$home/refused.out" 2> "$home/refused.err" || rc=$?
+  assert_equals 1 "$rc" "hold accepted a question over its bound"
+  assert_grep "keep it within 160" "$home/refused.err" "an over-long question did not name its bound"
+  run_captain "$home" hold sample-spanish-call --title "Elegir la ruta" --reason "ruta pendiente" \
+    --question "¿Qué ruta tomamos?" --option "norte=Sí, ir al norte por la cañada del cañón." \
+    --option "si=Sí, cámbialo|Tarda 5 min" >/dev/null \
+    || fail "a label within 40 characters but over 40 bytes was refused"
+  jq -e '.call.options == [{"id":"norte","label":"Sí, ir al norte por la cañada del cañón.","detail":null},
+                           {"id":"si","label":"Sí, cámbialo","detail":"Tarda 5 min"}]' \
+    "$home/data/sample-spanish-call/captain-call.json" >/dev/null \
+    || fail "an accented label was not split from its detail at the bar: $(cat "$home/data/sample-spanish-call/captain-call.json")"
+  assert_absent "$home/data/sample-refused-call" "an invalid call left a call record behind"
+  pass "hold records structured call fields that snapshots export exactly, legacy holds export none, and invalid fields mutate nothing"
+}
+
+test_structured_call_answer_by_option_id() {
+  local home show out body identity
+  home=$(make_home structured-answer)
+  hold_route_call "$home" sample-route-call >/dev/null || fail "could not hold the structured call"
+  run_captain "$home" hold sample-free-call --title "Choose the free sample route" \
+    --reason "captain free route choice pending" --repo sample \
+    --question "Which free route?" --option "east=Go east" >/dev/null \
+    || fail "could not hold the free-text call"
+  hold_route_call "$home" sample-release-call >/dev/null || fail "could not hold the release call"
+  hold_route_call "$home" sample-guarded-call >/dev/null || fail "could not hold the guarded call"
+
+  printf 'sample-route-call\tnorth\tGo north\n' \
+    | run_captain "$home" answers --source "synthetic deck" > "$home/answer.out" \
+    || fail "an option-id answer did not close the call: $(cat "$home/answer.out")"
+  show=$(tasks_in "$home" show sample-route-call --full)
+  assert_contains "$show" "state: done" "the option-id answer did not close the call"
+  assert_contains "$show" 'Answer: north\nAnswer as shown to the captain: Go north' \
+    "the resolution did not record the answer with its shown label"
+  assert_not_contains "$show" "Chosen option" "the resolution recorded a label derived from the call record"
+  out=$(printf 'sample-route-call\tnorth\tGo north\n' | run_captain "$home" answers --source "synthetic deck") \
+    || fail "an exact replay of an option answer was not idempotent: $out"
+  assert_contains "$out" "closed: sample-route-call" "the option answer replay was not reported closed"
+  body=$(tasks_in "$home" show sample-route-call --full)
+  assert_equals "$show" "$body" "the option answer replay changed the durable record"
+
+  printf 'sample-free-call\tnorth\tSomething else entirely\n' \
+    | run_captain "$home" answers --source "synthetic deck" >/dev/null \
+    || fail "a free-text answer stopped working on a call with options"
+  show=$(tasks_in "$home" show sample-free-call --full)
+  assert_contains "$show" "Answer: north" "the free-text answer lost the captain's words"
+  assert_not_contains "$show" "Chosen option" "an answer that names no option of its call recorded one"
+
+  printf 'sample-release-call\tsouth\tGo south\trelease\n' \
+    | run_captain "$home" answers --source "synthetic deck" >/dev/null \
+    || fail "an option-id release answer failed"
+  out=$(printf 'sample-release-call\tsouth\tGo south\trelease\n' | run_captain "$home" answers --source "synthetic deck") \
+    || fail "an option-id release replay was not idempotent: $out"
+  show=$(tasks_in "$home" show sample-release-call --full)
+  assert_contains "$show" 'Answer: south\nAnswer as shown to the captain: Go south' \
+    "the released option answer did not record its shown label"
+  assert_not_contains "$show" "Chosen option" "the released answer recorded a label derived from the call record"
+  assert_equals 1 "$(printf '%s' "$show" | grep -o 'Resolution recorded by fm-captain-hold' | wc -l | tr -d ' ')" \
+    "the release replay wrote a second resolution record"
+
+  identity=$(run_captain "$home" open sample-guarded-call --identity) || fail "could not read the guarded call identity"
+  printf 'sample-guarded-call\tsouth\tGo south\n' \
+    | run_captain "$home" answers --source "synthetic deck" --expected-identity "$identity" >/dev/null \
+    || fail "a guarded option-id answer failed"
+  show=$(tasks_in "$home" show sample-guarded-call --full)
+  assert_contains "$show" "state: done" "the guarded option-id answer did not close the call"
+  assert_contains "$show" 'Answer: south\nAnswer as shown to the captain: Go south' \
+    "the guarded intake did not record the answer with its shown label"
+  assert_not_contains "$show" "Chosen option" "the guarded intake recorded a label derived from the call record"
+  pass "an option-id answer records only the answer and its shown label, replays idempotently, and free text stays free text"
+}
+
+test_structured_call_follows_its_hold_lifecycle() {
+  local home snap
+  home=$(make_home structured-lifecycle)
+  FM_CAPTAIN_HOLD_NOW=2026-07-14T10:00:00Z hold_route_call "$home" sample-route-call >/dev/null \
+    || fail "could not hold the structured call"
+  FM_CAPTAIN_HOLD_NOW=2026-07-14T11:00:00Z run_captain "$home" hold sample-route-call \
+    --reason "captain sample route choice still pending" >/dev/null \
+    || fail "could not repeat the active hold without call fields"
+  snap=$(run_fleet_snapshot "$home") || fail "fleet snapshot failed after a repeated hold"
+  printf '%s' "$snap" | jq -e --argjson want "$ROUTE_CALL" \
+    '[.backlog.records[] | select(.id == "sample-route-call")][0].call == $want' >/dev/null \
+    || fail "repeating an active hold without call fields dropped its call: $snap"
+
+  printf 'sample-route-call\tlater\tNot yet\trelease\n' \
+    | run_captain "$home" answers --source "synthetic deck" >/dev/null || fail "could not release the call"
+  FM_CAPTAIN_HOLD_NOW=2026-07-14T12:00:00Z run_captain "$home" hold sample-route-call \
+    --reason "captain route choice again" >/dev/null || fail "could not re-hold released work"
+  snap=$(run_fleet_snapshot "$home") || fail "fleet snapshot failed after a re-hold"
+  printf '%s' "$snap" | jq -e '[.backlog.records[] | select(.id == "sample-route-call")][0] | has("call") | not' \
+    >/dev/null || fail "a new hold lifecycle without call fields showed the old options: $snap"
+  pass "a call record follows its hold lifecycle: an active repeat keeps it and a new lifecycle starts without it"
+}
+
+test_independent_calls_from_one_origin_each_keep_their_card() {
+  local home id json
+  home=$(make_home independent-calls)
+  id=sample-trip-review
+  mkdir -p "$home/data/$id"
+  tasks_in "$home" add "$id" "Review the sample trip" --kind scout --repo sample --start >/dev/null \
+    || fail "could not create the review fixture"
+  write_origin_meta "$home" "$id"
+  printf 'done: report complete\n' > "$home/state/$id.status"
+  hold_route_call "$home" sample-route-call --origin "$id" >/dev/null \
+    || fail "could not hold the route call for the review"
+  run_captain "$home" hold sample-budget-call --title "Approve the sample budget" \
+    --reason "captain sample budget approval pending" --repo sample --origin "$id" \
+    --question "Approve the sample budget?" --option "yes=Approve it" --option "no=Not now" >/dev/null \
+    || fail "could not hold the budget call for the same review"
+  run_captain "$home" complete "$id" sample-route-call sample-budget-call >/dev/null \
+    || fail "complete refused two independent calls from one review"
+  assert_grep "decision_keys=sample-budget-call,sample-route-call" "$home/state/$id.meta" \
+    "the inventory did not record both independent calls"
+
+  printf 'sample-route-call\tnorth\tGo north\n' \
+    | run_captain "$home" answers --source "synthetic deck" >/dev/null || fail "could not answer the route call"
+  run_captain "$home" verify "$id" >/dev/null || fail "answering one call broke the review's inventory"
+  json=$(run_bearings "$home") || fail "bearings failed with two calls from one review"
+  printf '%s' "$json" | jq -e '
+    ([.decisions_open[] | select(.id == "sample-budget-call")][0].call) as $budget
+    | ([.decisions_open[] | select(.id == "sample-route-call")] | length) == 0
+      and $budget.question == "Approve the sample budget?"
+      and ($budget.options | map(.id)) == ["yes", "no"]
+  ' >/dev/null || fail "answering one call did not leave the other open with its own options: $json"
+  pass "independent calls from one review each keep their own card, and answering one leaves the other open"
+}
+
+test_work_item_blocked_by_several_calls_waits_for_every_answer() {
+  local home snap json
+  home=$(make_home blocked-by-calls)
+  tasks_in "$home" add sample-trip-work "Plan the sample trip" --repo sample >/dev/null \
+    || fail "could not create the queued work item"
+  hold_route_call "$home" sample-route-call >/dev/null || fail "could not hold the route call"
+  run_captain "$home" hold sample-budget-call --title "Approve the sample budget" \
+    --reason "captain sample budget approval pending" --repo sample \
+    --question "Approve the sample budget?" --option "yes=Approve it" --option "no=Not now" >/dev/null \
+    || fail "could not hold the budget call"
+  tasks_in "$home" block sample-trip-work --by sample-route-call >/dev/null || fail "could not block the work on the route call"
+  tasks_in "$home" block sample-trip-work --by sample-budget-call >/dev/null || fail "could not block the work on the budget call"
+
+  printf 'sample-route-call\tnorth\tGo north\n' \
+    | run_captain "$home" answers --source "synthetic deck" >/dev/null || fail "could not answer the route call"
+  snap=$(run_fleet_snapshot "$home") || fail "fleet snapshot failed with one call still open"
+  printf '%s' "$snap" | jq -e '
+    [.backlog.records[] | select(.id == "sample-trip-work")][0]
+    | .state == "queued" and .unresolved_blocker_ids == ["sample-budget-call"]
+  ' >/dev/null || fail "answering one call unblocked work still gated by another: $snap"
+  json=$(run_bearings "$home") || fail "bearings failed with one call still open"
+  printf '%s' "$json" | jq -e '
+    [.gates[] | select(.id == "sample-trip-work")][0].blocked_by == "sample-budget-call"
+      and ([.decisions_open[] | select(.id == "sample-budget-call")] | length) == 1
+  ' >/dev/null || fail "Bearings did not keep the work blocked on the open call: $json"
+
+  printf 'sample-budget-call\tyes\tApprove it\n' \
+    | run_captain "$home" answers --source "synthetic deck" >/dev/null || fail "could not answer the budget call"
+  snap=$(run_fleet_snapshot "$home") || fail "fleet snapshot failed after every call was answered"
+  printf '%s' "$snap" | jq -e '[.backlog.records[] | select(.id == "sample-trip-work")][0].unresolved_blocker_ids == []' \
+    >/dev/null || fail "answering every call left the work blocked: $snap"
+  json=$(run_bearings "$home") || fail "bearings failed after every call was answered"
+  printf '%s' "$json" | jq -e '[.gates[] | select(.id == "sample-trip-work")][0].blocked_by == "-"' \
+    >/dev/null || fail "Bearings still showed the work blocked after every call was answered: $json"
+  pass "a work item blocked by several calls stays blocked until every call is answered"
+}
+
+test_structured_call_reaches_parent_bearings_from_a_secondmate() {
+  local parent mate fakebin json
+  parent=$(make_home structured-parent)
+  mate="$TMP_ROOT/structured-mate-home"
+  mkdir -p "$mate/data" "$mate/state" "$mate/config" "$mate/projects" "$mate/bin"
+  fm_test_tasks_toml "$mate/.tasks.toml"
+  printf '# Synthetic secondmate home\n' > "$mate/AGENTS.md"
+  printf 'structured-mate\n' > "$mate/.fm-secondmate-home"
+  printf 'schema=fm-secondmate-parent.v1\nroute=local\nparent_home=%s\n' "$parent" > "$mate/.fm-secondmate-parent"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$mate/data/backlog.md"
+  fakebin=$(fm_fakebin "$mate")
+  fm_fake_exit0 "$fakebin" tmux treehouse no-mistakes gh gh-axi
+  hold_route_call "$mate" sample-route-call >/dev/null || fail "secondmate hold refused call fields"
+  PATH="$mate/fakebin:$PATH" FM_HOME="$mate" "$ROOT/bin/fm-home-summary-refresh.sh" \
+    || fail "the secondmate could not publish its home summary"
+  jq -e --argjson want "$ROUTE_CALL" \
+    '[.decisions_open[] | select(.id == "sample-route-call")][0].call == $want
+     and [.queued[] | select(.id == "sample-route-call")][0].call == $want' \
+    "$mate/state/home-summary.json" >/dev/null \
+    || fail "the secondmate summary did not carry the call: $(cat "$mate/state/home-summary.json")"
+  printf -- '- structured-mate - synthetic scope (home: %s; scope: sample reviews; projects: sample; added 2026-07-14)\n' \
+    "$mate" > "$parent/data/secondmates.md"
+  fm_write_secondmate_meta "$parent/state/structured-mate.meta" "$mate" "firstmate:fm-structured-mate" sample
+  json=$(run_bearings "$parent") || fail "parent Bearings failed with a secondmate call"
+  printf '%s' "$json" | jq -e --argjson want "$ROUTE_CALL" '
+    [.decisions_open[] | select(.owner == "structured-mate" and (.id | endswith("sample-route-call")))][0].call == $want
+  ' >/dev/null || fail "a secondmate call did not reach the parent Captain's Call row: $json"
+
+  jq '(.decisions_open[] | select(.id == "sample-route-call") | .call) |= (.options = {"id":"north"} | .recommended = ["north"])' \
+    "$mate/state/home-summary.json" > "$mate/state/home-summary.json.tmp" \
+    && mv "$mate/state/home-summary.json.tmp" "$mate/state/home-summary.json"
+  json=$(run_bearings "$parent") || fail "parent Bearings failed on a malformed secondmate call"
+  printf '%s' "$json" | jq -e '
+    [.decisions_open[] | select(.owner == "structured-mate" and (.id | endswith("sample-route-call")))][0].call
+    | .question == "Which sample route do we take?" and .options == [] and .recommended == null
+  ' >/dev/null || fail "a malformed secondmate call was not re-bounded to an empty choice list: $json"
+  pass "a secondmate's structured call reaches the parent Captain's Call row, and a malformed one cannot break Bearings"
+}
+
 intake_snapshot() {  # <home>
   find "$1/data" "$1/state" -type f -exec cksum {} \; | LC_ALL=C sort
 }
@@ -5118,6 +5404,12 @@ test_expected_identity_secondmate
 test_expected_identity_waits_for_control_lock
 test_expected_identity_backend_failures
 test_hold_reason_round_trips_awkward_characters
+test_structured_call_fields_reach_the_snapshots
+test_structured_call_answer_by_option_id
+test_structured_call_follows_its_hold_lifecycle
+test_independent_calls_from_one_origin_each_keep_their_card
+test_work_item_blocked_by_several_calls_waits_for_every_answer
+test_structured_call_reaches_parent_bearings_from_a_secondmate
 test_hold_origins_precede_backend_holds
 test_historical_self_inventory_has_workable_repair
 test_inventory_compares_backend_identities

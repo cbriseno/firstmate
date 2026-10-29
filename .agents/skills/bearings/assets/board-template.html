@@ -513,6 +513,7 @@ __FM_BEARINGS_BOARD_DATA__
       if (item.about) ctx.appendChild(ctxRow("about", item.about));
       if (item.decide) ctx.appendChild(ctxRow("decide", item.decide));
       pad.appendChild(ctx);
+      if (item.detail) pad.appendChild(el("p", "bb-decision__detail", item.detail));
     }
 
     var form = document.createElement("form");

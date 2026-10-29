@@ -67,6 +67,9 @@ Repeat and edge cases:
   If that write fails, the backend hold is not attempted.
 - The reason may contain parentheses, semicolons, quotes, and line breaks.
   [`bin/fm-hold-reason-lib.sh`](../bin/fm-hold-reason-lib.sh) owns the storage encoding and compatibility rules; [`bin/fm-tasks-axi.sh --help`](../bin/fm-tasks-axi.sh) owns the public read commands and output contract.
+- The optional structured call fields (`--question`, `--option`, `--recommended`, `--context`, `--link`) are validated before any mutation and written to the private `data/<task-id>/captain-call.json` record only after the backend hold succeeds.
+  The record names the hold-set stamp it belongs to, so a new lifecycle never inherits an older call, while an active hold's repeat without fields keeps it.
+  The script header's STRUCTURED CALL FIELDS section owns the bounds and record schema.
 
 ### Answering a call (`answer`)
 
@@ -382,6 +385,13 @@ The durable deferral remains re-holding with `--until`.
 The fleet snapshot's secondmate-home summary classifies an actionable captain hold as `captain_decision`.
 It preserves every captain hold in the bounded queued inventory of the owning home.
 
+### Structured call object
+
+An open captain-hold backlog row carries a `call` object - `{question, options:[{id,label,detail}], recommended, context, link}` - only when its call record matches the current hold-set stamp.
+[`bin/fm_delivery.py`](../bin/fm_delivery.py)'s `read_captain_call` validates the record while the snapshot enriches its rows, and a missing, stale, or malformed record leaves the key absent.
+The secondmate-home summary carries the same object on its captain-hold `decisions_open` and `queued` rows.
+Bearings re-bounds it and adds it to Captain's Call and Charted Next gate rows, main and secondmate alike, beside the unchanged `summary` and `reason`.
+
 ### Bearings placement
 
 `bin/fm-bearings-snapshot.sh` places each captain hold by its `hold_bucket` and inspects no prose of its own.
@@ -545,6 +555,13 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 - Hold-set stamping precedes visible hold state, preserves an active lifecycle's timestamp, and resets after release.
 - Interrupted answer closure retains the stamp until close and restores resolution-first ordering on retry.
 - Deferral through `--until` leaves `captain_actionable` false until due.
+- Structured call fields reach the fleet snapshot, the secondmate summary, and the parent's Bearings rows exactly, while a hold without them exports no `call` key.
+  Invalid fields are refused before any mutation, and bounds count characters rather than bytes.
+- An option-id answer closes through the plain and guarded intakes with only the answer and its shown label recorded, replays idempotently for close and release, and free text stays free text.
+- An active repeat without fields keeps the call, and a new lifecycle without fields shows none.
+- Independent calls from one review complete as one inventory, and answering one leaves the other open with its own options.
+- A work item blocked by several calls stays blocked until every call is answered.
+- The default TOON Captain's Call table keeps a `call` column when its first row has none.
 
 ### Legacy paths
 
