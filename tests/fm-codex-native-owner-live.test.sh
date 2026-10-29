@@ -6,22 +6,19 @@
 # This guard submits no input, changes no hook/trust/config and does not prove
 # delayed idle reentry. The coordinated acceptance in runtime-backends.md is
 # separately required before treating that frontend as continuous.
+# It reads the owning home's live records and queries the real Codex daemon, so
+# it is opt-in: run it deliberately with FM_CODEX_NATIVE_OWNER_LIVE=1.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-fm_live_gate default-on FM_CODEX_NATIVE_OWNER_LIVE codex jq perl python3
+fm_live_gate opt-in FM_CODEX_NATIVE_OWNER_LIVE codex jq perl python3
 unset FM_TEST_SEAM FM_TEST_HARNESS FM_PROC_ROOT_OVERRIDE
 version=$(codex --version 2>&1) || fail 'Codex live guard cannot read installed version'
 home=${FM_HOME:-$ROOT}
 state=${FM_STATE_OVERRIDE:-$home/state}
 config=${FM_CONFIG_OVERRIDE:-$home/config}
-if [ ! -f "$config/codex-native-supervision.json" ]; then
-  if [ "${FM_CODEX_NATIVE_OWNER_LIVE:-${FM_LIVE:-0}}" = 1 ]; then
-    fail "$version: native owner live check requested without an explicit binding"
-  fi
-  echo "skip: live: $version native supervision is not opted in; set FM_CODEX_NATIVE_OWNER_LIVE=1 to require it"
-  exit 0
-fi
+[ -f "$config/codex-native-supervision.json" ] \
+  || fail "$version: native owner live check requested without an explicit binding"
 # shellcheck source=bin/fm-wake-lib.sh
 . "$ROOT/bin/fm-wake-lib.sh"
 # shellcheck source=bin/fm-codex-native-lib.sh

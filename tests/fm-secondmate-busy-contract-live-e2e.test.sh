@@ -13,6 +13,8 @@
 # up beside the wiring the spawn just wrote. Grok and codex are the
 # disconfirming launches: they stay unarmed and gain no parent turn-end.
 # An absent binary is reported and skipped. A run that checks nothing fails.
+# Those real launches use the operator's own profile, hooks, and extensions, so
+# the guard is opt-in (FM_SECONDMATE_BUSY_LIVE=1; tests/lib.sh, fm_live_gate).
 #
 # Refresh docs/verification/runtime-backends.md ("Secondmate busy contract")
 # from this guard after a harness upgrade.
@@ -21,7 +23,7 @@ set -u
 # shellcheck source=tests/fixtures.sh
 . "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
 
-fm_live_gate default-on FM_SECONDMATE_BUSY_LIVE tmux
+fm_live_gate opt-in FM_SECONDMATE_BUSY_LIVE tmux
 
 # shellcheck source=bin/fm-busy-lib.sh
 . "$ROOT/bin/fm-busy-lib.sh"

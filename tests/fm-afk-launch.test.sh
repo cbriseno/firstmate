@@ -14,7 +14,9 @@
 #   session), never a split of the captain's pane. The herdr path runs on a
 #   throwaway, NEVER-default HERDR_SESSION and asserts the default session is
 #   byte-identical via the fm-herdr-lab.sh fleet-state tripwire; the tmux path
-#   uses uniquely-named throwaway sessions killed by exact name. A harmless
+#   uses uniquely-named throwaway sessions killed by exact name, on a private
+#   tmux server (its own TMUX_TMPDIR, with any inherited TMUX client identity
+#   dropped) that the operator's default tmux server never sees. A harmless
 #   sleeper replaces the real daemon (FM_AFK_LAUNCH_ENTRY) so the test observes
 #   only the terminal lifecycle.
 set -u
@@ -43,6 +45,13 @@ FAILED=0
 fail() { printf 'not ok - %s\n' "$1" >&2; FAILED=1; }
 pass() { printf 'ok - %s\n' "$1"; }
 
+# Every bare tmux call here and in the launch under test reaches this private
+# server, never the operator's default one.
+unset TMUX TMUX_PANE
+TMUX_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/fm-afk-tmux.XXXXXX") \
+  || { printf 'not ok - cannot create a private tmux directory\n' >&2; exit 1; }
+export TMUX_TMPDIR
+
 SLEEPER=$(mktemp "${TMPDIR:-/tmp}/fm-afk-sleeper.XXXXXX")
 printf '#!/usr/bin/env bash\nexec sleep 600\n' > "$SLEEPER"
 chmod +x "$SLEEPER"
@@ -55,6 +64,10 @@ GLOBAL_CLEANUP() {
   for s in $TRACK_TMUX_SESSIONS; do
     tmux kill-session -t "$s" 2>/dev/null || true
   done
+  if [ -n "${TMUX_TMPDIR:-}" ] && [ -d "$TMUX_TMPDIR" ]; then
+    tmux kill-server 2>/dev/null || true
+    rm -rf "$TMUX_TMPDIR" 2>/dev/null || true
+  fi
 }
 trap GLOBAL_CLEANUP EXIT
 

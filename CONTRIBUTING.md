@@ -150,6 +150,8 @@ Where a case's assertion is not about the timeout itself, give that window headr
 Tests that need a real optional backend or an explicit opt-in (real herdr/zellij/cmux/paseo/rex smoke tests, the live Pi regression) skip themselves and print the tool or environment gate needed to enable them, so the portable suite remains safe on machines without those tools.
 [`tests/rex-test-safety.sh`](tests/rex-test-safety.sh) owns the real-Rex suites' private-server isolation and capability gates.
 The [Herdr backend guide](docs/herdr-backend.md#destructive-lab-safety) owns the lane's isolation boundary, while [runtime backend verification](docs/verification/runtime-backends.md#herdr) owns active empirical evidence; live harness credential tests remain opt-in.
+A live guard runs by default only when it acts solely on private, disposable resources; one that would reach a service the operator uses - their Lavish server, default Herdr session, a real harness under their own profile, or their real home - stays opt-in, and `fm_live_gate` in [`tests/lib.sh`](tests/lib.sh) owns that policy.
+Export `FM_LIVE=0` for ordinary local runs, and set a guard's own variable only when you mean to exercise it.
 
 ## Questions
 

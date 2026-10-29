@@ -434,11 +434,24 @@ fi
 #   skip: live: disabled by <VAR>=0           an explicit local opt-out
 #   skip: live: opt-in; set <VAR>=1 to run    a guard that spends model tokens
 #
-# <policy> is default-on for a guard that spends no model tokens, so it runs
-# wherever its tools are installed - notably on the machine the product and its
-# validation actually run on - and opt-in for a guard that submits prompts,
-# which stays deliberate. <vars> is the guard's own control variable, or a
-# comma-separated list when a guard has more than one entry point.
+# <policy> is default-on only for a guard that spends no model tokens AND acts
+# solely on private, disposable resources: a scratch FM_HOME, a private tmux
+# socket or named Herdr lab session, a private service instance it starts and
+# stops itself (the Lavish guard runs its own server on its own state directory
+# and port), a throwaway HOME or agent directory, or a non-interactive vendor
+# command that opens no session. Such a guard runs wherever its tools are
+# installed - notably on the machine the product and its validation actually
+# run on. Every other guard is opt-in and stays deliberate: one that submits
+# prompts, and one that opens, ends, or otherwise acts on a shared service the
+# operator uses - their running Lavish server, their default Herdr session, a
+# real interactive harness under their own profile (whose hooks, extensions,
+# and MCP servers then run, and which inherits the Herdr pane identity of
+# whatever pane the suite was started from), a shared harness daemon, Agent
+# Notify or ntfy, real GitHub, or their real home's state. Worker and
+# validation runs execute the suites inside that operator's sessions, so a
+# default-on guard must never reach any of those. <vars> is the guard's own
+# control variable, or a comma-separated list when a guard has more than one
+# entry point.
 #
 # Setting any of those variables to 1 (or FM_LIVE=1, for every guard at once)
 # both turns the guard on and makes an absent tool a hard failure rather than a
