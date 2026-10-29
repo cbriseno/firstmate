@@ -125,8 +125,7 @@ Untracked files and directories whose names begin with `scratchpad` are also git
 ## Orchestrator behavior (AGENTS.md)
 
 The shared orchestrator behavior lives in [`AGENTS.md`](../AGENTS.md).
-Edit it like any prompt when the fleet is empty.
-While tasks are in flight, dispatch shared-repo edits to a crewmate.
+Changes to it ship like any other change to this repository, through a dispatched worker rather than a direct edit by the running firstmate, whether or not tasks are in flight.
 
 ## Calm preference (config/calm)
 

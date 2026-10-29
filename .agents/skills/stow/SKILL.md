@@ -209,6 +209,7 @@ A local skill exists only in this home, so offloading an entry out of `data/capt
 3. Migrate an approved pinned candidate outside this pass.
    Resolve `home_root` to `$FM_HOME` when it is set and otherwise to the Firstmate code root, then re-validate the approved local-skill destination under that root for both index absence with `git -C "$home_root"` and filesystem collision absence.
    Before creating the destination or writing any private content, resolve the exclude file with `git -C "$home_root" rev-parse --git-path info/exclude`, append the destination directory path to it, and verify the future `SKILL.md` path is ignored with `git -C "$home_root" check-ignore`.
+   The primary write guard refuses both writes until the captain's approval is recorded, so first run `bin/fm-primary-write-grant.sh grant` with that approval for the destination directory and for the exclude file, and revoke both grants when the migration ends.
    Only after that verification succeeds, create the destination and write the `SKILL.md` with its precise description trigger, then confirm the skill appears in a fresh session's skill index.
    If any migration step fails, remove the destination content and the exclude rule written by this attempt, leaving neither partial private content nor a partial rule behind.
    An approved project destination ships as a normal task through that project's registered delivery mode.

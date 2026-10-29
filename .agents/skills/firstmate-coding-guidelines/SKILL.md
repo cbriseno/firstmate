@@ -1,7 +1,7 @@
 ---
 name: firstmate-coding-guidelines
 description: >-
-  Load before editing firstmate's shared, tracked material as defined by AGENTS.md section 1, whether working as firstmate directly or as a crewmate briefed on a firstmate-repo task.
+  Load before editing firstmate's shared, tracked material as defined by AGENTS.md section 1 as a crewmate briefed on a firstmate-repo task, and before briefing one.
 user-invocable: false
 metadata:
   internal: true
