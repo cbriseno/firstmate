@@ -448,6 +448,24 @@ There is no pull request, no \`gh-axi\` call, and no forge CI result to report: 
 EOF
 }
 
+# What a worker does when a higher-priority rule in its own session - such as a
+# captain rule that allows no-mistakes or GitHub Actions only on an explicit
+# request - forbids the delivery path its contract names. That rule already
+# states the captain's default, so the worker neither asks nor stops: it
+# finishes and checks the work locally, then reports the obstacle under the
+# fixed `delivery-fallback` key that bin/fm-delivery-fallback.sh answers by
+# switching the task to that default and sending the replacement contract.
+# Rendered into every contract that publishes through a push, a pull request,
+# or the pipeline; local-only publishes nothing, and an external review tool's
+# upload is configured by the home rather than gated by such a rule.
+fm_dod_path_unavailable_block() {
+  cat <<EOF
+If a higher-priority rule in your session forbids the delivery path above for this task - such as a captain rule that allows no-mistakes only on an explicit request, or one that allows triggering GitHub Actions, as your push or PR would, only on an explicit request - that rule is the captain's standing answer, not a question.
+Never append \`needs-decision\` about how to deliver, and do not stop: finish the implementation, run the project's affected local checks, and commit.
+Then append \`blocked [key=delivery-fallback] [at=<epoch>]: {path} forbidden by {the rule, quoted briefly}; its stated default: {the path that rule names, or none}\` and wait for the replacement Definition of done that firstmate sends to your steering inbox.
+EOF
+}
+
 fm_dod_block() {  # <mode> <task-id> [branch] [<forge>] [<base>] [<consent>]
   local mode=$1 id=$2 forge=${4:-none} base=${5:-} consent=${6:-}
   local branch=${3:-fm/$id} pr_base='' nm_base='' base_q contract_forge='' contract_consent='' forge_cli=gh-axi draft_check adapter
@@ -487,6 +505,7 @@ EOF
       cat <<EOF
 Do NOT run /no-mistakes.
 EOF
+      fm_dod_path_unavailable_block
       ;;
     no-mistakes:gerrit)
       cat <<EOF
@@ -519,6 +538,7 @@ The squashed change carries only the oldest commit's message, so the pipeline's 
 After publishing and immediately before your ready report, append one line \`note [at=<epoch>]: pipeline changes: {finding} - {fix it made}; {finding} - {fix it made}\` to the status file, one short clause per finding the run fixed, taken from the run's \`fixes\` table and the gate findings its drive calls returned (\`no-mistakes axi logs --step <step> --full\` has the detail); write \`note [at=<epoch>]: pipeline changes: none\` when it fixed nothing.
 EOF
       fm_gerrit_publish_block
+      fm_dod_path_unavailable_block
       ;;
     direct-PR:external)
       fm_external_review_backup || return 1
@@ -565,6 +585,7 @@ That \`done:\` is accepted only when this copy's HEAD - your latest commit - is 
 If you deliberately keep the PR a draft, append \`paused [at=<epoch>]: {why the draft is held}\` instead of done.
 Do NOT run /no-mistakes. The configured merge authority decides whether to merge the PR; firstmate relays the outcome.
 EOF
+      fm_dod_path_unavailable_block
       ;;
     local-only:*)
       cat <<EOF
@@ -599,6 +620,7 @@ Then append \`done [at=<epoch>]: PR {url} checks green\` and stop. You are finis
 That CI-ready \`done:\` is accepted only when this copy's HEAD - your latest commit - is one the /no-mistakes run pushed, so commit nothing after the run; the check tests that commit, not merely that a branch moved.
 If you deliberately keep the PR a draft, append \`paused [at=<epoch>]: {why the draft is held}\` instead of done.
 EOF
+      fm_dod_path_unavailable_block
       ;;
     *)
       echo "error: fm_dod_block: unknown delivery mode '$mode'" >&2

@@ -624,6 +624,10 @@
 # keeps no data/backlog.md. A configured non-markdown adapter remains
 # active without a markdown file; any active automatic backend without
 # compatible tasks-axi refuses before creating lifecycle state.
+# A fresh ship spawn whose project's registry entry links install=<project>
+# also queues that installation's follow-up item, blocked until this task
+# lands, in the same up-front window, and refuses when it cannot
+# (bin/fm-install-followup.sh `ensure` owns the item).
 # On success prints: spawned <id> harness=<name> kind=<ship|scout|secondmate> [mode=<mode> yolo=<on|off>] window=<backend-target> worktree=<path>
 # A ship task records the explicit mode/yolo it was passed; a secondmate spawn records
 # mode=secondmate, yolo=off, home=, and projects=; a scout records neither, and both the
@@ -4247,6 +4251,17 @@ else
     echo "error: task $ID cannot be dispatched because its backlog data directory is inaccessible: $DATA ($FM_BACKLOG_TRANSITION_ERROR)" >&2
     exit 1
   fi
+fi
+
+# A project whose registry entry links install=<project> gets its installation
+# follow-up queued now, blocked until this task lands, before any endpoint or
+# local copy exists (bin/fm-install-followup.sh owns the link's contract).
+if [ "$RELAUNCH" -eq 0 ] && [ "$KIND" = ship ]; then
+  FM_HOME="$FM_HOME" FM_DATA_OVERRIDE="$DATA" FM_CONFIG_OVERRIDE="$CONFIG" \
+    "$FM_ROOT/bin/fm-install-followup.sh" ensure "$ID" "$(basename "$PROJ_ABS")" || {
+    echo "error: $ID cannot launch: its project links a local installation whose follow-up could not be queued (see above); fix that and spawn again" >&2
+    exit 1
+  }
 fi
 
 if [ "$SPAWN_META_LOCK_HELD" != 1 ]; then
