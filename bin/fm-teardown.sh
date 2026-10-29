@@ -27,6 +27,10 @@
 # automatic backend without compatible tasks-axi refuses before cleanup.
 # None of this loosens the landed-work gates below: the transition runs only on
 # the paths that already proceed to remove the record.
+# A ship whose project links install=<project> ends by naming the installation
+# follow-up that its close just made ready (bin/fm-install-followup.sh
+# `landed`), so the captain's request is not reported finished in the project
+# alone.
 # The close - and only the close - is replaced by `tasks-axi reopen` with the
 # deliverable recorded while the backlog item is still an open captain call
 # (bin/fm-captain-hold.sh `open` owns that predicate), because the policy holds
@@ -1786,6 +1790,21 @@ backlog_refresh_reminder() {
   else
     printf '%s\n' "Backlog: $ID just finished ($BACKLOG_SKIP_REASON). Update $backlog_display - move $ID to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due."
   fi
+}
+
+# A ship whose project links install=<project> is finished for the captain only
+# in that installation, so a landed close names the follow-up it just cleared
+# (bin/fm-install-followup.sh `landed` owns the item and the wording). A
+# captain-held row stays open and keeps its follow-up blocked, so it says nothing.
+install_followup_reminder() {
+  local discarded=()
+  [ "$KIND" = ship ] || return 0
+  [ "$CLEANUP_RECOVERY" = orca ] && return 0
+  [ "$BACKLOG_TRANSITION" = retain ] && return 0
+  [ "$FORCE" != "--force" ] || discarded=(--discarded)
+  FM_HOME="$FM_HOME" FM_DATA_OVERRIDE="$DATA" FM_CONFIG_OVERRIDE="$CONFIG" \
+    "$SCRIPT_DIR/fm-install-followup.sh" landed "$ID" "$(basename "$PROJ")" \
+    "${discarded[@]+"${discarded[@]}"}" || true
 }
 
 path_is_ancestor_of() {
@@ -4055,4 +4074,5 @@ else
   echo "teardown $ID complete (window ${T:-none}; pool slot $WT left to task $TEARDOWN_SLOT_REASSIGNED_TO${TEARDOWN_SLOT_REASSIGNED_HOME:+ (home $TEARDOWN_SLOT_REASSIGNED_HOME)}, which it was reassigned to)"
 fi
 backlog_refresh_reminder
+install_followup_reminder
 [ "$TEARDOWN_POOL_SLOT_LOST" = 0 ] || exit "$TEARDOWN_LOST_SLOT_EXIT"

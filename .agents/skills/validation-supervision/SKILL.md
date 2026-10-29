@@ -9,6 +9,7 @@ metadata:
 # Validation supervision
 
 For a no-mistakes ship, trigger validation on the same worker after its implementation commit, using the harness invocation owned by `harness-adapters`.
+When a captain rule makes the pipeline unavailable for that task, or the worker reports a `delivery-fallback` blocker, switch the ship with `bin/fm-delivery-fallback.sh`, passing that key, instead of triggering validation or asking the captain.
 The task worker that starts a no-mistakes run drives the pipeline and owns every `no-mistakes axi run` and `no-mistakes axi respond` call through the next gate or outcome.
 Firstmate never invokes `no-mistakes axi respond` for a crew-owned run.
 `bin/fm-dod-lib.sh` owns the worker-side `--intent` contract.
