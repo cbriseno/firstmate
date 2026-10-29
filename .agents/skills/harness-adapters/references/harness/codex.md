@@ -55,3 +55,4 @@ Codex cannot reason while a foreground tool call is running, so the checkpoint i
 The default-off [native Stop contract](../../../../../docs/configuration.md#codex-native-supervision) owns the alternative and its separate live acceptance.
 In a home with `config/supervision-host` and no `config/supervision-host-off` the checkpoint runs the supervision host instead of the watcher, with Claude's print mode as its headless engine, and holds for at least an hour while away; [`supervision-host.md`](../../../../../docs/supervision-host.md) owns the host and that bound.
 Codex's PreToolUse watcher-arm seatbelt blocks directly through its project hook.
+Its PreToolUse [primary write guard](../../../../../docs/primary-write-guard.md) blocks the same way for shell commands and `apply_patch`; a home updated to a release that adds it gets the hook-review dialog above once, on the operator's next interactive launch.

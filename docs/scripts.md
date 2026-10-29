@@ -58,6 +58,9 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-arm-pretool-check.sh` | Stable PreToolUse transport for the watcher-arm command policy (docs/arm-pretool-check.md) |
 | `fm-arm-command-policy.mjs` | Semantic owner of the watcher-arm PreToolUse policy (docs/arm-pretool-check.md)   |
 | `fm-subagent-pretool-check.sh` | Primary-home delegation-shape PreToolUse guard (docs/subagent-guard.md) |
+| `fm-primary-write-pretool-check.sh` | Primary-home PreToolUse guard refusing direct writes outside the operational paths (docs/primary-write-guard.md) |
+| `fm-primary-write-policy.mjs` | Semantic owner of the primary write guard's per-target decision (docs/primary-write-guard.md) |
+| `fm-primary-write-grant.sh` | Record, list, and revoke captain-approved primary write grants (docs/primary-write-guard.md) |
 | `fm-supervision-instructions.sh` | Render the session-start primary-harness supervision block or the one-line repair instruction |
 | `fm-home-seed.sh`        | Transactionally provision a local secondmate home and maintain `data/secondmates.md` |
 | `fm-remote-home-seed.sh` | Register and provision a whole secondmate home on an SSH-reachable host              |

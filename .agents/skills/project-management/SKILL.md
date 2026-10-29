@@ -28,6 +28,7 @@ Absence from the main `data/projects.md` registry is never evidence that no seco
 If the owning second mate cannot accept the route, report that concrete blocker or obtain an explicit captain redirection rather than silently duplicating the project in the main home.
 
 Resolve the project name, destination, delivery posture, and autonomy posture before changing local or remote state.
+The primary write guard refuses writes under `projects/` until the captain's request for that one project is recorded: before cloning, creating, initializing, or removing `projects/<name>`, run `bin/fm-primary-write-grant.sh grant projects/<name> --approval "<the captain's words>"`, and revoke the grant when the step finishes ([`docs/primary-write-guard.md`](../../../docs/primary-write-guard.md)).
 Keep a newly added clone and its registry entry consistent, and roll back only artifacts created by the incomplete operation when a later initialization step fails and that rollback is safe.
 Do not overwrite or repurpose an existing path.
 

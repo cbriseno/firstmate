@@ -32,14 +32,21 @@ OUT="$TMP_ROOT/out"
 ERR="$TMP_ROOT/err"
 mkdir -p "$USERHOME/.config" "$SCRATCH"
 
+# make_home <dir> [<bin-link-target>]: a plain primary-shaped checkout, with
+# bin/ as an empty directory or as a symlink to the given scripts directory.
 make_home() {
-  local dir=$1
+  local dir=$1 bin_target=${2:-}
   mkdir -p "$dir"
   git init -q "$dir"
   printf '# fixture\n' > "$dir/AGENTS.md"
   git -C "$dir" add AGENTS.md
   git -C "$dir" commit -q -m init
-  mkdir -p "$dir/bin" "$dir/state" "$dir/data" "$dir/config" "$dir/projects/foo"
+  mkdir -p "$dir/state" "$dir/data" "$dir/config" "$dir/projects/foo"
+  if [ -n "$bin_target" ]; then
+    ln -s "$bin_target" "$dir/bin"
+  else
+    mkdir -p "$dir/bin"
+  fi
 }
 make_home "$PRIMARY"
 
@@ -377,9 +384,7 @@ test_tracked_claude_registration() {
 
 test_tracked_codex_registration() {
   local tool cmd rc payload codex_home="$TMP_ROOT/codex-home"
-  make_home "$codex_home"
-  rm -rf "$codex_home/bin"
-  ln -s "$ROOT/bin" "$codex_home/bin"
+  make_home "$codex_home" "$ROOT/bin"
   mkdir -p "$codex_home/.codex"
   cp "$ROOT/.codex/hooks.json" "$codex_home/.codex/hooks.json"
   for tool in Bash apply_patch; do

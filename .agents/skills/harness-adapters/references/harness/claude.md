@@ -105,5 +105,10 @@ A primary should also keep an untracked home-local `permissions.deny` for known 
 Never track it in project `.claude/settings.json`, which is Claude-only and propagates to worker copies where it would disarm legitimate delegation.
 `../../../docs/subagent-guard.md` owns the contract, recommendation, `FM_ALLOW_SUBAGENT=1`, and applicability review.
 
+### Write guard
+
+`../../../bin/fm-primary-write-pretool-check.sh` refuses a primary's `Edit`, `MultiEdit`, `Write`, `NotebookEdit`, and Bash writes outside its private operational paths, so the request goes to a worker instead.
+`../../../docs/primary-write-guard.md` owns the carve-outs, grants, `FM_ALLOW_PRIMARY_WRITE=1`, and residual limits.
+
 On Claude 2.1.217 the tool presents as `Agent`, and both `Agent` and `Task` worked as deny keys in an A/B with nonsense control.
 `permissions.allow` pre-approves rather than controls availability, so no closed positive allowlist exists.
