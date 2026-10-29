@@ -749,6 +749,146 @@ test_teardown_closes_the_backlog_item_itself() {
   pass "teardown closes its own backlog item before reporting success"
 }
 
+residual_row_field() {  # <case-dir> <field>
+  tasks-axi show task-x1-residual --file "$1/data/backlog.md" --full 2>/dev/null |
+    sed -n "s/^  $2: *//p" | head -1
+}
+
+# Log every tmux and treehouse call, so a case can tell whether cleanup closed
+# the endpoint or returned the copy.
+log_endpoint_and_copy_calls() {  # <case-dir>
+  local case_dir=$1
+  cat > "$case_dir/fakebin/tmux" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$case_dir/tmux.log"
+exit 0
+SH
+  cat > "$case_dir/fakebin/treehouse" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$case_dir/treehouse.log"
+exit 0
+SH
+  chmod +x "$case_dir/fakebin/tmux" "$case_dir/fakebin/treehouse"
+  : > "$case_dir/tmux.log"
+  : > "$case_dir/treehouse.log"
+}
+
+# Delivered work whose only remaining reason to stay open is a check that may
+# never happen closes now; what is left becomes its own visible, held item.
+test_residual_closes_delivered_work_and_files_a_held_follow_up() {
+  local case_dir out rc=0 text='Verify the cancel path (pending event) once a real case happens'
+  case_dir=$(make_case residual-close)
+  write_meta "$case_dir" local-only ship
+  seed_backlog_in_flight "$case_dir"
+  log_endpoint_and_copy_calls "$case_dir"
+
+  out=$(run_teardown "$case_dir" --residual "$text" 2> "$case_dir/stderr") || rc=$?
+  expect_code 0 "$rc" "residual-close: teardown with a residual should succeed ($(cat "$case_dir/stderr"))"
+  [ "$(backlog_row_state "$case_dir")" = "done" ] \
+    || fail "residual-close: the delivered task stayed open: $(backlog_row_state "$case_dir")"
+  assert_absent "$case_dir/state/task-x1.meta" "residual-close: the worker record outlived the close"
+  assert_grep "kill-window" "$case_dir/tmux.log" "residual-close: an ordinary residual close did not close the endpoint"
+  assert_grep "return" "$case_dir/treehouse.log" "residual-close: an ordinary residual close did not return the copy"
+  [ "$(residual_row_field "$case_dir" state)" = queued ] \
+    || fail "residual-close: the residual is not a Queued item: $(residual_row_field "$case_dir" state)"
+  [ "$(residual_row_field "$case_dir" held)" = yes ] \
+    && [ "$(residual_row_field "$case_dir" hold_kind)" = external ] \
+    || fail "residual-close: the residual is not held out of dispatch as an external wait"
+  [ "$(residual_row_field "$case_dir" kind)" = residual ] \
+    || fail "residual-close: the residual item has kind $(residual_row_field "$case_dir" kind)"
+  [ "$(residual_row_field "$case_dir" title)" = "$text" ] \
+    || fail "residual-close: the residual title is not the given text: $(residual_row_field "$case_dir" title)"
+  assert_contains "$(residual_row_field "$case_dir" body)" "Left over from task-x1, closed as delivered: local main." \
+    "residual-close: the residual body does not name the closed task and its deliverable"
+  assert_contains "$out" "Residual: task-x1-residual is Queued and held" \
+    "residual-close: teardown did not report where the residual went"
+  pass "--residual closes delivered work and files what is left as a held Queued item"
+}
+
+# Cleanup would destroy what must be kept, so --keep-running closes only the
+# records and leaves the endpoint, the copy, and what runs in it alone.
+test_keep_running_closes_records_but_leaves_endpoint_and_copy() {
+  local case_dir out rc=0 pid body
+  case_dir=$(make_case residual-keep-running)
+  write_meta "$case_dir" local-only ship
+  seed_backlog_in_flight "$case_dir"
+  printf '%s\n' "tasktmp=$case_dir/tasktmp" >> "$case_dir/state/task-x1.meta"
+  mkdir -p "$case_dir/tasktmp"
+  mkdir -p "$case_dir/wt/.claude"
+  printf '{}\n' > "$case_dir/wt/.claude/settings.local.json"
+  log_endpoint_and_copy_calls "$case_dir"
+  ( cd "$case_dir/wt" && exec sleep 300 ) &
+  pid=$!
+  disown
+  sleep 0.3
+  kill -0 "$pid" 2>/dev/null || fail "residual-keep-running: setup sleeper did not start"
+
+  out=$(run_teardown "$case_dir" --residual "Keep the workspace with your personal chat open" --keep-running \
+    2> "$case_dir/stderr") || rc=$?
+  if ! kill -0 "$pid" 2>/dev/null; then
+    fail "residual-keep-running: a process running in the kept copy was killed"
+  fi
+  kill -KILL "$pid" 2>/dev/null || true
+  expect_code 0 "$rc" "residual-keep-running: teardown should succeed ($(cat "$case_dir/stderr"))"
+  [ "$(backlog_row_state "$case_dir")" = "done" ] \
+    || fail "residual-keep-running: the delivered task stayed open: $(backlog_row_state "$case_dir")"
+  assert_absent "$case_dir/state/task-x1.meta" "residual-keep-running: the worker record outlived the close"
+  assert_no_grep "kill" "$case_dir/tmux.log" "residual-keep-running: the kept endpoint was closed"
+  assert_no_grep "return" "$case_dir/treehouse.log" \
+    "residual-keep-running: the kept local copy was returned to its pool"
+  assert_present "$case_dir/wt/.git" "residual-keep-running: the kept local copy is gone"
+  assert_present "$case_dir/tasktmp" "residual-keep-running: the running agent's temp root was removed"
+  git -C "$case_dir/project" rev-parse --verify -q refs/heads/fm/task-x1 >/dev/null \
+    || fail "residual-keep-running: the kept copy's branch was deleted"
+  assert_absent "$case_dir/wt/.claude/settings.local.json" \
+    "residual-keep-running: firstmate's turn-end wiring was left in the kept copy"
+  body=$(residual_row_field "$case_dir" body)
+  assert_contains "$body" "endpoint firstmate:fm-task-x1 on tmux, local copy $case_dir/wt" \
+    "residual-keep-running: the residual does not name the kept endpoint and copy"
+  assert_contains "$out" "Kept running: endpoint firstmate:fm-task-x1 and local copy $case_dir/wt were left untouched." \
+    "residual-keep-running: teardown did not say what it left running"
+  pass "--keep-running closes delivered work while its endpoint, copy, processes, and branch stay untouched"
+}
+
+test_residual_flags_refuse_incomplete_or_unsafe_requests() {
+  local case_dir rc label
+  case_dir=$(make_case residual-refusals)
+  write_meta "$case_dir" local-only ship
+  seed_backlog_in_flight "$case_dir"
+  for label in keep-without-residual keep-with-force empty-residual multi-line-residual; do
+    rc=0
+    case "$label" in
+      keep-without-residual) run_teardown "$case_dir" --keep-running ;;
+      keep-with-force) run_teardown "$case_dir" --residual "keep it" --keep-running --force ;;
+      empty-residual) run_teardown "$case_dir" --residual "" ;;
+      multi-line-residual) run_teardown "$case_dir" --residual $'two\nlines' ;;
+    esac > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    expect_code 2 "$rc" "residual-refusals: $label"
+    assert_present "$case_dir/state/task-x1.meta" "residual-refusals: $label removed the worker record"
+    [ "$(backlog_row_state "$case_dir")" = in_flight ] \
+      || fail "residual-refusals: $label moved the task to $(backlog_row_state "$case_dir")"
+    [ -z "$(residual_row_field "$case_dir" state)" ] \
+      || fail "residual-refusals: $label filed a residual"
+  done
+  pass "residual flags refuse a keep-running without a residual, with --force, or a residual that is not one line"
+}
+
+test_residual_is_not_filed_when_teardown_refuses_unlanded_work() {
+  local case_dir rc=0
+  case_dir=$(make_case residual-unlanded)
+  write_meta "$case_dir" no-mistakes ship
+  seed_backlog_in_flight "$case_dir"
+  wt_commit_file "$case_dir" unlanded.txt "not landed anywhere"
+
+  run_teardown "$case_dir" --residual "keep it" --keep-running > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  [ "$rc" -ne 0 ] || fail "residual-unlanded: teardown closed work that has not landed"
+  assert_grep "REFUSED" "$case_dir/stderr" "residual-unlanded: teardown did not refuse unlanded work"
+  assert_present "$case_dir/state/task-x1.meta" "residual-unlanded: the worker record was removed"
+  [ -z "$(residual_row_field "$case_dir" state)" ] \
+    || fail "residual-unlanded: a refused teardown still filed a residual"
+  pass "a residual close still refuses unlanded work and files nothing"
+}
+
 test_teardown_closes_a_gerrit_task_with_its_change_url_as_a_note() {
   local case_dir out real_tasks_axi gerrit_url=https://gerrit.example.com/c/project/+/12345
   case_dir=$(make_case tasks-axi-close-gerrit)
@@ -5620,6 +5760,10 @@ test_forced_secondmate_own_missing_adapter_sibling_refuses_before_child_cleanup
 test_retained_sources_still_reach_the_ordinary_refusal
 test_local_only_fork_remote_allows
 test_teardown_closes_the_backlog_item_itself
+test_residual_closes_delivered_work_and_files_a_held_follow_up
+test_keep_running_closes_records_but_leaves_endpoint_and_copy
+test_residual_flags_refuse_incomplete_or_unsafe_requests
+test_residual_is_not_filed_when_teardown_refuses_unlanded_work
 test_teardown_closes_a_gerrit_task_with_its_change_url_as_a_note
 test_teardown_closes_a_gitlab_task_with_its_merge_request_url_as_a_note
 test_teardown_manual_backend_leaves_the_backlog_to_the_operator

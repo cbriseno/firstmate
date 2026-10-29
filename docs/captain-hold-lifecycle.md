@@ -11,6 +11,7 @@ This document records the deterministic mechanism, structured surfaces, compatib
 | Question | Section |
 | --- | --- |
 | What is a captain call, and which subcommand does what? | [Mechanism](#mechanism) |
+| Which call does supervision open by itself? | [The idle in-flight call](#the-idle-in-flight-call) |
 | Why does cleanup of finished work leave a captain call open? | [Cleanup never closes a captain call](#cleanup-never-closes-a-captain-call) |
 | How does a keyed answer from chat or a board reach the call? | [Answer-time resolution](#answer-time-resolution) |
 | How is a call closed when it stopped being a question? | [Reconcile](#reconcile-re-check-reality-never-a-blind-close) |
@@ -72,6 +73,12 @@ Repeat and edge cases:
   They are validated before any mutation and written to the private `data/<task-id>/captain-call.json` record only after the backend hold succeeds.
   The record names the hold-set stamp it belongs to, so a new lifecycle never inherits an older call, while an active hold's repeat without fields keeps it only when it already has choices or a `--no-options` reason.
   The script header's STRUCTURED CALL FIELDS section owns the bounds and record schema.
+
+### The idle in-flight call
+
+One caller opens a call without an agent choosing it: `bin/fm-inactive-reconcile.sh` holds work still in flight whose worker is gone and that waits on nothing due, through the same `hold` path with a close, keep, and restart card.
+It reads only structured state, never prose, opens at most one call per incarnation and last status line, and leaves any call already open on that row alone.
+That script's header owns the rule, and `tests/fm-inactive-reconcile.test.sh` pins it.
 
 ### Answering a call (`answer`)
 
@@ -670,6 +677,7 @@ The exact commands and their summarized outputs are recorded in the shipping PR'
 To refresh this record, run:
 
 - The four suites above: `tests/fm-captain-hold-lifecycle.test.sh`, `tests/fm-classify-decision-key.test.sh`, `tests/fm-fleet-snapshot-view.test.sh`, and `tests/fm-bearings-snapshot.test.sh`.
+- `tests/fm-inactive-reconcile.test.sh` for the idle in-flight call.
 - `tests/fm-send-resolve-key.test.sh`, `tests/fm-bearings-board.test.sh`, and `tests/fm-procevent.test.sh`.
 - `bin/fm-lint.sh`.
 

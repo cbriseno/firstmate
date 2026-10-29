@@ -202,6 +202,27 @@
 # never left leased forever. If the treehouse return fails, teardown leaves the
 # leased home and state in place instead of hiding a still-held lease.
 # Usage: fm-teardown.sh <task-id> [--force] [--legacy-record]
+#                       [--residual "<what is left>" [--keep-running]]
+#   --residual closes delivered work whose only remaining reason to stay open
+#   is something kept alive to protect it or a real-world check that may never
+#   happen. It runs every ordinary gate unchanged and, before the first
+#   destructive step, files the residual as its own backlog item
+#   <task-id>-residual: Queued, titled with the given one-line text (at most
+#   400 bytes, no control characters), kind residual, held with an external
+#   hold so it is visible and never dispatched, its body naming the closed task
+#   and its deliverable. A failure to file it refuses with every record intact;
+#   a repeat keeps the existing row. Checking it and closing that row is
+#   firstmate's (ship-landing owns the policy). A home whose backlog is edited
+#   by hand gets the item to file printed instead.
+#   --keep-running, only with --residual and never with --force, is for the
+#   case where cleanup itself would destroy what must be kept: it closes the
+#   task's records exactly as above but leaves its endpoint, its local copy, the
+#   processes running in either, its branch, and its temp root untouched, and
+#   names the endpoint and copy in the residual item so they stay findable. Only
+#   firstmate's own turn-end wiring is removed from the copy, so the agent left
+#   running cannot signal a task that no longer exists. The landed-work
+#   refusals still apply, because the task is still being closed as delivered.
+#   Neither flag applies to a secondmate.
 #   --force skips ordinary-task dirty and landed-work checks, skips scout report
 #   checks, and discards secondmate child work for kind=secondmate. Only use it
 #   when the captain has explicitly said to discard the work.
@@ -498,11 +519,21 @@ ID=$1
 TEARDOWN_LOST_SLOT_EXIT=4
 FORCE=
 LEGACY_RECORD_GIVEN=0
+RESIDUAL=
+RESIDUAL_GIVEN=0
+KEEP_RUNNING=0
 shift
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --force) FORCE=--force ;;
     --legacy-record) LEGACY_RECORD_GIVEN=1 ;;
+    --residual)
+      [ "$#" -ge 2 ] || { echo "error: --residual needs the one-line text of what is left" >&2; exit 2; }
+      RESIDUAL=$2
+      RESIDUAL_GIVEN=1
+      shift
+      ;;
+    --keep-running) KEEP_RUNNING=1 ;;
     *)
       echo "error: invalid teardown request" >&2
       exit 2
@@ -510,6 +541,26 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
+if [ "$RESIDUAL_GIVEN" = 1 ]; then
+  case "$RESIDUAL" in
+    ''|*[[:cntrl:]]*)
+      echo "error: --residual needs one non-empty line of text without control characters" >&2
+      exit 2
+      ;;
+  esac
+  if [ "$(printf '%s' "$RESIDUAL" | wc -c | tr -d ' ')" -gt 400 ]; then
+    echo "error: --residual text is longer than 400 bytes; keep it to one short line" >&2
+    exit 2
+  fi
+fi
+if [ "$KEEP_RUNNING" = 1 ] && [ "$RESIDUAL_GIVEN" != 1 ]; then
+  echo "error: --keep-running needs --residual naming what is kept running and why" >&2
+  exit 2
+fi
+if [ "$KEEP_RUNNING" = 1 ] && [ "$FORCE" = --force ]; then
+  echo "error: --keep-running leaves the endpoint and local copy untouched, so it cannot discard work with --force" >&2
+  exit 2
+fi
 fm_backlog_directory_present "$STATE" "state directory" || {
   echo "error: teardown refused: $FM_BACKLOG_TRANSITION_ERROR" >&2
   exit 1
@@ -1262,6 +1313,10 @@ ORCA_PATH_MATCH_VERIFIED=0
 CLEANUP_RECOVERY=$TEARDOWN_CLEANUP_RECOVERY
 
 KIND=$TEARDOWN_META_KIND
+if [ "$KIND" = secondmate ] && [ "$RESIDUAL_GIVEN" = 1 ]; then
+  echo "error: --residual and --keep-running close delivered work items; secondmate $ID is not one" >&2
+  exit 2
+fi
 TEARDOWN_POOL_SLOT_LOST=0
 EXPECTED_TREEHOUSE_PROJECT_LOCK=
 if [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ] \
@@ -1763,6 +1818,61 @@ backlog_done_args() {
       fi
       ;;
   esac
+}
+
+# The residual item the header's --residual describes. The deliverable named in
+# its body is the one backlog_done_args records on the closed row.
+RESIDUAL_ID="$ID-residual"
+RESIDUAL_HOLD_REASON="left over from delivered work - check it, then close it"
+teardown_residual_body() {
+  local deliverable
+  case "$KIND" in
+    scout) deliverable="its report data/$ID/report.md" ;;
+    *)
+      if [ "$MODE" = local-only ]; then
+        deliverable="local main"
+      elif [ -n "$PR_URL" ]; then
+        deliverable=$PR_URL
+      else
+        deliverable="no recorded link"
+      fi
+      ;;
+  esac
+  printf 'Left over from %s, closed as delivered: %s.\n' "$ID" "$deliverable"
+  if [ "$KEEP_RUNNING" = 1 ]; then
+    printf 'Kept running and untouched by its cleanup: endpoint %s on %s, local copy %s. Release them once nothing needs them.\n' \
+      "${T:-(none recorded)}" "$BACKEND" "${WT:-(none recorded)}"
+  fi
+  printf 'Check it, then close this item.\n'
+}
+
+teardown_record_residual() {
+  local body repo
+  [ "$TEARDOWN_BACKLOG_APPLIES" = 1 ] || return 0
+  body=$(teardown_residual_body)
+  repo=$(basename "${PROJ:-}")
+  if ! fm_backlog_mutate "$DATA" add "$RESIDUAL_ID" "$RESIDUAL" --kind residual \
+      ${repo:+--repo "$repo"} --body "$body"; then
+    echo "error: the residual of $ID could not be filed as $RESIDUAL_ID ($FM_BACKLOG_TRANSITION_ERROR); nothing was cleaned up" >&2
+    return 1
+  fi
+  if ! fm_backlog_mutate "$DATA" hold "$RESIDUAL_ID" --kind external --reason "$RESIDUAL_HOLD_REASON"; then
+    echo "error: the residual $RESIDUAL_ID of $ID could not be held out of dispatch ($FM_BACKLOG_TRANSITION_ERROR); nothing was cleaned up" >&2
+    return 1
+  fi
+}
+
+residual_reminder() {
+  [ "$RESIDUAL_GIVEN" = 1 ] || return 0
+  if [ "$TEARDOWN_BACKLOG_APPLIES" = 1 ]; then
+    printf '%s\n' "Residual: $RESIDUAL_ID is Queued and held as an external wait with what is left of $ID; check it and close it when it is settled."
+  else
+    printf '%s\n' "Residual: this home's backlog is not updated automatically - add $RESIDUAL_ID to Queued, titled \"$RESIDUAL\", kind residual, held as an external wait, with this body:"
+    teardown_residual_body | sed 's/^/  /'
+  fi
+  if [ "$KEEP_RUNNING" = 1 ]; then
+    printf '%s\n' "Kept running: endpoint ${T:-(none recorded)} and local copy ${WT:-(none recorded)} were left untouched."
+  fi
 }
 
 # Closing the backlog item is this script's own last act on the record, not a
@@ -3658,11 +3768,18 @@ fi
 # refuses before any destructive step.
 TEARDOWN_HERDR_SESSION=
 TEARDOWN_HERDR_PANE=
-if [ "$BACKEND" = herdr ]; then
+# --keep-running closes no pane, so it neither needs nor takes that lock.
+if [ "$BACKEND" = herdr ] && [ "$KEEP_RUNNING" != 1 ]; then
   teardown_herdr_preflight_target "$T" "$ID" || exit 1
   fm_backend_herdr_parse_target "$T" || exit 1
   TEARDOWN_HERDR_SESSION=$FM_BACKEND_HERDR_SESSION
   TEARDOWN_HERDR_PANE=$FM_BACKEND_HERDR_PANE
+fi
+
+# Every refusal has passed and nothing is destroyed yet, so a residual that
+# cannot be recorded stops here with every record intact (header: --residual).
+if [ "$RESIDUAL_GIVEN" = 1 ]; then
+  teardown_record_residual || exit 1
 fi
 
 BACKLOG_CLOSED=0
@@ -3752,8 +3869,8 @@ fi
 # not by task-worktree cleanup.
 if [ "$KIND" != secondmate ] && teardown_owns_worktree; then
   conclude_task_no_mistakes_run "$WT"
-  reap_task_worktree_processes worktree "$WT" "$TASK_TMP"
-elif [ "$KIND" != secondmate ]; then
+  [ "$KEEP_RUNNING" = 1 ] || reap_task_worktree_processes worktree "$WT" "$TASK_TMP"
+elif [ "$KIND" != secondmate ] && [ "$KEEP_RUNNING" != 1 ]; then
   reap_task_worktree_processes tasktmp "$TASK_TMP"
 fi
 if [ "$KIND" = ship ] && teardown_owns_worktree && [ -e "$CONFIG/pipeline-spend" ]; then
@@ -3767,7 +3884,15 @@ fi
 "$SCRIPT_DIR/fm-remote-job-reap-orphans.sh" >&2 || true
 
 # Best-effort: drop the local task branch so the shared repo does not accumulate refs.
-if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then
+if [ "$KEEP_RUNNING" = 1 ]; then
+  # Header: --keep-running. Only firstmate's own turn-end wiring leaves the copy.
+  if teardown_owns_worktree && [ -d "$WT" ]; then
+    rm -f "$WT/.claude/settings.local.json" "$WT/.opencode/plugins/fm-turn-end.js" \
+      "$WT/.opencode/plugins/fm-busy-state.js" \
+      "$WT/.fm-grok-turnend" "$WT/.fm-kimi-turnend"
+    remove_harness_worktree_wiring "$WT"
+  fi
+elif [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then
   if [ "$ORCA_PATH_MATCH_VERIFIED" != 1 ]; then
     require_orca_worktree_path_match_if_present "$ORCA_WORKTREE_ID" "$WT" || exit 1
     ORCA_PATH_MATCH_VERIFIED=1
@@ -3847,7 +3972,7 @@ teardown_herdr_journal_orphaned() {
 HERDR_PRESENTATION_RETIRE_CANDIDATE=0
 HERDR_PRESENTATION_SESSION=
 HERDR_PRESENTATION_PANE=
-if [ "$BACKEND" = herdr ] \
+if [ "$BACKEND" = herdr ] && [ "$KEEP_RUNNING" != 1 ] \
    && { [ -e "$HERDR_PRESENTATION_JOURNAL" ] || [ -L "$HERDR_PRESENTATION_JOURNAL" ]; }; then
   fm_backend_source herdr || true
   HERDR_PRESENTATION_SESSION=$(meta_value "$META" herdr_session)
@@ -3864,7 +3989,10 @@ if [ "$BACKEND" = herdr ] \
   fi
 fi
 
-if [ "$HERDR_PRESENTATION_RETIRE_CANDIDATE" = 1 ]; then
+if [ "$KEEP_RUNNING" = 1 ]; then
+  # Header: --keep-running. The endpoint stays exactly as it is.
+  :
+elif [ "$HERDR_PRESENTATION_RETIRE_CANDIDATE" = 1 ]; then
   # The presentation lock was acquired before the worktree return above; a
   # contended lock already refused this teardown while everything was intact.
   if teardown_herdr_session_lock_held "$HERDR_PRESENTATION_SESSION"; then
@@ -3901,7 +4029,7 @@ if [ "$HERDR_PRESENTATION_RETIRE_CANDIDATE" = 1 ]; then
   else
     echo "warning: exact herdr task-pane close could not be confirmed for $ID; retaining the presentation journal and attempting no workspace cleanup" >&2
   fi
-elif [ "$BACKEND" = herdr ] \
+elif [ "$BACKEND" = herdr ] && [ "$KEEP_RUNNING" != 1 ] \
      && { [ -e "$HERDR_PRESENTATION_JOURNAL" ] || [ -L "$HERDR_PRESENTATION_JOURNAL" ]; }; then
   echo "warning: herdr presentation journal for $ID was not retired by its close; no workspace cleanup was attempted" >&2
 fi
@@ -3910,8 +4038,8 @@ fi
 # every record and stop before any removal below so a later rerun can retry
 # the locked close. Only a structured not-found proves the pane gone; unknown
 # presence, missing or malformed endpoint identity, and missing confirmation
-# machinery all refuse.
-if [ "$BACKEND" = herdr ]; then
+# machinery all refuse. --keep-running closed nothing, so it has nothing to confirm.
+if [ "$BACKEND" = herdr ] && [ "$KEEP_RUNNING" != 1 ]; then
   fm_backend_source herdr || true
   if ! declare -F fm_backend_herdr_endpoint_confirmed_gone >/dev/null 2>&1; then
     echo "error: herdr endpoint confirmation is unavailable for $ID; retaining every durable task record" >&2
@@ -3956,7 +4084,8 @@ remove_kimi_turnend_auth "$STATE" "$ID" || exit 1
 fm_backend_clear_transition "$BACKEND" "$STATE" "$T" || true
 # Remove the per-task temp root (/tmp/fm-<id>/, incl. its gotmp/) recorded by spawn.
 # Read before the state-file rm below; empty (pre-fix tasks without tasktmp=) is a no-op.
-[ -n "$TASK_TMP" ] && rm -rf "$TASK_TMP"
+# --keep-running leaves it, and the launch namespace below, to the running agent.
+[ -n "$TASK_TMP" ] && [ "$KEEP_RUNNING" != 1 ] && rm -rf "$TASK_TMP"
 # Retire only this Firstmate home's launch namespace. Its never-reused per-spawn
 # files leave the equal task-id namespace of every other home untouched.
 teardown_launch_home_token() {
@@ -3975,7 +4104,7 @@ teardown_launch_home_token() {
   printf '%s' "$hash"
 }
 LAUNCH_HOME_TOKEN=$(teardown_launch_home_token "$FM_HOME") || LAUNCH_HOME_TOKEN=
-if [ -n "$LAUNCH_HOME_TOKEN" ]; then
+if [ -n "$LAUNCH_HOME_TOKEN" ] && [ "$KEEP_RUNNING" != 1 ]; then
   rm -rf "/tmp/fm-$ID+$LAUNCH_HOME_TOKEN"
 fi
 remove_pr_poll_artifacts "$STATE" "$ID" || exit 1
@@ -4074,5 +4203,6 @@ else
   echo "teardown $ID complete (window ${T:-none}; pool slot $WT left to task $TEARDOWN_SLOT_REASSIGNED_TO${TEARDOWN_SLOT_REASSIGNED_HOME:+ (home $TEARDOWN_SLOT_REASSIGNED_HOME)}, which it was reassigned to)"
 fi
 backlog_refresh_reminder
+residual_reminder
 install_followup_reminder
 [ "$TEARDOWN_POOL_SLOT_LOST" = 0 ] || exit "$TEARDOWN_LOST_SLOT_EXIT"

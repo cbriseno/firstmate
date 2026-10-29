@@ -34,7 +34,11 @@ make_tools() { # <world>
   mkdir -p "$fake"
   cat > "$fake/fm-crew-state.sh" <<'SH'
 #!/usr/bin/env bash
-printf 'state: %s · source: fake\n' "${FM_FAKE_CREW_STATE:-unknown}"
+if [ -n "${FM_FAKE_CREW_LINE:-}" ]; then
+  printf '%s\n' "$FM_FAKE_CREW_LINE"
+else
+  printf 'state: %s · source: fake\n' "${FM_FAKE_CREW_STATE:-unknown}"
+fi
 SH
   cat > "$fake/tmux" <<'SH'
 #!/usr/bin/env bash
@@ -1038,6 +1042,107 @@ SH
   pass "reconciliation state reads set no-forge mode"
 }
 
+# The crew-state reading of work whose worker endpoint is gone.
+IDLE_GONE_LINE='state: unknown · source: none · backend target gone: firstmate:fm-child'
+
+seed_in_flight_row() { # <home> <id>
+  local home=$1 id=$2
+  [ -f "$home/data/backlog.md" ] \
+    || printf '%s\n' '# Backlog' '' '## In flight' '' '## Queued' '' '## Done' > "$home/data/backlog.md"
+  ( cd "$home" && tasks-axi add "$id" "idle fixture work" --kind ship --file data/backlog.md >/dev/null \
+      && tasks-axi start "$id" --file data/backlog.md >/dev/null ) || fail "could not seed backlog row $id"
+}
+
+captain_hold_in() { # <home> <captain-hold args...>
+  local home=$1
+  shift
+  FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+    FM_CONFIG_OVERRIDE="$home/config" "$ROOT/bin/fm-captain-hold.sh" "$@"
+}
+
+# wake_count prints nothing when no wake was ever queued.
+idle_wakes() { # <home> <key prefix>
+  local n
+  n=$(wake_count "$1" "$2")
+  printf '%s\n' "${n:-0}"
+}
+
+idle_scan() { # <home> [bound-seconds]
+  FM_PAUSE_RESURFACE_SECS=${2:-60} FM_FAKE_CREW_LINE=${IDLE_LINE:-$IDLE_GONE_LINE} \
+    run_reconcile "$1" --startup >/dev/null
+}
+
+# Work in flight whose worker is gone and that waits on nothing due is asked
+# about once as a captain call with real choices, never re-absorbed as a wait.
+test_idle_in_flight_work_opens_one_captain_call() {
+  local call
+  make_world idle-call; write_child "$MAIN" child 'paused: waiting for a real case to verify the cancel path'
+  seed_in_flight_row "$MAIN" child
+  idle_scan "$MAIN"
+  captain_hold_in "$MAIN" open child >/dev/null 2>&1 || fail "idle in-flight work was not held for the captain"
+  call="$MAIN/data/child/captain-call.json"
+  jq -e '[.call.options[].id] == ["close","keep","reopen"] and .call.recommended == "close"
+         and (.call.question | length) > 0 and (.call.context | length) > 0' "$call" >/dev/null \
+    || fail "idle captain call lacks its structured choices: $(cat "$call" 2>/dev/null)"
+  [ "$(idle_wakes "$MAIN" 'idle-in-flight:')" = 1 ] || fail "idle captain call did not wake the supervisor once"
+  assert_present "$MAIN/state/child.meta" "opening the idle captain call removed the worker record"
+  idle_scan "$MAIN"
+  [ "$(idle_wakes "$MAIN" 'idle-in-flight:')" = 1 ] || fail "idle captain call was surfaced again on the next scan"
+
+  printf '%s\n' 'keep it as it is' > "$WORLD/keep.txt"
+  captain_hold_in "$MAIN" answer child --decision-file "$WORLD/keep.txt" --release >/dev/null \
+    || fail "could not record the keep answer"
+  idle_scan "$MAIN"
+  ! captain_hold_in "$MAIN" open child >/dev/null 2>&1 || fail "a kept task was asked again with nothing changed"
+  printf '%s\n' 'paused: still waiting for a real case' >> "$MAIN/state/child.status"
+  age "$MAIN/state/child.status"
+  idle_scan "$MAIN"
+  captain_hold_in "$MAIN" open child >/dev/null 2>&1 || fail "a kept task was not asked again after a new status event"
+  [ "$(idle_wakes "$MAIN" 'idle-in-flight:')" = 2 ] || fail "the second idle call did not wake the supervisor"
+  pass "idle in-flight work is held once for the captain with close, keep, and restart choices"
+}
+
+test_idle_in_flight_skips_live_due_actionable_recent_or_held_work() {
+  local label status bound question
+  for label in live-agent due-wait open-blocker recent held; do
+    status='paused: waiting for a real case'; bound=60; IDLE_LINE=
+    case "$label" in
+      live-agent) IDLE_LINE='state: paused · source: status-log · waiting for a real case' ;;
+      due-wait) status='paused: waiting on the vendor until 2099-01-01T00:00Z' ;;
+      open-blocker) status='blocked: need the staging credential' ;;
+      recent) bound=100000 ;;
+    esac
+    make_world "idle-skip-$label"; write_child "$MAIN" child "$status"
+    seed_in_flight_row "$MAIN" child
+    if [ "$label" = held ]; then
+      captain_hold_in "$MAIN" hold child --reason 'ship timing' --question 'Ship it now?' \
+        --option 'now=Ship now' --option 'later=Ship later' >/dev/null || fail "could not open the existing call"
+    fi
+    idle_scan "$MAIN" "$bound"
+    [ "$(idle_wakes "$MAIN" 'idle-in-flight:')" = 0 ] || fail "$label work was surfaced as idle"
+    if [ "$label" = held ]; then
+      question=$(jq -r '.call.question' "$MAIN/data/child/captain-call.json")
+      [ "$question" = 'Ship it now?' ] || fail "the idle scan replaced an existing captain call: $question"
+    else
+      ! captain_hold_in "$MAIN" open child >/dev/null 2>&1 || fail "$label work was held for the captain"
+    fi
+  done
+  IDLE_LINE=
+  pass "work with a live agent, a due wait, an open blocker, recent activity, or an existing call is not asked about"
+}
+
+test_idle_in_flight_call_that_cannot_open_is_reported_once() {
+  make_world idle-no-row; write_child "$MAIN" child 'paused: waiting for a real case'
+  idle_scan "$MAIN"
+  [ "$(idle_wakes "$MAIN" 'inactive-reconcile:')" = 1 ] || fail "a call that could not open was not reported"
+  grep -F 'could not be opened: child=child' "$MAIN/state/.wake-queue" >/dev/null \
+    || fail "the report does not say the captain call could not be opened"
+  idle_scan "$MAIN"
+  [ "$(idle_wakes "$MAIN" 'inactive-reconcile:')" = 1 ] || fail "the failed call was reported again"
+  [ "$(idle_wakes "$MAIN" 'idle-in-flight:')" = 0 ] || fail "a call that never opened was announced as opened"
+  pass "an idle captain call that cannot be opened is reported once with its reason"
+}
+
 test_main_direct_terminal_presentation_receipt
 test_branch_ack_retires_inactive_outcome_receipt
 test_unpushed_ci_ready_done_is_not_published
@@ -1075,5 +1180,8 @@ test_notice_recovery_does_not_duplicate_wake
 test_missing_parent_binding_names_itself
 test_reconciliation_never_calls_forge
 test_reconciliation_sets_no_forge_mode_for_state_read
+test_idle_in_flight_work_opens_one_captain_call
+test_idle_in_flight_skips_live_due_actionable_recent_or_held_work
+test_idle_in_flight_call_that_cannot_open_is_reported_once
 
 echo "all inactive reconciliation tests passed"
