@@ -22,8 +22,9 @@
 # Usage:
 #   fm-captain-hold.sh hold <task-id> --reason <reason> \
 #     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD] \
-#     [--question <line> [--option <id>=<label>[|<detail>]]... [--recommended <id>] \
-#      [--context <line>] [--link <report path or URL>]]
+#     (--question <line> --option <id>=<label>[|<detail>] --option <id>=<label>[|<detail>]... \
+#      [--recommended <id>] [--context <line>] [--link <report path or URL>]
+#      | --no-options <why> [--question <line> [--context <line>] [--link <report path or URL>]])
 #   fm-captain-hold.sh answer <task-id> --decision-file <path> [--release] [--expected-identity <identity>]
 #   fm-captain-hold.sh answers [<legacy-origin> | --any-origin] --source <provenance> [--expected-identity <identity>]   (keyed answers on stdin)
 #   fm-captain-hold.sh reconcile-requests --source-id <source-id> --source <provenance> [--expected-identity <identity>]   (task ids on stdin)
@@ -64,7 +65,19 @@
 # STRUCTURED CALL FIELDS. `--question`, the repeatable `--option`,
 # `--recommended`, `--context`, and `--link` record the captain-facing card
 # beside the unchanged `--reason`, so a board can offer real choices instead of
-# options buried in prose. Any of them requires `--question`. Bounds, in
+# options buried in prose. They are REQUIRED: every hold that opens a captain
+# call - a new task, a held task's first hold, a re-hold after a release, or a
+# hold whose `--until` date lapsed - must pass `--question` and at least two
+# `--option` values, with `--recommended` naming the recommended one when there
+# is one. The only escape is `--no-options <why>` for a genuinely open question
+# or a wait with no choices (a human action, a date); its one-line reason (160
+# characters) is recorded in the call record's `no_options` field, `--question`
+# stays optional beside it, and it cannot be combined with `--option` or
+# `--recommended`. Anything else is refused before any mutation, with the
+# expected call shape on stderr. A repeat of an active hold (a reason update or
+# an `--until` deferral) may omit the fields only while the current lifecycle's
+# record already carries two options or a `no_options` reason; it then keeps
+# that record. Any of the card fields requires `--question`. Bounds, in
 # characters: question 160, option label 40, option detail 120, context 200,
 # link 500, at most 8 options. Option ids are slugs of at most 32 characters,
 # unique per call, and never the reserved answer `reconcile`; `--recommended`
@@ -72,10 +85,11 @@
 # and a field over its bound is refused rather than truncated. Validation runs
 # before any mutation. After the backend hold succeeds, the fields are written
 # atomically to the private record data/<task-id>/captain-call.json (schema
-# fm-captain-call.v1), bound to this hold lifecycle by its hold-set stamp. A
-# hold given no call fields leaves that record alone: an active hold's repeat
-# keeps its call, and a new lifecycle (new stamp) no longer matches the old
-# record, so readers show no call for it.
+# fm-captain-call.v1: `call` is the card object, null for a `--no-options` hold
+# without a question, and `no_options` appears only with that escape), bound to
+# this hold lifecycle by its hold-set stamp. An active hold's repeat without
+# fields keeps its record, and a new lifecycle (new stamp) never matches an
+# older record.
 # bin/fm-fleet-snapshot.sh exports a matching record as each open captain
 # hold's `call` object and omits it otherwise; nothing ever derives options
 # from reason or body prose.
@@ -1018,15 +1032,54 @@ captain_call_path() {  # <task-id>
   printf '%s/%s/captain-call.json\n' "$data" "$1"
 }
 
-# Normalize the structured flags into one call object in CALL_JSON, or fail
+# Refuse a new captain call that carries no real choices, naming the expected
+# call shape so the caller can retry at once.
+refuse_without_choices() {  # <task-id> <why>
+  local id=$1
+  printf 'fm-captain-hold: %s\n' "$2" >&2
+  cat >&2 <<EOF
+A captain call needs real choices the captain can click. Hold it as:
+  fm-captain-hold.sh hold $id --reason "<short summary>" \\
+    --question "<the question>" --option <id>="<choice>" --option <id>="<choice>" \\
+    [--recommended <id>] [--context "<one line>"] [--link <report path or URL>]
+Only for a genuinely open question or a wait with no choices (a human action, a date):
+  fm-captain-hold.sh hold $id --reason "<short summary>" \\
+    --no-options "<why there are no choices>" [--question "<the question>"]
+EOF
+  exit 1
+}
+
+# True when the private call record already gives the current hold lifecycle
+# real choices or a recorded --no-options reason, so a repeat may keep it.
+call_record_satisfies() {  # <task-id> <hold-set>
+  local path
+  [ -n "$2" ] || return 1
+  path=$(captain_call_path "$1") || return 1
+  [ -f "$path" ] && [ ! -L "$path" ] || return 1
+  jq -e --arg schema "$CALL_SCHEMA" --arg id "$1" --arg hold_set "$2" '
+    .schema == $schema and .id == $id and .hold_set == $hold_set
+    and (((.no_options // null) | type) == "string"
+         or (((.call // {}).options // []) | length) >= 2)
+  ' "$path" >/dev/null 2>&1
+}
+
+# Normalize the structured flags into one record payload in CALL_JSON, or fail
 # before any mutation. jq measures the bounds, so they count characters rather
 # than bytes in either language.
-build_call_json() {  # <question> <recommended> <context> <link> [<option-spec>...]
-  local question=$1 recommended=$2 context=$3 link=$4 out
-  shift 4
-  [ -n "$question" ] || fail "--question is required with --option, --recommended, --context, or --link"
+build_call_json() {  # <task-id> <question> <recommended> <context> <link> <no-options> [<option-spec>...]
+  local id=$1 question=$2 recommended=$3 context=$4 link=$5 no_options=$6 out
+  shift 6
+  if [ -n "$no_options" ]; then
+    [ "$#" -eq 0 ] && [ -z "$recommended" ] \
+      || fail "--no-options cannot be combined with --option or --recommended"
+    [ -n "$question" ] || { [ -z "$context" ] && [ -z "$link" ]; } \
+      || fail "--question is required with --context or --link"
+  else
+    [ -n "$question" ] || refuse_without_choices "$id" "--question is required with --option, --recommended, --context, or --link"
+    [ "$#" -ge 2 ] || refuse_without_choices "$id" "a captain call needs at least two --option choices"
+  fi
   out=$(jq -cn --arg question "$question" --arg recommended "$recommended" \
-    --arg context "$context" --arg link "$link" '
+    --arg context "$context" --arg link "$link" --arg no_options "$no_options" '
     def trim: gsub("^[[:space:]]+|[[:space:]]+$"; "");
     def field($label; $max):
       if test("[[:cntrl:]]") then error("\($label) must be one line without control characters")
@@ -1050,12 +1103,15 @@ build_call_json() {  # <question> <recommended> <context> <link> [<option-spec>.
         error("option ids must be unique") else . end
     | if $recommended != "" and ([$options[].id] | index($recommended)) == null then
         error("--recommended must name an --option id: \($recommended)") else . end
-    | {question:($question | field("question"; 160)),
-       options:$options,
-       recommended:(if $recommended == "" then null else $recommended end),
-       context:($context | optional("context"; 200)),
-       link:($link | optional("link"; 500)
-             | if . != null and test("[[:space:]]") then error("link must not contain spaces") else . end)}
+    | {call:(if $question == "" then null else
+        {question:($question | field("question"; 160)),
+         options:$options,
+         recommended:(if $recommended == "" then null else $recommended end),
+         context:($context | optional("context"; 200)),
+         link:($link | optional("link"; 500)
+               | if . != null and test("[[:space:]]") then error("link must not contain spaces") else . end)}
+        end)}
+      + (if $no_options == "" then {} else {no_options:($no_options | field("no-options reason"; 160))} end)
   ' --args "$@" 2>&1) || fail "${out#jq: error (at <unknown>): }"
   CALL_JSON=$out
 }
@@ -1069,7 +1125,7 @@ write_captain_call() {  # <task-id> <hold-set>
     || fail "cannot prepare the task data directory $dir"
   tmp=$(umask 077; mktemp "$dir/.captain-call.XXXXXX") || fail "cannot stage the captain call for $id"
   if ! printf '%s' "$CALL_JSON" | jq -c --arg schema "$CALL_SCHEMA" --arg id "$id" \
-      --arg hold_set "$hold_set" '{schema:$schema,id:$id,hold_set:$hold_set,call:.}' > "$tmp" \
+      --arg hold_set "$hold_set" '{schema:$schema,id:$id,hold_set:$hold_set} + .' > "$tmp" \
     || ! mv -f -- "$tmp" "$path"; then
     rm -f -- "$tmp"
     fail "task $id is held for the captain but its structured call was not recorded; retry the same hold"
@@ -1262,7 +1318,7 @@ verify_entry_durable() {  # <origin-or-empty> <entry>; prints "<id> <how> <origi
 command_hold() {
   local id=${1:-} title='' reason='' repo='' origin='' until='' show state existing_title body='' hold_kind hold_set occurrence
   local existing_hold_kind='' existing_held='' preserve_hold_set=0 stored_reason previous_origin='' hold_status=0
-  local question='' recommended='' context='' link='' call_given=0
+  local question='' recommended='' context='' link='' no_options='' call_given=0
   local -a call_options=()
   [ "$#" -ge 1 ] || { usage >&2; exit 2; }
   shift
@@ -1278,6 +1334,10 @@ command_hold() {
       --recommended) shift; recommended=${1:-}; call_given=1 ;;
       --context) shift; context=${1:-}; call_given=1 ;;
       --link) shift; link=${1:-}; call_given=1 ;;
+      --no-options)
+        shift; no_options=${1:-}; call_given=1
+        [ -n "$no_options" ] || fail "--no-options needs a short reason why the call has no choices"
+        ;;
       *) usage >&2; exit 2 ;;
     esac
     shift
@@ -1285,7 +1345,7 @@ command_hold() {
   validate_slug task-id "$id"
   [ -n "$reason" ] || fail "reason must not be empty"
   if [ "$call_given" = 1 ]; then
-    build_call_json "$question" "$recommended" "$context" "$link" \
+    build_call_json "$id" "$question" "$recommended" "$context" "$link" "$no_options" \
       "${call_options[@]+"${call_options[@]}"}"
   fi
   # bin/fm-hold-reason-lib.sh owns the storage constraint and reversible encoding.
@@ -1316,11 +1376,19 @@ command_hold() {
     if [ "$existing_hold_kind" = captain ] && [ "$existing_held" = yes ]; then
       preserve_hold_set=1
     fi
+    # Only a repeat of an active hold whose card already has choices may omit
+    # the call fields; anything else would open a call with nothing to click.
+    if [ "$call_given" = 0 ]; then
+      { [ "$preserve_hold_set" = 1 ] \
+          && call_record_satisfies "$id" "$(body_hold_set_timestamp "$(show_field_value "$show" body)")"; } \
+        || refuse_without_choices "$id" "task $id has no captain call fields"
+    fi
     if [ -n "$title" ]; then
       existing_title=$(show_field_value "$show" title)
       [ "$existing_title" = "$title" ] || fail "existing task $id has a different title"
     fi
   else
+    [ "$call_given" = 1 ] || refuse_without_choices "$id" "task $id has no captain call fields"
     [ -n "$title" ] || fail "--title is required to create task $id"
     validate_one_line title "$title"
     if [ -z "$repo" ] && [ -n "$origin" ] && [ -f "$STATE/$origin.meta" ]; then

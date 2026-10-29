@@ -144,7 +144,7 @@ test_wrapper_writes_through_to_home() {
     wrapper_from_code "$dir" "done" "ship-$i" >/dev/null || fail "done ship-$i failed"
   done
   wrapper_from_code "$dir" add call-1 "captain call" >/dev/null || fail "add call-1 failed"
-  wrapper_from_code "$dir" hold call-1 --reason "awaiting the captain" --kind captain >/dev/null \
+  wrapper_from_code "$dir" hold call-1 --reason "awaiting the vendor" --kind external >/dev/null \
     || fail "hold call-1 failed"
   printf 'RELATIVE-BODY-MARKER\n' > "$dir/code/body.md"
   wrapper_from_code "$dir" update call-1 --body-file body.md >/dev/null \
@@ -227,6 +227,26 @@ test_wrapper_refuses_add_start() {
   pass "fm-tasks-axi.sh refuses add --start while plain add and start <id> pass through"
 }
 
+# A captain call opens only through bin/fm-captain-hold.sh hold, which requires
+# the card the captain answers; a bare backlog hold of that kind would carry none.
+test_wrapper_refuses_captain_hold() {
+  local dir out rc before
+  dir=$(make_split wrapper-captain-hold)
+  wrapper_from_code "$dir" add ch-1 "captain call" >/dev/null || fail "add ch-1 failed"
+  before=$(cat "$dir/home/data/backlog.md")
+  out=$(wrapper_from_code "$dir" hold ch-1 --reason "awaiting the captain" --kind captain 2>&1)
+  rc=$?
+  expect_code 2 "$rc" "hold --kind captain"
+  assert_contains "$out" "bin/fm-captain-hold.sh hold" "the captain hold refusal did not name the card path"
+  out=$(wrapper_from_code "$dir" hold ch-1 --kind=captain --reason "awaiting the captain" 2>&1)
+  rc=$?
+  expect_code 2 "$rc" "hold --kind=captain"
+  assert_equals "$before" "$(cat "$dir/home/data/backlog.md")" "a refused captain hold still wrote the backlog"
+  wrapper_from_code "$dir" hold ch-1 --reason "awaiting the vendor" --kind external >/dev/null \
+    || fail "a non-captain hold was refused"
+  pass "fm-tasks-axi.sh refuses a captain hold while other hold kinds pass through"
+}
+
 test_wrapper_single_home() {
   local dir
   dir="$TMP_ROOT/single-wrapper"
@@ -248,6 +268,7 @@ if [ "$HAVE_TASKS_AXI" = 1 ]; then
   test_wrapper_overrides_ambient_file
   test_wrapper_refusals
   test_wrapper_refuses_add_start
+test_wrapper_refuses_captain_hold
   test_wrapper_single_home
 else
   echo "skip: tasks-axi not found; home-addressing cases not run"

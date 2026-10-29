@@ -45,6 +45,9 @@
 #     the task record, status file, and inbox that go with the row - which such
 #     a row would lack, counting as live work nobody is doing that nothing
 #     later would notice (`start <id>` stays a documented direct transition);
+#   - `hold` with `--kind captain`, because a captain call opened here would
+#     carry no card for the captain to answer: bin/fm-captain-hold.sh hold is
+#     the one path that opens one, and it refuses a call without choices;
 #   - a data directory that cannot be resolved, or whose backend configuration
 #     cannot be read (bin/fm-tasks-axi-lib.sh owns that diagnostic);
 #   - a markdown `<data>/backlog.md` that is itself a symlink, because the
@@ -113,6 +116,18 @@ case "${1:-}" in
     exec python3 "$SCRIPT_DIR/fm_delivery.py" presentation --task "$presentation_id" --data "$DATA" "$@"
     ;;
 esac
+
+if [ "${1:-}" = hold ]; then
+  previous_arg=''
+  for arg in "$@"; do
+    case "$previous_arg $arg" in
+      '--kind captain'|*' --kind=captain')
+        fail "a captain hold opens a captain call; use bin/fm-captain-hold.sh hold, which records the card the captain answers"
+        ;;
+    esac
+    previous_arg=$arg
+  done
+fi
 
 CALLER_DIR=$(pwd)
 

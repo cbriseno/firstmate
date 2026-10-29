@@ -67,8 +67,10 @@ Repeat and edge cases:
   If that write fails, the backend hold is not attempted.
 - The reason may contain parentheses, semicolons, quotes, and line breaks.
   [`bin/fm-hold-reason-lib.sh`](../bin/fm-hold-reason-lib.sh) owns the storage encoding and compatibility rules; [`bin/fm-tasks-axi.sh --help`](../bin/fm-tasks-axi.sh) owns the public read commands and output contract.
-- The optional structured call fields (`--question`, `--option`, `--recommended`, `--context`, `--link`) are validated before any mutation and written to the private `data/<task-id>/captain-call.json` record only after the backend hold succeeds.
-  The record names the hold-set stamp it belongs to, so a new lifecycle never inherits an older call, while an active hold's repeat without fields keeps it.
+- The structured call fields (`--question`, `--option`, `--recommended`, `--context`, `--link`) are required for every hold that opens a call: at least a question and two options, or the recorded `--no-options` reason for a call with no choices.
+  A call without them is refused before any task is created or touched, so no agent, script, or session can put a choice-less card on a board.
+  They are validated before any mutation and written to the private `data/<task-id>/captain-call.json` record only after the backend hold succeeds.
+  The record names the hold-set stamp it belongs to, so a new lifecycle never inherits an older call, while an active hold's repeat without fields keeps it only when it already has choices or a `--no-options` reason.
   The script header's STRUCTURED CALL FIELDS section owns the bounds and record schema.
 
 ### Answering a call (`answer`)

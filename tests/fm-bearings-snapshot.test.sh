@@ -1679,7 +1679,7 @@ test_landed_accepts_only_kind_owned_delivery_artifacts() {
     "Decide whether https://github.com/o/r/pull/7 may merge" --kind ship \
     --repo firstmate --file "$main_backlog" >/dev/null \
     || fail "could not create the answered captain question"
-  run_captain "$home" "$fakebin" hold answered-question \
+  run_captain "$home" "$fakebin" hold answered-question "${FM_TEST_CALL[@]}" \
     --reason "captain route choice pending" >/dev/null \
     || fail "could not hold the answered captain question"
   printf 'Choose route north.\n' > "$home/question-answer.txt"
@@ -1687,7 +1687,7 @@ test_landed_accepts_only_kind_owned_delivery_artifacts() {
     --decision-file "$home/question-answer.txt" >/dev/null \
     || fail "could not close the answered captain question"
 
-  run_captain "$home" "$fakebin" hold created-local-question \
+  run_captain "$home" "$fakebin" hold created-local-question "${FM_TEST_CALL[@]}" \
     --title "Choose local main" --reason "captain local route pending" >/dev/null \
     || fail "could not create the local-only captain question"
   created_kind=$("$TASKS_AXI_BIN" show created-local-question --full --file "$main_backlog" \
@@ -1699,7 +1699,7 @@ test_landed_accepts_only_kind_owned_delivery_artifacts() {
   "$TASKS_AXI_BIN" add legacy-local-question "Choose local main" \
     --repo firstmate --file "$main_backlog" >/dev/null \
     || fail "could not create the legacy kindless captain question"
-  run_captain "$home" "$fakebin" hold legacy-local-question \
+  run_captain "$home" "$fakebin" hold legacy-local-question "${FM_TEST_CALL[@]}" \
     --reason "captain legacy local route pending" >/dev/null \
     || fail "could not hold the legacy kindless captain question"
   run_captain "$home" "$fakebin" answer legacy-local-question \
