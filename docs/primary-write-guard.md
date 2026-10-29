@@ -68,6 +68,7 @@ Shell commands are lexed with the shared classifier in `bin/fm-arm-command-polic
 - inline interpreter code (`python -c`, `node -e`, `perl -e`, `ruby -e`, and heredoc stdin) that calls a common write API on a literal path;
 - nested programs: subshells, brace groups, command substitutions, `bash -c` and other shell payloads, `eval`, `find -exec` and `-delete`, and `xargs`.
 
+Harness-private files outside the home, such as a harness's own memory directory, are refused like any other outside path, because durable knowledge belongs in the home's `data/` records ([`AGENTS.md`](../AGENTS.md) section 6).
 A relative target resolves against the payload's working directory, tracking `cd` inside a subshell.
 `~`, `$HOME`, and other variables the hook environment defines are expanded.
 A target the guard cannot resolve, such as `"$tmp"` from `mktemp`, is allowed unless its literal prefix already rules out every allowed path, so `~/.config/$NAME` is still refused.
