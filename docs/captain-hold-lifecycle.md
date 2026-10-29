@@ -648,7 +648,7 @@ The board's half is pinned in `tests/fm-bearings-board.test.sh`:
 - A rebuild of an already-armed board with no live listener starts one.
 
 That suite drives its Lavish session through a protocol-shaped stub.
-`tests/fm-bearings-board-lavish-live-e2e.test.sh` is the default-on capability guard for the installed provider, and [`verification/process-event-sources.md`](verification/process-event-sources.md) owns the version-scoped evidence.
+`tests/fm-bearings-board-lavish-live-e2e.test.sh` is the default-on capability guard for the installed provider, run against its own private Lavish server, and [`verification/process-event-sources.md`](verification/process-event-sources.md) owns the version-scoped evidence.
 [`verification/process-event-sources.md`](verification/process-event-sources.md) owns the process-event ownership and reclamation evidence exercised by `tests/fm-procevent.test.sh`.
 
 ### Classifier and projection suites

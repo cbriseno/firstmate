@@ -17,11 +17,12 @@
 # read that Herdr and Zellij use, which is the profile that failed live. It
 # fails naming codex and `codex --version`.
 #
-# Reading an idle screen submits no prompt, so no model tokens are spent and
-# the gate is default-on wherever codex and tmux are installed (fm_live_gate):
-# FM_COMPOSER_CODEX_IDLE_LIVE=1 forces it (an absent codex then fails instead
-# of skipping) and =0 disables it. A run that verified nothing fails rather
-# than passing vacuously. Whether the starfield was actually drawn during the
+# Reading an idle screen submits no prompt, so no model tokens are spent, but
+# the idle codex is a real interactive session under the operator's own profile
+# - their hooks, MCP servers, and any inherited Herdr pane identity - so the
+# gate is opt-in (fm_live_gate): FM_COMPOSER_CODEX_IDLE_LIVE=1 runs it (an
+# absent codex then fails instead of skipping). A run that verified nothing
+# fails rather than passing vacuously. Whether the starfield was actually drawn during the
 # read is reported as a note, because codex need not animate it under every
 # model or mode; the `empty` verdict is required either way.
 # Refresh docs/verification/runtime-backends.md ("Composer classification
@@ -35,7 +36,7 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-fm_live_gate default-on FM_COMPOSER_CODEX_IDLE_LIVE codex tmux
+fm_live_gate opt-in FM_COMPOSER_CODEX_IDLE_LIVE codex tmux
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 

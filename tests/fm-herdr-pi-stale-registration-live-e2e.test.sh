@@ -18,8 +18,9 @@
 #      exercised against the real record rather than a canned one.
 #
 # It fails naming the Herdr and Pi versions when either fact drifts. Pi is
-# launched with no prompt and quit immediately, so no model token is spent and
-# the shared live gate runs it by default wherever both tools are installed.
+# launched with no prompt and quit immediately, so no model token is spent, but
+# it runs under the operator's own Pi agent directory and extensions, so the
+# shared live gate keeps it opt-in (FM_HERDR_PI_STALE_REGISTRATION_LIVE_E2E=1).
 # Run it after every Herdr or Pi upgrade and before trusting a refreshed
 # docs/verification/runtime-backends.md "Stale agent registration" entry.
 #
@@ -36,7 +37,7 @@ fail() { printf 'not ok - %s\n' "$1" >&2; exit 1; }
 pass() { printf 'ok - %s\n' "$1"; }
 note() { printf '# %s\n' "$1"; }
 
-fm_live_gate default-on FM_HERDR_PI_STALE_REGISTRATION_LIVE_E2E herdr pi jq
+fm_live_gate opt-in FM_HERDR_PI_STALE_REGISTRATION_LIVE_E2E herdr pi jq
 
 # shellcheck source=tests/herdr-test-safety.sh
 . "$ROOT/tests/herdr-test-safety.sh"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Default-on live guard for the ONE thing only a real Pi TUI can answer: whether
+# Opt-in live guard for the ONE thing only a real Pi TUI can answer: whether
 # the captain can still type and see the screen repaint while a supervision
 # outcome is being delivered into his session.
 #
@@ -26,12 +26,15 @@
 # screen instead of a usable TUI, but nothing there is written and NO model
 # turn is ever started: /new is a local command, and it re-fires session_start,
 # which runs the same reconcile-and-deliver chain an arriving outcome runs.
+# Because Pi loads that real agent directory's extensions, which can report into
+# the operator's running Herdr session, the guard is opt-in
+# (FM_PI_BRANCH_RESPONSIVENESS_E2E=1; tests/lib.sh, fm_live_gate).
 set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-fm_live_gate default-on FM_PI_BRANCH_RESPONSIVENESS_E2E pi tmux node
+fm_live_gate opt-in FM_PI_BRANCH_RESPONSIVENESS_E2E pi tmux node
 
 PI_VERSION=$(pi --version 2>/dev/null || printf 'unknown')
 TMUX=$(command -v tmux)

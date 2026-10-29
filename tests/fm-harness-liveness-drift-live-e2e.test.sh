@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/fm-harness-liveness-drift-live-e2e.test.sh - default-on drift guard proving
+# tests/fm-harness-liveness-drift-live-e2e.test.sh - opt-in drift guard proving
 # every INSTALLED harness is still classified `alive` by the tmux liveness
 # probe (bin/backends/tmux.sh) AND still identified by the harness-detection
 # ancestry walk (bin/fm-harness.sh).
@@ -24,17 +24,20 @@
 # unauthenticated harness still starts its process, which is all the liveness
 # probe reads.
 #
-# Portable serial CI installs the public Pi package but no credentials, so this
-# guard checks that available token-free surface there and runs against every installed
-# harness on more capable hosts. The portable counterpart in
-# tests/fm-tmux-agent-liveness.test.sh pins the classifier logic in CI. Run this
-# guard after any harness upgrade and before trusting refreshed evidence.
+# It is opt-in (FM_HARNESS_LIVENESS_DRIFT=1) because each launch is a real
+# interactive session under the operator's own profile: it runs their session
+# hooks, extensions, and MCP servers, and a run from inside a Herdr pane hands
+# that pane's identity to those hooks, which then report into the operator's
+# running Herdr session (tests/lib.sh, fm_live_gate, owns the policy). The
+# portable counterpart in tests/fm-tmux-agent-liveness.test.sh pins the
+# classifier logic in CI. Run this guard deliberately after any harness upgrade
+# and before trusting refreshed evidence.
 set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-fm_live_gate default-on FM_HARNESS_LIVENESS_DRIFT tmux
+fm_live_gate opt-in FM_HARNESS_LIVENESS_DRIFT tmux
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 

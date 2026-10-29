@@ -17,6 +17,15 @@
 # a human. The artifact is a scratch page in a temporary directory, and the
 # session it opens is ended again before the guard returns.
 #
+# Every lavish-axi call runs against a PRIVATE Lavish server: its own
+# LAVISH_AXI_STATE_DIR inside the guard lab, its own free loopback port, a
+# loopback-only bind, no browser, and no telemetry. lavish-axi selects its
+# server by state directory and refuses a port another state directory owns, so
+# the operator's shared Lavish server - the one their browser and phone review
+# - never sees this session, and the private server is stopped on exit. That
+# isolation is why this drift guard may run by default (tests/lib.sh,
+# fm_live_gate); tests/fm-live-gate.test.sh pins it.
+#
 # Standard CI has no lavish-axi, so this reports a capability skip there. The
 # portable counterpart in tests/fm-bearings-board.test.sh pins the build's logic
 # in CI against a stub that reproduces these shapes. Run this guard after a
@@ -28,29 +37,45 @@ set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-fm_live_gate default-on FM_BEARINGS_LAVISH_LIVE lavish-axi jq curl
+fm_live_gate default-on FM_BEARINGS_LAVISH_LIVE lavish-axi jq curl python3
 
 pass() { printf 'ok - %s\n' "$1"; }
 note() { printf '# %s\n' "$1"; }
 
 LAB=''
+PRIVATE_LAVISH=0
 cleanup() {
   fm_test_reap_procevent_homes
   [ -z "$LAB" ] || {
-    [ ! -f "$LAB/.lavish/bearings-board.html" ] \
-      || lavish-axi end "$LAB/.lavish/bearings-board.html" >/dev/null 2>&1 || true
+    # Only the private server is ever ended or stopped; before it exists, a bare
+    # lavish-axi call would address the operator's shared server instead.
+    if [ "$PRIVATE_LAVISH" = 1 ]; then
+      [ ! -f "$LAB/.lavish/bearings-board.html" ] \
+        || lavish-axi end "$LAB/.lavish/bearings-board.html" >/dev/null 2>&1 || true
+      lavish-axi stop >/dev/null 2>&1 || true
+    fi
     rm -rf "$LAB"
   }
 }
 fail() { printf 'not ok - %s\n' "$1" >&2; cleanup; exit 1; }
 trap cleanup EXIT
 
+LAB=$(mktemp -d "${TMPDIR:-/tmp}/fm-bearings-lavish-live.XXXXXX") || fail "cannot create the guard lab"
+LAB=$(cd -P -- "$LAB" && pwd -P)
+mkdir -p "$LAB/state" "$LAB/data" "$LAB/lavish-state"
+
+# The private Lavish server. Exported, so the board build and the poll it arms
+# resolve the same private session store and endpoint as the guard itself.
+PORT=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()') \
+  || fail "cannot reserve a free loopback port for the private Lavish server"
+unset LAVISH_AXI_ALLOWED_HOSTS LAVISH_AXI_LINK_HOST LAVISH_AXI_HERDR_CHIME
+export LAVISH_AXI_STATE_DIR="$LAB/lavish-state" LAVISH_AXI_PORT="$PORT" LAVISH_AXI_HOST=127.0.0.1 \
+  LAVISH_AXI_NO_OPEN=1 LAVISH_AXI_TELEMETRY=0
+PRIVATE_LAVISH=1
+
 VERSION=$(lavish-axi --version 2>/dev/null | tr -d '[:space:]')
 note "lavish-axi ${VERSION:-version-unknown}"
 
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/fm-bearings-lavish-live.XXXXXX") || fail "cannot create the guard lab"
-LAB=$(cd -P -- "$LAB" && pwd -P)
-mkdir -p "$LAB/state" "$LAB/data"
 fm_test_track_procevent_home "$LAB" "$LAB/procevent-claims"
 
 cat > "$LAB/payload.json" <<'JSON'
@@ -86,11 +111,14 @@ run_board build "$LAB/payload.json" >/dev/null 2>&1 || fail "the guard board did
 
 url=$(lavish-axi "$BOARD" | sed -n 's/^[[:space:]]*url:[[:space:]]*//p' | head -1 | tr -d '"')
 case "$url" in
-  http://*/session/*) ;;
-  *) fail "could not read the guard board session url: $url" ;;
+  "http://127.0.0.1:$PORT/session/"*) ;;
+  *) fail "the guard board session is not on its private Lavish server (127.0.0.1:$PORT): $url" ;;
 esac
 key=${url##*/}
 base=${url%/session/*}
+jq -e --arg key "$key" '.sessions[$key] != null' "$LAVISH_AXI_STATE_DIR/state.json" >/dev/null 2>&1 \
+  || fail "the guard board session is not recorded in the private Lavish state directory"
+pass "lavish-axi ${VERSION:-version-unknown} serves the guard board from a private server and state directory"
 
 # End it exactly as the browser's End session button does.
 curl -fsS -X POST "$base/api/$key/end" >/dev/null 2>&1 \

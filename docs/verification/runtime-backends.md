@@ -196,7 +196,7 @@ On macOS the pane command reflected the rewritable title while the full install 
 The classifier therefore accepts a harness basename first, then an exact harness path component in the full executable path, then the same component in argv[0], without depending on which field carries it on a given platform.
 
 The portable regression is CI-enforced.
-The real-harness drift guard spends no model tokens, so under the policy in `.agents/skills/firstmate-coding-guidelines/SKILL.md` it runs by default wherever tmux is installed and reports a capability skip elsewhere; `FM_HARNESS_LIVENESS_DRIFT=1` additionally turns an absent tool into a failure.
+The real-harness drift guard spends no model tokens, but each launch is a real session under the operator's own profile, so under the policy owned by `fm_live_gate` in `tests/lib.sh` it is opt-in; `FM_HARNESS_LIVENESS_DRIFT=1` runs it and turns an absent tool into a failure.
 Run the live guard after any harness upgrade and before trusting or refreshing the table above:
 
 ```sh
@@ -679,8 +679,7 @@ The portable regression is `tests/fm-busy-adapter-wiring.test.sh`.
 It spawns those harnesses through the real `bin/fm-spawn.sh --secondmate` path on a fake tmux pane, drives the generated hook or extension, and runs the stall gate while the record is busy and again after it goes idle.
 
 The live guard is `tests/fm-secondmate-busy-contract-live-e2e.test.sh`.
-It runs by default wherever tmux is installed.
-`FM_SECONDMATE_BUSY_LIVE=1` forces an absent binary to fail rather than skip.
+It is opt-in because its real launches use the operator's own profile; `FM_SECONDMATE_BUSY_LIVE=1` runs it and forces an absent binary to fail rather than skip.
 The spawn pane is a sleeper, so the launch brief is never delivered to a model.
 Each installed armed harness is then started for real, with no prompt and no keystrokes.
 
@@ -976,10 +975,10 @@ After the fix, braille-only rows bound the wrap region (the status footer sits b
 A second read-only capture of the same pane, taken during the fix with a bright starfield cell drawn between the `›` and the placeholder, read `pending` before and `empty` after as well.
 `test_matrix_codex_idle_starfield_furniture` in `tests/fm-composer-lib.test.sh` carries both samples byte-for-byte, the divergence (the same screen with letters in place of the starfield reads `pending`), and the over-stripping negatives (wrapped typed input, braille mixed with text, a typed row with a middle dot, and the footer or a starfield row alone).
 
-The live guard that refreshes this entry launches the installed codex idle in an isolated tmux server and asserts `empty` through both the cursor-anchored tmux read and the cursorless styled read Herdr and Zellij use, naming codex and `codex --version` on failure; it is default-on wherever codex and tmux are installed and spends no tokens:
+The live guard that refreshes this entry launches the installed codex idle in an isolated tmux server and asserts `empty` through both the cursor-anchored tmux read and the cursorless styled read Herdr and Zellij use, naming codex and `codex --version` on failure; it spends no tokens but is opt-in because the idle codex runs under the operator's own profile:
 
 ```sh
-tests/fm-composer-codex-idle-live-e2e.test.sh
+FM_COMPOSER_CODEX_IDLE_LIVE=1 tests/fm-composer-codex-idle-live-e2e.test.sh
 ```
 
 The verification machine runs its fleet on Herdr and has no tmux installed, so on 2026-09-15 that guard reported `skip: live: tmux absent` there, and the Herdr capture above is this entry's live evidence.
@@ -1991,10 +1990,10 @@ process-info  Show pane process information
 
 This proves subcommand presence in the client only, not the server response shape, which is measured only on 0.9.0 above.
 
-The live guard that refreshes this record runs by default wherever Herdr and Pi are installed, spends no model token, and fails naming both versions:
+The live guard that refreshes this record spends no model token, is opt-in because Pi runs under the operator's own agent directory, and fails naming both versions:
 
 ```sh
-tests/fm-herdr-pi-stale-registration-live-e2e.test.sh
+FM_HERDR_PI_STALE_REGISTRATION_LIVE_E2E=1 tests/fm-herdr-pi-stale-registration-live-e2e.test.sh
 ```
 
 Observed 2026-09-10:

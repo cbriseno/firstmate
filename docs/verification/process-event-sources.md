@@ -155,6 +155,16 @@ Exercised by `tests/fm-procevent.test.sh` against a fake blocking source whose c
 | registration and reconcile lock order | `register-extension` takes the source lock before the extension lifecycle lock, the order reconcile uses when it republishes an unhandled extension result through the lifecycle-locked host; the suite's `lifecycle-order` section holds a re-registration inside binding resolution while reconcile republishes that source's unhandled result, and both must finish within a bound instead of waiting on each other |
 | independent homes | two homes bind the same package id/version to different content-addressed absolute paths and independently capture results and extension state, with no cross-home fallback or result path |
 
+The live Bearings session guard runs every `lavish-axi` call against a private server it starts and stops itself, so it never reaches the operator's shared Lavish server.
+Verified on 2026-10-29 on Linux 6.12.8 with `lavish-axi` 0.1.92: `lavish-axi` reads `LAVISH_AXI_STATE_DIR`, `LAVISH_AXI_PORT`, `LAVISH_AXI_HOST`, `LAVISH_AXI_NO_OPEN`, and `LAVISH_AXI_TELEMETRY`, and refuses a port whose running server reports a different state directory.
+The guard passed all three checks against a private loopback server on a free port, and the operator's `~/.lavish-axi/state.json` kept the same modification time, size, and session count across the run:
+
+```text
+ok - lavish-axi 0.1.92 serves the guard board from a private server and state directory
+ok - lavish-axi 0.1.92 reports a captain-ended session without reopening it and without failing
+ok - the board build reopens a captain-ended session against real lavish-axi instead of arming a dead one
+```
+
 Run the focused external-binding evidence and the live Bearings session guard with:
 
 ```sh

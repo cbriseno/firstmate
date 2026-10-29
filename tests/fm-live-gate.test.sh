@@ -284,6 +284,88 @@ SH
     "fm-spawn must embed DISABLE_AUTOUPDATER in the launch command so a daemon-built pane that never inherited it still runs Claude with the updater off"
 }
 
+# A PATH holding the host's ordinary utilities but no harness or service CLI, so
+# a guard that wrongly proceeded by default could reach none of them and would
+# stop at a named capability skip instead of touching the operator's sessions.
+CORE="$TMP_ROOT/core"
+mkdir -p "$CORE"
+for core_dir in /usr/bin /bin; do
+  for core_tool in "$core_dir"/*; do
+    case "${core_tool##*/}" in
+      tmux | herdr | claude | codex | pi | omp | opencode | grok | kimi | cursor-agent | agent | muse | \
+        lavish-axi | gh | gh-axi | treehouse | cmux | zellij) continue ;;
+    esac
+    [ -e "$CORE/${core_tool##*/}" ] || ln -s "$core_tool" "$CORE/${core_tool##*/}"
+  done
+done
+
+test_guards_that_reach_operator_services_stay_opt_in() {
+  # Each of these drives a real harness under the operator's own profile, or
+  # reads the operator's live home and daemon, so an ordinary suite run by a
+  # worker inside the operator's sessions must never start it.
+  local script var out checked=0
+  while read -r script var; do
+    [ -n "$script" ] || continue
+    out=$(clean_env PATH="$CORE" bash "$ROOT/tests/$script" 2>&1) \
+      || fail "$script must exit 0 when nobody asked for it: $out"
+    assert_contains "$out" "skip: live: opt-in; set $var=1 to run" \
+      "$script reaches a service the operator uses, so it must stay opt-in"
+    checked=$((checked + 1))
+  done <<'EOF'
+fm-harness-liveness-drift-live-e2e.test.sh FM_HARNESS_LIVENESS_DRIFT
+fm-secondmate-busy-contract-live-e2e.test.sh FM_SECONDMATE_BUSY_LIVE
+fm-composer-codex-idle-live-e2e.test.sh FM_COMPOSER_CODEX_IDLE_LIVE
+fm-codex-native-owner-live.test.sh FM_CODEX_NATIVE_OWNER_LIVE
+fm-herdr-pi-stale-registration-live-e2e.test.sh FM_HERDR_PI_STALE_REGISTRATION_LIVE_E2E
+fm-pi-branch-responsiveness-live-e2e.test.sh FM_PI_BRANCH_RESPONSIVENESS_E2E
+EOF
+  [ "$checked" -eq 6 ] || fail "expected six operator-service guards, checked $checked"
+}
+
+test_default_lavish_guard_never_addresses_the_operators_server() {
+  # The Lavish drift guard stays default-on only because it runs its own server.
+  # A recording stand-in for lavish-axi captures the endpoint every call would
+  # address, then refuses, so the guard stops early and nothing real is reached.
+  local stub log line state port host no_open args calls=0 stopped=0
+  stub="$TMP_ROOT/lavish-stub"
+  log="$TMP_ROOT/lavish-calls.log"
+  mkdir -p "$stub"
+  : > "$log"
+  cat > "$stub/lavish-axi" <<SH
+#!/usr/bin/env bash
+printf '%s|%s|%s|%s|%s\n' "\${LAVISH_AXI_STATE_DIR:-unset}" "\${LAVISH_AXI_PORT:-unset}" \\
+  "\${LAVISH_AXI_HOST:-unset}" "\${LAVISH_AXI_NO_OPEN:-unset}" "\$*" >> "$log"
+[ "\${1:-}" = --version ] && { printf '0.1.92\n'; exit 0; }
+exit 1
+SH
+  chmod +x "$stub/lavish-axi"
+  if command -v jq >/dev/null 2>&1; then
+    ln -s "$(command -v jq)" "$stub/jq"
+  else
+    fm_fake_exit0 "$stub" jq
+  fi
+  for line in curl python3; do
+    [ -e "$CORE/$line" ] || fm_fake_exit0 "$stub" "$line"
+  done
+  clean_env PATH="$stub:$CORE" LAVISH_AXI_STATE_DIR="$HOME/.lavish-axi" LAVISH_AXI_PORT=4387 \
+    bash "$ROOT/tests/fm-bearings-board-lavish-live-e2e.test.sh" >/dev/null 2>&1 || true
+  while IFS='|' read -r state port host no_open args; do
+    calls=$((calls + 1))
+    case "$state" in
+      */fm-bearings-lavish-live.*/lavish-state) ;;
+      *) fail "lavish-axi '$args' ran against state directory '$state', not the guard's private one" ;;
+    esac
+    case "$port" in
+      '' | *[!0-9]* | 4387) fail "lavish-axi '$args' addressed port '$port', not a private one" ;;
+    esac
+    [ "$host" = 127.0.0.1 ] || fail "lavish-axi '$args' bound '$host' instead of loopback only"
+    [ "$no_open" = 1 ] || fail "lavish-axi '$args' may open a browser"
+    [ "$args" != stop ] || stopped=1
+  done < "$log"
+  [ "$calls" -gt 0 ] || fail "the Lavish guard never reached the stand-in, so its isolation was not observed"
+  [ "$stopped" -eq 1 ] || fail "the Lavish guard must stop its private server on exit"
+}
+
 test_every_live_guard_is_wired_to_the_shared_gate() {
   local script out listing checked=0
   listing=$("$ROOT/bin/fm-test-run.sh" --family live-harness-optin --list) \
@@ -328,4 +410,8 @@ test_disable_autoupdater_reaches_the_claude_pane_on_the_fm_spawn_launch_path
 pass "DISABLE_AUTOUPDATER rides fm-spawn's claude launch through to the harness pane"
 test_disable_autoupdater_survives_a_daemon_pane_that_never_inherited_it
 pass "DISABLE_AUTOUPDATER is embedded in the launch so a daemon-built pane keeps it"
+test_guards_that_reach_operator_services_stay_opt_in
+pass "a guard that reaches the operator's own sessions or home stays opt-in"
+test_default_lavish_guard_never_addresses_the_operators_server
+pass "the default-on Lavish guard addresses only its own private server and stops it"
 test_every_live_guard_is_wired_to_the_shared_gate

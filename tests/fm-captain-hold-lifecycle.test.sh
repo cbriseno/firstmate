@@ -17,6 +17,9 @@ set -u
 TEARDOWN="$ROOT/bin/fm-teardown.sh"
 BEARINGS="$ROOT/bin/fm-bearings-snapshot.sh"
 TMP_ROOT=$(fm_test_tmproot fm-captain-hold)
+# Every Lavish lookup below reads this suite's own session store, never the
+# operator's ~/.lavish-axi.
+export LAVISH_AXI_STATE_DIR="$TMP_ROOT/lavish-state"
 TASKS_AXI_BIN=$(command -v tasks-axi || true)
 
 command -v jq >/dev/null 2>&1 || { echo "skip: jq not found"; exit 0; }
