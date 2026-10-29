@@ -59,15 +59,6 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
 
-# shellcheck source=bin/fm-pr-lib.sh
-. "$SCRIPT_DIR/fm-pr-lib.sh"
-# shellcheck source=bin/fm-tasks-axi-lib.sh
-. "$SCRIPT_DIR/fm-tasks-axi-lib.sh"
-# shellcheck source=bin/fm-backlog-transition-lib.sh
-. "$SCRIPT_DIR/fm-backlog-transition-lib.sh"
-# shellcheck source=bin/fm-brief-heading-lib.sh
-. "$SCRIPT_DIR/fm-brief-heading-lib.sh"
-
 usage() {
   echo "usage: fm-install-followup.sh ensure <task-id> <project-name>" >&2
   echo "       fm-install-followup.sh landed <task-id> <project-name> [--discarded]" >&2
@@ -91,8 +82,9 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 case "$CMD" in ensure|landed|brief) ;; *) usage ;; esac
-fm_task_id_creation_valid "$ID" || { echo "error: invalid task id: $ID" >&2; exit 2; }
 
+# The registry answers first, so an unlinked project - every ship dispatch and
+# teardown that never opted in - costs one registry read and nothing else.
 TARGET=$("$SCRIPT_DIR/fm-project-mode.sh" --install "$PROJECT" 2>/dev/null)
 status=$?
 if [ "$status" -ne 0 ]; then
@@ -100,6 +92,17 @@ if [ "$status" -ne 0 ]; then
   exit 3
 fi
 [ -n "$TARGET" ] || exit 0
+
+# shellcheck source=bin/fm-pr-lib.sh
+. "$SCRIPT_DIR/fm-pr-lib.sh"
+# shellcheck source=bin/fm-tasks-axi-lib.sh
+. "$SCRIPT_DIR/fm-tasks-axi-lib.sh"
+# shellcheck source=bin/fm-backlog-transition-lib.sh
+. "$SCRIPT_DIR/fm-backlog-transition-lib.sh"
+# shellcheck source=bin/fm-brief-heading-lib.sh
+. "$SCRIPT_DIR/fm-brief-heading-lib.sh"
+
+fm_task_id_creation_valid "$ID" || { echo "error: invalid task id: $ID" >&2; exit 2; }
 
 FID="$ID-install"
 if ! fm_task_id_creation_valid "$FID"; then
@@ -222,7 +225,8 @@ awk -v intent="$TMP/intent" -v spec="$TMP/spec" '
   $0 == "{TASK}" { while ((getline line < intent) > 0) print line; next }
   $0 == "{FIRSTMATE_SPEC}" { while ((getline line < spec) > 0) print line; next }
   { print }
-' "$BRIEF" > "$TMP/brief" && cat "$TMP/brief" > "$BRIEF" || exit 1
+' "$BRIEF" > "$TMP/brief" || exit 1
+cat "$TMP/brief" > "$BRIEF" || exit 1
 
 spawn_cmd="bin/fm-spawn.sh $FID ${TARGET_DIR:-<$TARGET project directory>} --mode $MODE --yolo $YOLO"
 [ "$PREFIX" = fm/ ] || spawn_cmd="$spawn_cmd --branch-prefix '$PREFIX'"

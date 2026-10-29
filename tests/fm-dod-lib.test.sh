@@ -599,4 +599,24 @@ test_external_review_done_with_backup_needs_the_copy
 
 test_worker_role_names_skill_and_fallback_file
 
+# A captain rule that forbids the selected path (no-mistakes or GitHub Actions
+# only on explicit request) is answered by firstmate, never by the captain: every
+# publishing contract tells the worker to keep working and report it under the
+# one key bin/fm-delivery-fallback.sh resolves, and never to ask how to deliver.
+test_publishing_contracts_route_a_forbidden_path_to_firstmate() {
+  local contract out
+  for contract in "no-mistakes none" "direct-PR none" "no-mistakes gerrit" "direct-PR gerrit" "direct-PR forgejo"; do
+    # shellcheck disable=SC2086 # Each pair is mode then forge.
+    out=$(fm_dod_block ${contract%% *} t1 fm/t1 ${contract##* }) || fail "fm_dod_block refused $contract"
+    assert_contains "$out" "blocked [key=delivery-fallback] [at=<epoch>]" "$contract does not route a forbidden path to firstmate's fallback key"
+    assert_contains "$out" "Never append \`needs-decision\` about how to deliver" "$contract still lets the worker ask how to deliver"
+    assert_contains "$out" "run the project's affected local checks" "$contract does not keep the worker checking its work locally"
+  done
+  out=$(fm_dod_block local-only t1 fm/t1) || fail "fm_dod_block refused local-only"
+  assert_not_contains "$out" "delivery-fallback" "local-only publishes nothing, so it has no path to fall back from"
+  pass "fm_dod_block: every publishing contract sends a forbidden delivery path to firstmate's fallback, never to the captain"
+}
+
+test_publishing_contracts_route_a_forbidden_path_to_firstmate
+
 echo "all fm-dod-lib tests passed"

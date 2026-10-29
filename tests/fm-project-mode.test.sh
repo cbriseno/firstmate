@@ -8,7 +8,10 @@
 # yolo=off with a refusal like gerrit, and is refused on local-only; and the
 # plain (no --forge/--raw) output stays exactly two words, because tests/fm-secondmate-safety.test.sh and
 # tests/fm-secondmate-lifecycle-e2e.test.sh assert that shape with strict
-# string equality.
+# string equality. It also pins the opt-in `install=<project>` link: --install
+# names the linked registered project in any token order, prints an empty line
+# when there is none, refuses an empty, self, or unregistered link, and leaves
+# every other output form unchanged.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -32,6 +35,12 @@ cat > "$DATA/projects.md" <<'EOF'
 - reviewed-yolo [direct-PR +yolo forge=external] - +yolo cannot apply to an external review (added 2026-01-01)
 - reviewed-local [local-only forge=external] - an external review on a mode that publishes nothing (added 2026-01-01)
 - near-miss [direct-PR forg=external] - a near miss of the forge key (added 2026-01-01)
+- fork [no-mistakes-prod-only +yolo install=private] - a public fork whose landed work must reach private (added 2026-01-01)
+- private [local-only +yolo] - the captain's private installation (added 2026-01-01)
+- fork-lead [install=private direct-PR branch=fix/] - the link placed first (added 2026-01-01)
+- fork-empty [direct-PR install=] - an empty link (added 2026-01-01)
+- fork-self [direct-PR install=fork-self] - a link to itself (added 2026-01-01)
+- fork-ghost [direct-PR install=ghost] - a link to a project the registry lacks (added 2026-01-01)
 EOF
 
 run_mode() {
@@ -101,6 +110,43 @@ done
 err=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" near-miss 2>&1 >/dev/null)
 assert_contains "$err" "forge=external" "the near-miss warning does not list forge=external"
 pass "fm-project-mode: forge=external binds direct-PR, reports yolo=off with a refusal, and is refused on local-only"
+
+run_install() {
+  FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --install "$1" 2>/dev/null
+}
+
+[ "$(run_install fork)" = "private" ] || fail "install=private after the mode did not resolve: '$(run_install fork)'"
+[ "$(run_mode fork)" = "no-mistakes on" ] || fail "an install link changed the two-word default output: $(run_mode fork)"
+[ "$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --raw fork 2>/dev/null)" = "no-mistakes-prod-only on" ] \
+  || fail "an install link changed the --raw output"
+[ "$(run_forge fork)" = "none" ] || fail "an install link was read as a forge binding: $(run_forge fork)"
+err=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --install fork 2>&1 >/dev/null)
+[ -z "$err" ] || fail "a valid install link warned: $err"
+[ "$(run_install fork-lead)" = "private" ] || fail "install=private placed before the mode did not resolve: '$(run_install fork-lead)'"
+[ "$(run_mode fork-lead)" = "direct-PR off" ] || fail "an install link placed first was read as the mode: $(run_mode fork-lead)"
+[ "$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --branch-prefix fork-lead 2>/dev/null)" = "fix/" ] \
+  || fail "an install link disturbed the branch prefix"
+pass "fm-project-mode: install=<project> names the linked installation in any token order and leaves every other output unchanged"
+
+out=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --install private 2>/dev/null)
+status=$?
+[ "$status" -eq 0 ] && [ -z "$out" ] || fail "a project with no install link must print an empty line and succeed (status $status, got '$out')"
+out=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --install missing-project 2>/dev/null)
+[ -z "$out" ] || fail "a missing project must link no installation: '$out'"
+[ -z "$(FM_DATA_OVERRIDE="$TMP_ROOT/no-such-dir" "$PROJECT_MODE" --install fork 2>/dev/null)" ] \
+  || fail "an absent registry must link no installation"
+pass "fm-project-mode: --install prints an empty line for an unlinked, missing, or unregistered project"
+
+for name in fork-empty fork-self fork-ghost; do
+  out=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --install "$name" 2>/dev/null)
+  status=$?
+  [ "$status" -eq 3 ] || fail "$name's malformed install link did not refuse (status $status, got '$out')"
+  [ -z "$out" ] || fail "a refused install link still named a project for $name: '$out'"
+  [ "$(run_mode "$name")" = "direct-PR off" ] || fail "a malformed install link broke $name's default output: $(run_mode "$name")"
+done
+err=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --install fork-ghost 2>&1 >/dev/null) || true
+assert_contains "$err" 'no project named "ghost"' "the unregistered-link refusal did not name the missing project"
+pass "fm-project-mode: an empty, self, or unregistered install link is refused only where the link is read"
 
 [ "$(run_forge missing-project)" = "none" ] || fail "a missing project must default --forge to none: $(run_forge missing-project)"
 [ "$(FM_DATA_OVERRIDE="$TMP_ROOT/no-such-dir" "$PROJECT_MODE" --forge legacy 2>/dev/null)" = "none" ] \

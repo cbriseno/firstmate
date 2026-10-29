@@ -61,6 +61,10 @@ A forge composes with `no-mistakes`, `direct-PR`, and `no-mistakes-prod-only` (`
 `forge=external` marks a project whose review tool uploads its own snapshot, so workers never push a task branch to its shared origin: it is never detected, so register it only on the captain's confirmation, as `[direct-PR forge=external]` with no `+yolo`, and only once the home has `config/external-review.md` (`docs/configuration.md` "External review tool").
 `bin/fm-project-mode.sh`'s header owns the binding and `bin/fm-dod-lib.sh` owns what it changes for a worker.
 
+The optional `install=<project>` token links a project to the separately registered project its landed work must also reach, such as a public fork whose changes the captain runs in a private Firstmate home or plugin installation.
+Propose it at add or create intake whenever the captain describes such a pair, register it only on the captain's confirmation, and place it after the mode so an older home's parser still reads the mode.
+`bin/fm-project-mode.sh`'s header owns the token and its refusals, and `bin/fm-install-followup.sh` owns what the link does at dispatch and landing.
+
 ## Add or clone an existing project
 
 Confirm the source URL, local project name, delivery posture, and autonomy posture, stating the resolved default for each rather than asking the captain to invent one.

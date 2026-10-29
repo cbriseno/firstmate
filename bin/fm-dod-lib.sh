@@ -85,6 +85,10 @@
 # report, read back from the forge; a lane that deliberately holds a draft
 # declares a paused wait instead. bin/fm-pr-check.sh refuses to arm merge
 # monitoring on a draft through the same reading bin/fm-pr-merge.sh uses.
+# Every block that publishes through a push, a pull request, or the pipeline
+# ends with fm_dod_path_unavailable_block: a higher-priority rule that forbids
+# the block's path goes to firstmate under the `delivery-fallback` key, never
+# to the captain as a delivery question.
 # This file is the one owner of the no-mistakes `--intent` contract: only the
 # brief's `## Captain's intent` subsection plus later captain words, never
 # `## Firstmate spec` and never the worker's own tradeoffs.

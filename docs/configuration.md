@@ -1818,6 +1818,17 @@ A GitLab project needs no forge token, only `glab` on `PATH`, authenticated via 
 A project whose reviews are created by a review tool that uploads its own snapshot of the worker's commits is registered `[direct-PR forge=external]`; it is never detected, ships `direct-PR` only, carries no yolo, and needs the [external review tool](#external-review-tool-configexternal-reviewmd-configexternal-review-url-configexternal-review-backup) configuration below.
 [`docs/external-review-forge.md`](external-review-forge.md) is the design.
 
+## Linked local installation (data/projects.md install= token)
+
+A project whose landed work must also reach another project the captain runs locally carries `install=<project>` in its registry bracket, for example `- firstmate-public [no-mistakes-prod-only +yolo install=firstmate] - ...` for a public fork whose changes the captain uses in a private Firstmate home.
+The linked project must be registered in the same `data/projects.md`; an empty link, a link to itself, or a link to an unregistered name is refused wherever the link is read, and `bin/fm-project-mode.sh --install <name>` reads it back.
+`bin/fm-project-mode.sh`'s header owns the token's grammar, and every other output of that script ignores it, so an entry without the token, and every caller that predates it, is unchanged.
+Write the token after the mode, because an older Firstmate reads a keyed token placed first as an unknown mode.
+
+With the link in place, a ship dispatch in the linked project also queues the installation follow-up `<task-id>-install`, blocked until that task lands, and the task's teardown names that follow-up as the next dispatch, so the captain's request is reported finished only once it works in the installation.
+`bin/fm-install-followup.sh` owns that follow-up, its pre-filled brief, and its refusals.
+A home whose backlog is edited by hand is handed the follow-up's add command instead.
+
 ## External review tool (config/external-review.md, config/external-review-url, config/external-review-backup)
 
 These optional local, gitignored files configure a home's `forge=external` projects; a home with no such project needs none of them.

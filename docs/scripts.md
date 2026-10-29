@@ -79,7 +79,9 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `backends/paseo.sh`      | Experimental Paseo session-provider adapter                                          |
 | `backends/rex.sh`        | Experimental Rex session-provider adapter                                            |
 | `fm-config-push.sh`      | Push declared inherited local material to live local or remote secondmates and send the placement-specific config reread when changed |
-| `fm-project-mode.sh`     | Resolve a project's registered delivery posture, forge binding, or ship-branch prefix from `data/projects.md` for fleet sync, home seeding, and the forge agreement a ship spawn or scout promotion applies |
+| `fm-project-mode.sh`     | Resolve a project's registered delivery posture, forge binding, ship-branch prefix, or linked local installation from `data/projects.md` for fleet sync, home seeding, the forge agreement a ship spawn or scout promotion applies, and the installation follow-up |
+| `fm-install-followup.sh` | Queue, announce, and pre-fill the follow-up that carries a linked project's landed work into its local installation (`install=<project>`) |
+| `fm-delivery-fallback.sh` | Switch a ship under way to the less rigorous delivery path a captain rule leaves available, and steer its worker onto the new contract |
 | `fm-forge-detect.sh`     | Propose a clone's forge binding from its origin remote for project-add intake, never recording it |
 | `fm-merge-local.sh`      | Fast-forward a `local-only` project's local default branch after approval            |
 | `fm-review-diff.sh`      | Review a crewmate branch or resolved PR head against the authoritative base          |

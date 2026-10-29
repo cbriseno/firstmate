@@ -1582,6 +1582,54 @@ test_dispatch_fails_when_its_row_vanishes_after_preflight() {
   pass "dispatch fails when its backlog row vanishes after preflight"
 }
 
+# A project whose registry entry links install=<project> is finished for the
+# captain only in that installation, so its dispatch files the installation's
+# follow-up up front, blocked until this task lands (bin/fm-install-followup.sh).
+link_install() {  # <case-dir> <project-name> <install-token>
+  printf '%s\n' "- $2 [no-mistakes $3] - a fork whose landed work must reach private (added 2026-01-01)" \
+    "- private [local-only] - the captain's private installation (added 2026-01-01)" \
+    > "$(home_of "$1")/data/projects.md"
+}
+
+row_field() {  # <case-dir> <id> <field>
+  tasks-axi show "$2" --file "$(backlog_of "$1")" 2>/dev/null |
+    sed -n "s/^  $3: *//p" | head -1
+}
+
+test_dispatch_queues_the_install_followup_blocked_on_the_task() {
+  local case_dir id out
+  id=atomic-install-b1
+  case_dir=$(make_home dispatch-install "$id")
+  add_item "$case_dir" "$id"
+  link_install "$case_dir" project install=private
+
+  out=$(run_ship_spawn "$case_dir" "$id") || fail "spawn failed: $out"
+  [ "$(row_state "$case_dir" "$id")" = in_flight ] || fail "the linked task itself was not dispatched"
+  [ "$(row_state "$case_dir" "$id-install")" = queued ] \
+    || fail "dispatch filed no queued install follow-up (state '$(row_state "$case_dir" "$id-install")')"
+  [ "$(row_field "$case_dir" "$id-install" blocked_by)" = "$id" ] \
+    || fail "the install follow-up is not blocked until $id lands"
+  [ "$(row_field "$case_dir" "$id-install" repo)" = private ] \
+    || fail "the install follow-up does not target the linked installation"
+  pass "dispatch of a linked project queues its installation follow-up, blocked until the task lands"
+}
+
+test_dispatch_refuses_a_malformed_install_link_before_creating_resources() {
+  local case_dir id out rc=0
+  id=atomic-install-b2
+  case_dir=$(make_home dispatch-install-ghost "$id")
+  add_item "$case_dir" "$id"
+  link_install "$case_dir" project install=ghost
+
+  out=$(run_ship_spawn "$case_dir" "$id") || rc=$?
+  [ "$rc" -ne 0 ] || fail "spawn launched a task whose install link names no registered project: $out"
+  assert_contains "$out" 'no project named "ghost"' "the refusal does not name the missing installation"
+  [ ! -e "$(home_of "$case_dir")/state/$id.meta" ] || fail "a refused dispatch published a task record"
+  [ "$(row_state "$case_dir" "$id")" = queued ] || fail "a refused dispatch moved the item"
+  [ -z "$(row_state "$case_dir" "$id-install")" ] || fail "a refused link still filed a follow-up"
+  pass "dispatch refuses a malformed install link before creating any record or follow-up"
+}
+
 # --- completion -------------------------------------------------------------
 
 test_completion_closes_a_local_only_ship_before_reporting_success() {
@@ -1598,6 +1646,28 @@ test_completion_closes_a_local_only_ship_before_reporting_success() {
   assert_grep 'local main' "$(backlog_of "$case_dir")" \
     "a local-only landing was closed without its local-main note"
   pass "completion closes a local-only ship, with its landing note, before reporting success"
+}
+
+test_completion_makes_the_install_followup_ready_and_names_it() {
+  local case_dir id out
+  id=atomic-install-b3
+  case_dir=$(make_home close-install)
+  add_item "$case_dir" "$id"
+  start_item "$case_dir" "$id"
+  link_install "$case_dir" fork install=private
+  fm_write_meta "$(home_of "$case_dir")/state/$id.meta" \
+    "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$case_dir/absent-worktree" \
+    "project=$case_dir/fork" "harness=claude" "kind=ship" "mode=no-mistakes" "yolo=off" \
+    "spawn_gen=spawn-close-install"
+
+  out=$(run_teardown "$case_dir" "$id") || fail "teardown failed: $out"
+  [ "$(row_state "$case_dir" "$id")" = "done" ] || fail "the landed task was not closed"
+  assert_contains "$out" "Install follow-up: $id-install brings $id's landed work into private" \
+    "teardown did not name the installation follow-up"
+  assert_contains "$out" "dispatch it in this turn without asking" "teardown did not make the dispatch the next action"
+  [ "$(row_state "$case_dir" "$id-install")" = queued ] && [ "$(row_field "$case_dir" "$id-install" blocked)" = no ] \
+    || fail "the install follow-up is not ready after the landing"
+  pass "completion of a linked task leaves its installation follow-up ready and names it as the next action"
 }
 
 test_completion_closes_a_scout_with_its_report() {
@@ -3069,6 +3139,8 @@ test_backend_resolution_preserves_precedence_and_defaults
 test_backlog_callers_refuse_unreadable_backend_config
 test_captain_hold_preserves_relocated_backlog_on_backend_error
 test_dispatch_moves_the_item_in_flight_in_the_same_run
+test_dispatch_queues_the_install_followup_blocked_on_the_task
+test_dispatch_refuses_a_malformed_install_link_before_creating_resources
 test_dispatch_omits_the_file_for_a_beads_show
 test_a_leftover_markdown_symlink_does_not_brick_a_beads_home
 test_completion_omits_the_file_for_a_beads_done
@@ -3105,6 +3177,7 @@ test_dispatch_interruption_during_kimi_readiness_fails_before_commit
 test_dispatch_does_not_resurrect_a_row_closed_after_preflight
 test_dispatch_fails_when_its_row_vanishes_after_preflight
 test_completion_closes_a_local_only_ship_before_reporting_success
+test_completion_makes_the_install_followup_ready_and_names_it
 test_completion_closes_a_scout_with_its_report
 test_completion_refuses_a_legacy_record_without_an_incarnation
 test_completion_refuses_ambiguous_incarnation_metadata
