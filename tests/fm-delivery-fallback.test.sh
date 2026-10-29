@@ -79,7 +79,7 @@ test_no_mistakes_falls_back_to_direct_pr() {
   meta=$(cat "$dir/home/state/t1.meta")
   assert_grep "Delivery contract: mode=direct-PR upstream-consent=github.com/o/r" "$brief" "the brief's contract was not re-rendered for direct-PR with its consent"
   [ "$(grep -c '^# Definition of done$' "$brief")" = 1 ] || fail "the brief does not hold exactly one Definition of done"
-  assert_grep '1. Never push to the default branch (push only your `fm/t1` branch). Never merge a PR.' "$brief" "rule 1 was not re-rendered for direct-PR"
+  assert_grep "1. Never push to the default branch (push only your \`fm/t1\` branch). Never merge a PR." "$brief" "rule 1 was not re-rendered for direct-PR"
   if grep -qF 'Firstmate will then instruct you to run /no-mistakes' "$brief"; then
     fail "the no-mistakes contract survived the fallback"
   fi

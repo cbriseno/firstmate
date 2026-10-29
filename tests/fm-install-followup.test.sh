@@ -54,7 +54,7 @@ Delivery contract: mode=direct-PR
 EOF
   (cd "$home" && tasks-axi add t1 "the widget" --kind ship --repo fork --file data/backlog.md >/dev/null \
     && tasks-axi start t1 --file data/backlog.md >/dev/null \
-    && tasks-axi done t1 --pr https://github.com/o/fork/pull/7 --file data/backlog.md >/dev/null) \
+    && tasks-axi 'done' t1 --pr https://github.com/o/fork/pull/7 --file data/backlog.md >/dev/null) \
     || fail "could not seed the landed task"
   printf '%s\n' "$home"
 }
