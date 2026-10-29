@@ -1,7 +1,7 @@
 ---
 name: captain-hold-lifecycle
 description: >-
-  Load before holding any task for the captain, before treating an investigation, scout report, structured review, or Lavish review as complete, before ending a visual review that exposed a captain decision, when recording or routing the captain's answer, and on any RECORD DIVERGENCE line the wake drain prints.
+  Load before holding any task for the captain, before treating an investigation, scout report, structured review, or Lavish review as complete, before ending a visual review that exposed a captain decision, when recording or routing the captain's answer, on a `captain call opened for idle in-flight work` check wake, and on any RECORD DIVERGENCE line the wake drain prints.
 user-invocable: false
 metadata:
   internal: true
@@ -61,6 +61,12 @@ A captain call can be written down twice - as the keyed status decision the fold
 Read such a line as "these two records disagree", never as "the captain ruled and someone forgot to file it": a call can dissolve because its premise was false, or turn out to have been a question of fact rather than the captain's to answer.
 Reconcile it with what actually happened - `answer` when the captain's own words exist to record, and a fresh `needs-decision` line re-opening the status decision when that resolution was not the captain's word.
 The absence of a routed work item is not a divergence and the guard never requires one: when the decision IS the deliverable there is nothing to route.
+
+## The call supervision opens itself
+
+`bin/fm-inactive-reconcile.sh` holds one kind of call without you: work still in flight whose worker is gone and that waits on nothing due, carded with the choices `close`, `keep`, and `reopen` (its header owns the rule), then announced once by a `captain call opened for idle in-flight work` check wake.
+That wake is never a wait to re-absorb: relay the call, and when the captain is not using English, re-hold the task with the same three option ids and the card rewritten as below.
+Record a chat answer with `answer --release`, because applying it is what moves the task: `close` is ordinary cleanup under `ship-landing`, with `--residual` for anything still kept alive or left to check; `keep` leaves the work in flight, not asked about again until it appends a new event or is relaunched; `reopen` relaunches its worker under `stuck-crewmate-recovery`.
 
 ## Writing the card
 

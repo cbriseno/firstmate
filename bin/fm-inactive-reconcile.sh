@@ -53,10 +53,31 @@
 # terminal done or failed line belongs to the ledger-first path above and is
 # skipped here, so one outcome is never reported twice. It then uses
 # fm-crew-state.sh as the sole current-state source.
-# Only a done or failed state is suspicious enough to create a durable terminal
-# outcome record or wake the supervisor.
-# Working, paused, parked, blocked, unknown, persistent secondmates, and
-# captain-held work retain their existing supervision semantics.
+# A done or failed state creates a durable terminal outcome record and wakes the
+# supervisor.
+# IDLE IN FLIGHT. The one other state acted on is work still in flight with
+# nobody left to do it: fm-crew-state.sh reads its endpoint as gone, or as left
+# with no agent (its `backend target gone` reading, or no target recorded at
+# all), its newest activity is at least FM_PAUSE_RESURFACE_SECS old (the
+# declared-wait recheck cadence bin/fm-classify-lib.sh owns, default four
+# hours), no `paused: ... until <time>` it declared is still ahead, and no
+# blocker or decision it raised is still open. Such work is not an external
+# wait: no worker remains to resume it, so the watcher's pause recheck would
+# only re-absorb it every cycle. Instead the scan opens ONE captain call on its
+# backlog item through bin/fm-captain-hold.sh `hold`, with the structured card
+# fields and three choices - close it as delivered, keep it, or restart the
+# work - recommending the close, and publishes one `idle-in-flight:<fp>` check
+# wake so the supervisor relays it. It never closes, relaunches, or tears down
+# anything, so the unlanded-work rules stay with whoever acts on the answer.
+# The record's fingerprint binds the spawn incarnation, task id, and last status
+# line, so a "keep" answer is not asked again until the task appends a new event
+# or is relaunched. A task already held for the captain is left to that call;
+# a call this scan began but could not finish is completed on the next scan,
+# and one it cannot open at all is reported once as an `inactive-reconcile:`
+# notice naming the reason.
+# Working, paused with a live agent, parked, blocked, other unknown readings,
+# persistent secondmates, and captain-held work retain their existing
+# supervision semantics.
 #
 # A terminal-outcomes/<fingerprint>.pending record remains until its upstream
 # receipt is durable.
@@ -83,8 +104,9 @@
 # main-home acknowledgement. The atomic epoch/cursor marker's mtime gates scans,
 # and its cursor records the last child visited within the aggregate budget.
 #
-# The scan reads only durable local state and fm-crew-state.sh; it never invokes
-# gh, gh-axi, curl, fm-pr-check.sh, fm-pr-poll.sh, or a state *.check.sh.
+# The scan reads only durable local state and fm-crew-state.sh, and writes the
+# backlog only through the idle captain call above; it never invokes gh,
+# gh-axi, curl, fm-pr-check.sh, fm-pr-poll.sh, or a state *.check.sh.
 set -u
 export LC_ALL=C
 
@@ -95,6 +117,7 @@ OUTCOME_DIR="$STATE/terminal-outcomes"
 SCAN_MARKER="$STATE/.inactive-outcome-reconcile"
 SCAN_LOCK="$STATE/.inactive-outcome-reconcile.lock"
 CREW_STATE_BIN="${FM_INACTIVE_CREW_STATE_BIN:-$SCRIPT_DIR/fm-crew-state.sh}"
+CAPTAIN_HOLD_BIN="$SCRIPT_DIR/fm-captain-hold.sh"
 
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
@@ -129,6 +152,10 @@ if [ "$FM_INACTIVE_RECONCILE_BUDGET_SECS" -gt 30 ]; then
   printf 'fm-inactive-reconcile: FM_INACTIVE_RECONCILE_BUDGET_SECS must be a whole number from 1 to 30\n' >&2
   exit 2
 fi
+# The idle-in-flight bound is the declared-wait recheck cadence the watcher
+# reads; a value that is not a positive whole number falls back to its default.
+IDLE_IN_FLIGHT_SECS=${FM_PAUSE_RESURFACE_SECS:-$FM_PAUSE_RESURFACE_SECS_DEFAULT}
+case "$IDLE_IN_FLIGHT_SECS" in ''|*[!0-9]*|0) IDLE_IN_FLIGHT_SECS=$FM_PAUSE_RESURFACE_SECS_DEFAULT ;; esac
 
 if [ "$(uname)" = Darwin ]; then
   file_mtime() { /usr/bin/stat -f %m "$1" 2>/dev/null; }
@@ -522,6 +549,10 @@ reconcile_direct_child_locked() { # <id> <meta> <secondmate-id-or-empty> <timeou
   case "$state_line" in
     'state: done '*) state='done' ;;
     'state: failed '*) state='failed' ;;
+    'state: unknown · source: none · backend target gone'*|'state: unknown · source: none · no backend target recorded'*)
+      idle_in_flight_locked "$id" "$meta" "$status" "$age"
+      return
+      ;;
     *) return 0 ;;
   esac
   pr=$(pr_for_task "$meta")
@@ -553,12 +584,91 @@ reconcile_direct_child_locked() { # <id> <meta> <secondmate-id-or-empty> <timeou
   queue_presentation "$RECORD_PENDING" "$fingerprint" "$payload" || true
 }
 
+# Work in flight with no live agent (the header's IDLE IN FLIGHT): decide under
+# the task's meta lock and leave the captain call to open_idle_captain_call,
+# which runs after that lock is released because the call takes its own task
+# locks. Sets IDLE_CALL_* for it; returns 0 with IDLE_CALL_ID empty when there
+# is nothing to ask.
+idle_in_flight_locked() { # <id> <meta> <status> <age>
+  local id=$1 meta=$2 status=$3 age=$4 wait until last incarnation fingerprint data
+  [ "$age" -ge "$IDLE_IN_FLIGHT_SECS" ] || return 0
+  wait=$(status_declared_wait_line "$status")
+  if until=$(status_paused_until "$wait") && [ "$(reconcile_now)" -lt "$until" ]; then
+    return 0
+  fi
+  if status_own_open_decisions "$status" | cut -f2 | grep -Eqx 'needs-decision|blocked'; then
+    return 0
+  fi
+  last=$(last_status_line "$status")
+  incarnation=$(meta_incarnation "$meta")
+  fingerprint=$(sha256_text "$incarnation|$id|idle|$last")
+  ensure_record "$fingerprint" "$id" "$incarnation" idle "idle-in-flight-$id" direct call \
+    "$(pr_for_task "$meta")" "$(sha256_text "$last")" || return 1
+  [ -n "$RECORD_PENDING" ] || return 0
+  data="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
+  IDLE_CALL_LINK=$(pr_for_task "$meta")
+  if [ -f "$data/$id/report.md" ] && [ ! -L "$data/$id/report.md" ]; then
+    IDLE_CALL_LINK="data/$id/report.md"
+  fi
+  IDLE_CALL_ID=$id
+  IDLE_CALL_RECORD=$RECORD_PENDING
+  IDLE_CALL_FINGERPRINT=$fingerprint
+  IDLE_CALL_HOURS=$((age / 3600))
+}
+
+# Open (or finish opening) the one captain call for idle work in flight. A row
+# already held for the captain by anyone else is left to that call; the record
+# stays pending, so the task is asked about again only if that call is released
+# while the work is still idle.
+open_idle_captain_call() { # <id> <record> <fingerprint> <hours> <link> <timeout>
+  local id=$1 record=$2 fingerprint=$3 hours=$4 link=$5 timeout=$6 open_rc=0 out rc=0
+  out=$(fm_run_timed "$timeout" env FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+    "$CAPTAIN_HOLD_BIN" open "$id" 2>&1) || open_rc=$?
+  case "$open_rc" in
+    1) ;;
+    0) [ "$(record_value "$record" call_attempted)" = 1 ] || return 0 ;;
+    *)
+      ! fm_timed_out "$open_rc" || return 3
+      queue_notice_once "$record" "inactive-reconcile:$fingerprint" \
+        "idle in-flight work needs a captain call, but whether it is already held could not be read: child=$id: $(clean_field "$(printf '%s\n' "$out" | head -1)")" || true
+      return 0
+      ;;
+  esac
+  record_field_set "$record" call_attempted 1 || return 1
+  out=$(fm_run_timed "$timeout" env FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+    "$CAPTAIN_HOLD_BIN" hold "$id" \
+    --reason "No live worker and nothing due for ${hours}h; supervision opened this call instead of re-checking it as a wait" \
+    --context "Nobody has worked on this for ${hours} hours: its worker is gone and it waits on nothing that is due." \
+    --question "No one is working on this any more. What should happen to it?" \
+    --option "close=Close it as delivered|Clean up, and note anything still kept or left to check" \
+    --option "keep=Keep it open as it is|Leave it; it is not asked again unless something changes" \
+    --option "reopen=Restart the work|Bring a worker back to finish what is missing" \
+    --recommended close \
+    ${link:+--link "$link"} 2>&1) || rc=$?
+  ! fm_timed_out "$rc" || return 3
+  if [ "$rc" -ne 0 ]; then
+    queue_notice_once "$record" "inactive-reconcile:$fingerprint" \
+      "idle in-flight work needs a captain call that could not be opened: child=$id: $(clean_field "$(printf '%s\n' "$out" | head -1)")" || true
+    return 0
+  fi
+  mark_reported "$record" || return 1
+  publish_actionable "idle-in-flight:$fingerprint" \
+    "captain call opened for idle in-flight work (close as delivered, keep, or restart): child=$id idle=${hours}h, no live worker and nothing due" || true
+}
+
 reconcile_direct_child() { # <id> <meta> <secondmate-id-or-empty> <timeout>
-  local id=$1 meta=$2 self=${3:-} timeout=$4 lock rc=0
+  local id=$1 meta=$2 self=${3:-} timeout=$4 lock rc=0 remaining
   lock=$(fm_meta_lock_path "$meta") || return 1
   fm_lock_acquire_wait "$lock" || return 1
+  IDLE_CALL_ID=
   reconcile_direct_child_locked "$id" "$meta" "$self" "$timeout" || rc=$?
   fm_lock_release "$lock"
+  if [ "$rc" -eq 0 ] && [ -n "$IDLE_CALL_ID" ]; then
+    remaining=$((SCAN_DEADLINE - $(date +%s)))
+    [ "$remaining" -ge 1 ] || remaining=1
+    open_idle_captain_call "$IDLE_CALL_ID" "$IDLE_CALL_RECORD" "$IDLE_CALL_FINGERPRINT" \
+      "$IDLE_CALL_HOURS" "$IDLE_CALL_LINK" "$remaining" || rc=$?
+  fi
   return "$rc"
 }
 
@@ -622,6 +732,7 @@ scan() {
     return 0
   fi
   deadline=$(( $(date +%s) + FM_INACTIVE_RECONCILE_BUDGET_SECS ))
+  SCAN_DEADLINE=$deadline
   SCAN_FIRST_VISIT_PENDING=1
   scan_pass "$cursor" after "$deadline" "$self" || rc=$?
   if [ "$rc" -eq 0 ] && [ -n "$cursor" ]; then
