@@ -857,8 +857,10 @@ with (root/'consumer.jsonl').open('a') as f: f.write(json.dumps(row)+'\\n')
                                    text=True, capture_output=True, env=env)
         assert completed.returncode == 0, completed.stderr
         return completed.stdout
+    # The minimal card fm-captain-hold.sh hold requires.
+    card = ("--question", "Which way?", "--option", "left=Left", "--option", "right=Right")
     before = len(records())
-    hold("hold", "actual-call", "--title", "actual call", "--reason", "explicit captain answer")
+    hold("hold", "actual-call", "--title", "actual call", "--reason", "explicit captain answer", *card)
     assert len(records()) == before + 1, records()[-1]
     original = records()[-1]["payload"]["firstmate_event"]["context"]
     assert original == {"version": 1, "task_label": "actual call", "home_label": "Firstmate",
@@ -883,7 +885,7 @@ with (root/'consumer.jsonl').open('a') as f: f.write(json.dumps(row)+'\\n')
     external("bridge", "call", "actual-call", 2, "resolved", "--at", fresh, expected=1)
     assert len(records()) == before + 4  # Another occurrence is not this canonical answer.
     before = len(records())
-    hold("hold", "deferred", "--title", "deferred call", "--reason", "later", "--until", "2099-01-01")
+    hold("hold", "deferred", "--title", "deferred call", "--reason", "later", "--until", "2099-01-01", *card)
     assert len(records()) == before
     tasks("add", "transition-result", "transition result")
     cmd("designate", "transition-result", "transition-outcome")

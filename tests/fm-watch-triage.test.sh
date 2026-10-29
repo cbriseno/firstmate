@@ -3355,7 +3355,7 @@ backlog_hold_wedge_fixture() {  # <name> <status-age-secs> [<wedge-timer-age-sec
   printf '## In flight\n\n## Queued\n\n## Done\n' > "$dir/data/backlog.md"
   (cd "$dir" && tasks-axi add wedge 'stuck at a captain-only dialog' --file data/backlog.md) >/dev/null 2>&1 \
     || return 1
-  run_hold "$dir" hold wedge --reason 'awaiting the captain on the dialog' || return 1
+  run_hold "$dir" hold wedge "${FM_TEST_CALL[@]}" --reason 'awaiting the captain on the dialog' || return 1
   printf '%s\n' "$dir"
 }
 
@@ -4608,7 +4608,7 @@ make_hold_home() {  # <name> <status-line> <hold|nohold>
   (cd "$dir" && tasks-axi add held-merge 'delivered work' --file data/backlog.md) >/dev/null 2>&1 \
     || return 1
   if [ "$hold" = hold ]; then
-    run_hold "$dir" hold held-merge --reason 'awaiting the captain on the merge' || return 1
+    run_hold "$dir" hold held-merge "${FM_TEST_CALL[@]}" --reason 'awaiting the captain on the merge' || return 1
   fi
   printf 'window=test:fm-held-merge\nkind=ship\nharness=grok\nbackend=tmux\n' \
     > "$state/held-merge.meta"
@@ -4818,7 +4818,7 @@ test_reheld_captain_call_starts_its_own_resurface_window() {
   printf 'go ahead\n' > "$dir/decision.txt"
   run_hold "$dir" answer held-merge --decision-file "$dir/decision.txt" --release \
     || fail "could not record the captain's answer"
-  run_hold "$dir" hold held-merge --reason 'awaiting the captain a second time' \
+  run_hold "$dir" hold held-merge "${FM_TEST_CALL[@]}" --reason 'awaiting the captain a second time' \
     || fail "could not re-hold the task as a second captain call"
 
   hold_watch_surface "$dir" "$out" "$capture" 'idle, elapsed 3s' \

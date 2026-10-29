@@ -132,7 +132,7 @@ test_captain_answer_wakes_owner_then_reaches_worker() {
   mkdir -p "$home/data" "$home/config"
   fm_test_tasks_toml "$home/.tasks.toml"
   printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
-  env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" hold lab-call \
+  env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" hold lab-call "${FM_TEST_CALL[@]}" \
     --title 'Select a lab route' --reason 'Select the isolated route' --repo sample >/dev/null \
     || fail 'could not create the authoritative held lab call'
   # Actual bounded foreground watcher, no vendor process or model turn. There
@@ -151,7 +151,7 @@ test_captain_answer_wakes_owner_then_reaches_worker() {
   [ -e "$home/state/.last-watcher-beat" ] || fail 'isolated checkpoint never started'
   for mode in release 'done'; do
     if [ "$mode" = 'done' ]; then
-      env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" hold lab-call \
+      env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" hold lab-call "${FM_TEST_CALL[@]}" \
         --reason 'Select the next isolated route' --repo sample >/dev/null \
         || fail 'could not re-hold the released call'
     fi
@@ -205,7 +205,7 @@ test_answer_wake_failure_preserves_resolution_for_retry() {
   printf 'schema=fm-secondmate-parent.v1\nroute=local\nparent_home=%s\n' "$parent" > "$home/.fm-secondmate-parent"
   fm_test_tasks_toml "$home/.tasks.toml"
   printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
-  env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" hold retry-call \
+  env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" hold retry-call "${FM_TEST_CALL[@]}" \
     --title 'Retry this call' --reason 'Choose a route' --repo sample >/dev/null || fail 'could not hold retry fixture'
   printf 'Keep the existing work.\n' > "$home/answer.txt"
   if out=$(env FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$ROOT/bin/fm-captain-hold.sh" answer retry-call \
