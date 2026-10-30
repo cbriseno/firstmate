@@ -51,13 +51,15 @@
 #   fm-recovery      a documented recovery reset after relaunch
 # Classifier-only sources (never written into a record):
 #   endpoint-gone, herdr-native, rex-native, grok-regex, rovo-regex, agy-regex, muse-session-log,
-#   cursor-transcript, missing, malformed, gen-mismatch, source-mismatch,
+#   cursor-transcript, codex-rollout, missing, malformed, gen-mismatch, source-mismatch,
 #   kimi-unverified, codex-unverified, capture-failed, no-target, launch-prompt
 #
 # Classification (fm_busy_classify): busy | idle | unknown | dead, always
 # with the producing source as the second token. Precedence:
 #   1. dead endpoint (fm_busy_classify_live only) -> dead endpoint-gone
 #   2. standalone Kimi before verification       -> unknown kimi-unverified
+#      Codex and Cursor use only their own bound pull source before consulting
+#      any stored record or native fallback.
 #   3. a valid, gen-matching, source-trusted record -> its state and source,
 #      UNLESS the record is still the untouched seed fm-spawn wrote at arm
 #      time (state=busy source=fm-spawn - no adapter hook has posted since
@@ -120,13 +122,14 @@
 # cleared. See fm_busy_cursor_turn_state for the fold. Cursor's rendered
 # `ctrl+c to stop` footer is deliberately not a state source here.
 #
-# Codex negotiation (fm_busy_codex_appserver_observable,
-# fm_busy_codex_hooks_verified): the approved contract prefers Codex's
-# app-server turn lifecycle with capability negotiation, and sanctions its
-# stable lifecycle hooks as the intermediate. Neither is usable on the
-# installed binary, so Codex classifies unknown codex-unverified rather than
-# falling back to idle, and fm-spawn installs no Codex busy wiring.
-# docs/verification/supervision.md owns the evidence for both probes.
+# Codex's hook and app-server gates below remain closed. Its verified native
+# Linux worker launch instead folds the process-owned rollout on demand through
+# fm-codex-activity.py, which owns capability, binding, and fold mechanics.
+# The spawn generation starts unknown and is never itself positive activity
+# evidence. Unsupported launches stay unknown codex-unverified; invalid bound
+# evidence stays unknown codex-rollout. No stored hook or native busy fallback
+# can override either verdict. docs/verification/runtime-backends.md owns the
+# current live evidence; supervision.md retains the older rejected probes.
 #
 # Sourcing: set -u and set -e safe; no subshell-unfriendly globals.
 
@@ -183,9 +186,8 @@ fm_busy_codex_hooks_verified() {
   return 1
 }
 
-# fm_busy_codex_semantic_source: 0 when ANY verified Codex semantic source
-# exists. fm-spawn arms and wires Codex only behind this gate, and the
-# classifier reports unknown codex-unverified until it opens.
+# fm_busy_codex_semantic_source: reserved event-writer gate. The independent
+# process-owned rollout pull source does not open or trust either writer.
 fm_busy_codex_semantic_source() {
   fm_busy_codex_appserver_observable || fm_busy_codex_hooks_verified
 }
@@ -1035,10 +1037,13 @@ fm_busy_classify() {  # <backend> <target> <harness> <id> <state-dir> [tail40]
       fi
       ;;
     codex*)
-      if ! fm_busy_codex_semantic_source; then
+      if command -v python3 >/dev/null 2>&1; then
+        python3 "${BASH_SOURCE[0]%/*}/fm-codex-activity.py" classify "$state" "$id" 2>/dev/null \
+          || printf 'unknown codex-unverified'
+      else
         printf 'unknown codex-unverified'
-        return 0
       fi
+      return 0
       ;;
     cursor*)
       # Semantic, on demand: fold this task's bound conversation transcript. A

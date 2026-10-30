@@ -247,8 +247,8 @@ These guarantees are process semantics, not vendor-emitted signals, so no live-h
 
 ## Semantic busy state
 
-The per-adapter semantic sources behind [`bin/fm-busy-lib.sh`](../../bin/fm-busy-lib.sh) were live-verified on 2026-07-28 against firstmate-launched workers wired exactly as `fm-spawn` writes them.
-Each pass polled `state/<id>.busy-state` while a real turn ran.
+The table links the per-adapter verification behind [`bin/fm-busy-lib.sh`](../../bin/fm-busy-lib.sh), including the source-specific refreshes below.
+The original event-writer passes on 2026-07-28 polled `state/<id>.busy-state` against firstmate-launched workers while real turns ran.
 
 | Harness | Version verified | Semantic source | Observed result |
 | --- | --- | --- | --- |
@@ -256,11 +256,11 @@ Each pass polled `state/<id>.busy-state` while a real turn ran.
 | omp | 18.1.11 | Extension `agent_start` / `agent_end` without `willContinue` | Live Herdr scout on `openai-codex/gpt-6-astra` (2026-09-05): the spawn seed `busy source=fm-spawn`, then `busy source=omp-ext event=agent-start`, then `idle source=omp-ext event=agent-end` at the natural end of the brief; a steer through `fm-send` reopened `busy … agent-start`, and a control-plane interrupt closed it with `idle … agent-end` (omp fires `agent_end` on an interrupted turn). `ctx.isIdle()` is deliberately not consulted because it reads false at a natural TUI `agent_end`. |
 | OpenCode | 2.0.21 | Plugin `session.execution.*` (OpenCode 1 `session.status`/`session.idle` retained as legacy inputs) | Verified on 2026-10-01 via `opencode run --standalone`: the live event stream delivered `session.execution.started` then `session.execution.succeeded` for a tool-using turn, and the plugin maps them to `busy`/`idle`; `tests/fm-busy-adapter-wiring.test.sh` pins both the legacy and the `session.execution.*` mappings and the latched-session scoping. |
 | Claude | 2.1.220 (Claude Code) | Hooks `UserPromptSubmit`, `Stop`, `StopFailure`, `SessionEnd` | `UserPromptSubmit` fired for the argv launch prompt and each steer, and `Stop` closed every completed turn. A mid-stream Escape interrupt fired no closing hook, which is why the firstmate-controlled clear exists. `StopFailure` and `SessionEnd` are wired from the four hook names present in the installed binary; only the abnormal paths they cover were not reproduced live. |
-| Codex | codex-cli 0.145.0 | None usable | See below; classifies `unknown codex-unverified`. |
+| Codex | codex-cli 0.166.0 (native Linux workers) | Process-owned rollout | See [current activity verification](runtime-backends.md#codex-worker-activity); the rejected 0.145.0 hook/app-server probes below remain historical evidence for the still-closed writer gates. |
 | Kimi (standalone) | not installed | None usable | No binary on `PATH`, so the gate stays closed and it classifies `unknown kimi-unverified`. |
 | Grok | 0.2.112 | Isolated rendered-tail fallback | Retained unconverted; the approved audit could not credit a live structured-lifecycle run. |
 
-Codex was probed two ways, both refused:
+Codex 0.145.0 was probed two ways on 2026-07-28, both refused:
 
 ```sh
 codex app-server daemon start
