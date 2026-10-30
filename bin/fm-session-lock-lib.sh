@@ -407,8 +407,13 @@ fm_harness_pid_alive() {
 #
 # A --fork-session successor mints a new id, so it stays a foreign live owner
 # until the pre-fork process exits; that is the safe direction and a documented
-# non-goal. Two genuinely different live sessions sharing one id is not a
-# supported state (Claude refuses to resume a running session under its id).
+# non-goal. A plain --resume of a session that is still running in another
+# process keeps the same id, and Claude does not refuse it, so both processes
+# pass this path and the resumed one re-anchors line 1 onto itself: a known
+# double-owner gap. From the lock's side that shape - same id, recorded pid a
+# live harness outside this ancestry - is identical to the recycled background
+# chain above, so this path cannot tell the two apart. Do not resume a running
+# firstmate session.
 
 # Print the Claude session id this process may own with, or return 1. $1 is the
 # ancestry list an earlier walk already produced, so a caller that walked once
