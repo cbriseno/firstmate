@@ -355,10 +355,22 @@ EOF
   return 1
 }
 
-# True if $1 is a live process that looks like a verified harness.
-# A tagged Windows pid is answered from the Windows process table, because
-# kill -0 cannot see across that boundary and would report a live harness as
-# dead - which would hand a running session's home to a second one.
+# True when pid $1 is a zombie: it has exited and only its process-table entry
+# waits for a parent that never reaps it. kill -0 still succeeds on one, so a
+# zombie lock owner would otherwise read as live and wedge every successor.
+# A ps that reports no state is no zombie evidence.
+fm_pid_zombie() {  # <pid>
+  local stat
+  stat=$(ps -o stat= -p "$1" 2>/dev/null) || return 1
+  stat=${stat#"${stat%%[! ]*}"}
+  case "$stat" in Z*) return 0 ;; esac
+  return 1
+}
+
+# True if $1 is a live process that looks like a verified harness. A zombie is
+# not live. A tagged Windows pid is answered from the Windows process table,
+# because kill -0 cannot see across that boundary and would report a live
+# harness as dead - which would hand a running session's home to a second one.
 fm_harness_pid_alive() {
   local pid=$1 comm args winpid
   if winpid=$(fm_win_untag_pid "$pid"); then
@@ -367,6 +379,7 @@ fm_harness_pid_alive() {
     return
   fi
   kill -0 "$pid" 2>/dev/null || return 1
+  fm_pid_zombie "$pid" && return 1
   comm=$(fm_ps_comm "$pid") || return 1
   args=$(fm_ps_args "$pid")
   fm_harness_process_matches "$comm" "$args"
