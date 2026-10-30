@@ -44,8 +44,11 @@ process ancestry plus the exact launch inbox/generation. No manual worker bind
 or extra SessionStart registration is needed. A secondmate without FM_TASK_ID
 must match the exact launch inbox and a secondmate record. Hook adoption NEVER
 claims root. An unbound shared app-server worker cannot be assigned from its
-shared hook alone; it needs an independently proven binding. Missing launch
-generation or native Claude PID/transcript proof remains unclassified.
+shared hook alone; it needs an independently proven binding. A configured hook
+carrying the launch inbox/generation that yields no valid binding for its
+payload session is not forwarded, so an unproved Firstmate worker never reaches
+personal notification policy. A hook without both launch markers, including a
+legacy launch missing its generation, remains unclassified and is forwarded.
 
 `accept-root` enables root hook filtering only after independent live acceptance.
 Until then `hook <provider>` forwards ordinary root hooks without a binding.
@@ -472,20 +475,27 @@ class Bridge:
     def hook(self, provider, payload):
         path = None
         receipt = None
+        # Launch markers are set only by spawn and never by the root. An
+        # unproved launched worker stays silent rather than reaching personal
+        # notification policy. Tradeoff: a personal session in a pane that
+        # inherited stale worker markers is silenced too, which is preferred
+        # over subordinate notifications.
+        launched_worker = bool(os.environ.get("FM_TASK_INBOX") and os.environ.get("FM_NOTIFY_SPAWN_GEN"))
         try:
             sid = slug(payload.get("session_id", ""))
         except ValueError:
+            if launched_worker:
+                return
             payload.pop("firstmate_input", None)
             payload.pop("firstmate_event", None)
             self.consume(provider, payload)
             return
         candidate = self.binding_path(provider, sid)
-        if (not candidate.exists() and os.environ.get("FM_TASK_INBOX")
-                and os.environ.get("FM_NOTIFY_SPAWN_GEN")):
+        if not candidate.exists() and launched_worker:
             try:
                 self.bind(provider, payload, worker_hook=True)
             except (ValueError, OSError, KeyError, subprocess.SubprocessError):
-                pass  # Unproved identity retains personal-session behavior.
+                pass
         if candidate.exists():
             binding = read(candidate)
             # The authorized native hook supplies the session, independently of
@@ -510,6 +520,8 @@ class Bridge:
                                    "proof_pid": binding["proof"]["pid"], "proof_started": binding["proof"]["started"],
                                    "root_stop_accepted": self.config["root_stop_accepted"],
                                    "binding_forwarded": path is not None}
+        if launched_worker and path is None and receipt is None:
+            return
         # Hook fields from callers are not producer assertions.
         payload.pop("firstmate_input", None)
         payload.pop("firstmate_event", None)
