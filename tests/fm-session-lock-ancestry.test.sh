@@ -273,6 +273,104 @@ SH
   pass "session-lock: a live version-named session holding the lock is not mistaken for a stale owner"
 }
 
+# A harness that has exited but was never reaped is still in the process table
+# and still answers kill -0, so only its reported state tells it apart from a
+# live owner. Linux procps prints the state with session and foreground flags,
+# macOS can pad it, and a ps that reports no state is no zombie evidence.
+test_zombie_harness_is_not_a_live_lock_owner() {
+  local dir fakebin stat
+  dir="$TMP_ROOT/zombie-unit"
+  fakebin=$(fm_fakebin "$dir")
+  mkdir -p "$dir/state"
+  cat > "$fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+set -u
+field= pid=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o) field=$2; shift 2 ;;
+    -p) pid=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+case "$pid:$field" in
+  600:stat=) [ -z "${FM_TEST_OWNER_STAT:-}" ] || printf '%s\n' "$FM_TEST_OWNER_STAT" ;;
+  600:comm=) printf '%s\n' claude ;;
+  600:args=) printf '%s\n' claude ;;
+  600:ppid=) printf '%s\n' 1 ;;
+  650:comm=) printf '%s\n' claude ;;
+  650:args=) printf '%s\n' claude ;;
+  650:ppid=) printf '%s\n' 1 ;;
+  *:comm=) printf '%s\n' bash ;;
+  *:args=) printf '%s\n' bash ;;
+  *:ppid=) printf '%s\n' 650 ;;
+esac
+SH
+  chmod +x "$fakebin/ps"
+  printf '600\n' > "$dir/state/.lock"
+  for stat in Ss 'S+' ''; do
+    FM_TEST_OWNER_STAT=$stat lib_eval "$fakebin" 'fm_harness_pid_alive 600' \
+      || fail "a live harness reporting state '$stat' was classified as dead"
+    FM_TEST_OWNER_STAT=$stat lib_eval "$fakebin" "fm_session_lock_foreign_owner_live '$dir/state'" \
+      || fail "a live harness reporting state '$stat' was not a foreign owner"
+  done
+  for stat in Z Zs 'Z+' '  Z'; do
+    if FM_TEST_OWNER_STAT=$stat lib_eval "$fakebin" 'fm_harness_pid_alive 600'; then
+      fail "a zombie harness reporting state '$stat' was classified as live"
+    fi
+    if FM_TEST_OWNER_STAT=$stat lib_eval "$fakebin" "fm_session_lock_foreign_owner_live '$dir/state'"; then
+      fail "a zombie harness reporting state '$stat' was reported as a foreign owner"
+    fi
+  done
+  pass "session-lock: a zombie harness is not a live lock owner, while a live one still is"
+}
+
+# The same verdict against a real unreaped claude-named process: the lock it
+# left reads as not held, and a successor session acquires it. The zombie's
+# parent execs into a sleep that never waits, so nothing reaps it while the
+# assertions run.
+test_e2e_zombie_lock_owner_does_not_block_a_successor() {
+  local dir zombie parent i stat
+  dir="$TMP_ROOT/zombie-e2e"
+  mkdir -p "$dir/state"
+  bash -c '"$0" -c "exit 0" & printf "%s\n" "$!" > "$1"; exec sleep 30' \
+    "$NAMED_CLAUDE" "$dir/zombie-pid" &
+  parent=$!
+  BG_FIXTURE_PIDS+=("$parent")
+  wait_for_file "$dir/zombie-pid" "the zombie pid"
+  zombie=$(tr -d '[:space:]' < "$dir/zombie-pid")
+  i=0 stat=
+  while [ "$i" -lt 200 ]; do
+    stat=$(ps -o stat= -p "$zombie" 2>/dev/null | tr -d ' ')
+    case "$stat" in Z*) break ;; esac
+    sleep 0.05
+    i=$((i + 1))
+  done
+  # The divergence itself: the old liveness signal still answers for it.
+  case "$stat" in Z*) ;; *) fail "the fixture child never became a zombie (state '$stat')" ;; esac
+  kill -0 "$zombie" 2>/dev/null || fail "the zombie does not answer kill -0, so this case proves nothing"
+  if [ "$(uname -s)" = Linux ]; then
+    bash -c '. "$0"; fm_harness_process_matches "$(fm_ps_comm "$1")" "$(fm_ps_args "$1")"' "$LIB" "$zombie" \
+      || fail "the zombie is not reported under its harness name, so this case proves nothing"
+  fi
+  printf '%s\n' "$zombie" > "$dir/state/.lock"
+  if bash -c '. "$0"; fm_harness_pid_alive "$1"' "$LIB" "$zombie"; then
+    fail "a zombie harness was classified as a live lock owner"
+  fi
+  FM_HOME="$dir" "$ROOT/bin/fm-lock.sh" status > "$dir/status.out" 2>&1
+  if grep -q 'held by live harness' "$dir/status.out"; then
+    fail "lock status reported a zombie as a live holder: $(cat "$dir/status.out")"
+  fi
+  env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_PID FM_HOME="$dir" FM_LOCK="$ROOT/bin/fm-lock.sh" \
+    "$NAMED_CLAUDE" -c '"$FM_LOCK" > "$FM_HOME/state/acquire.out" 2>&1; printf "%s\n" "$?" > "$FM_HOME/state/acquire.rc"; printf "%s\n" "$$" > "$FM_HOME/state/successor-pid"'
+  expect_code 0 "$(tr -d '[:space:]' < "$dir/state/acquire.rc")" \
+    "a successor could not take a lock left by a zombie: $(cat "$dir/state/acquire.out")"
+  [ "$(tr -d '[:space:]' < "$dir/state/.lock")" = "$(tr -d '[:space:]' < "$dir/state/successor-pid")" ] \
+    || fail "the successor did not record its own pid over the zombie's lock"
+  kill -TERM "$parent" 2>/dev/null || true
+  pass "session-lock e2e: a lock left by a zombie harness does not block a successor"
+}
+
 # A background Claude session's process table. The hook fires inside
 # `claude bg-spare` (710), whose parent is `claude bg-pty-host` (720). With the
 # transient daemon gone the pty-host is reparented to launchd, so the contiguous
@@ -1569,6 +1667,7 @@ test_harness_at_namespace_pid1_is_examined
 test_ordinary_paths_are_never_harness_processes
 test_harness_beyond_a_gap_never_owns_the_lock
 test_competing_version_named_session_is_seen_as_live
+test_zombie_harness_is_not_a_live_lock_owner
 test_same_session_id_owns_a_recycled_background_chain
 test_anchor_pid_is_the_model_loop_process_only_for_a_trusted_id
 test_windows_session_is_identified_from_its_published_pid
@@ -1592,3 +1691,4 @@ test_failed_lock_write_removes_new_sidecar_when_none_existed
 test_verified_reclaim_keeps_new_sidecar
 test_reanchor_keeps_task_leases_live
 test_reanchor_keeps_autoarm_midturn_healthy
+test_e2e_zombie_lock_owner_does_not_block_a_successor

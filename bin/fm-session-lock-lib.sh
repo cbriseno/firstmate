@@ -355,10 +355,22 @@ EOF
   return 1
 }
 
-# True if $1 is a live process that looks like a verified harness.
-# A tagged Windows pid is answered from the Windows process table, because
-# kill -0 cannot see across that boundary and would report a live harness as
-# dead - which would hand a running session's home to a second one.
+# True when pid $1 is a zombie: it has exited and only its process-table entry
+# waits for a parent that never reaps it. kill -0 still succeeds on one, so a
+# zombie lock owner would otherwise read as live and wedge every successor.
+# A ps that reports no state is no zombie evidence.
+fm_pid_zombie() {  # <pid>
+  local stat
+  stat=$(ps -o stat= -p "$1" 2>/dev/null) || return 1
+  stat=${stat#"${stat%%[! ]*}"}
+  case "$stat" in Z*) return 0 ;; esac
+  return 1
+}
+
+# True if $1 is a live process that looks like a verified harness. A zombie is
+# not live. A tagged Windows pid is answered from the Windows process table,
+# because kill -0 cannot see across that boundary and would report a live
+# harness as dead - which would hand a running session's home to a second one.
 fm_harness_pid_alive() {
   local pid=$1 comm args winpid
   if winpid=$(fm_win_untag_pid "$pid"); then
@@ -367,6 +379,7 @@ fm_harness_pid_alive() {
     return
   fi
   kill -0 "$pid" 2>/dev/null || return 1
+  fm_pid_zombie "$pid" && return 1
   comm=$(fm_ps_comm "$pid") || return 1
   args=$(fm_ps_args "$pid")
   fm_harness_process_matches "$comm" "$args"
@@ -394,8 +407,13 @@ fm_harness_pid_alive() {
 #
 # A --fork-session successor mints a new id, so it stays a foreign live owner
 # until the pre-fork process exits; that is the safe direction and a documented
-# non-goal. Two genuinely different live sessions sharing one id is not a
-# supported state (Claude refuses to resume a running session under its id).
+# non-goal. A plain --resume of a session that is still running in another
+# process keeps the same id, and Claude does not refuse it, so both processes
+# pass this path and the resumed one re-anchors line 1 onto itself: a known
+# double-owner gap. From the lock's side that shape - same id, recorded pid a
+# live harness outside this ancestry - is identical to the recycled background
+# chain above, so this path cannot tell the two apart. Do not resume a running
+# firstmate session.
 
 # Print the Claude session id this process may own with, or return 1. $1 is the
 # ancestry list an earlier walk already produced, so a caller that walked once
