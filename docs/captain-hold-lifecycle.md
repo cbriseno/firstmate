@@ -219,9 +219,12 @@ The optional mode column carries a card-declared close:
 
 | Mode | Effect |
 | --- | --- |
-| `done` (default) | Completes the task. |
+| `done` | Completes the task. |
 | `release` | Lifts the hold so held work resumes. |
+| Empty (no close declared) | Releases a task whose backlog lifecycle state is in flight and completes any other, so an answer never completes dispatched work before landing and cleanup do. |
 | Any other value | Skipped. |
+
+Kind, title, and worker metadata never decide the empty mode, because a question-only row can carry any kind and dispatched work can outlive its worker.
 
 Each key is reported as follows:
 
@@ -560,6 +563,7 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 
 - Answer-time resolution works through a bound channel with task-id keys.
   This includes the `release` mode, mode-matched replay idempotence, and the refusal of drifted, mode-mismatched, absent, unheld, and already-closed keys.
+- An answer with no declared close releases in-flight work, with or without its worker record, through the guarded and unguarded intakes, including retries, stale occurrences, and an interrupted release, while question-only calls and explicit `done` still close (`test_undeclared_close_releases_in_flight_work`).
 - The chat channel reaches the same intake.
 - Hold-set stamping precedes visible hold state, preserves an active lifecycle's timestamp, and resets after release.
 - Interrupted answer closure retains the stamp until close and restores resolution-first ordering on retry.
@@ -612,7 +616,7 @@ It uses a stubbed tasks-axi that fails any markdown file override, and proves th
 
 The reconcile path is pinned in the same suite:
 
-- A reconcile answer arriving through the keyed-answer intake is refused, in the default close mode and in the `release` mode a captain-gated work card declares.
+- A reconcile answer arriving through the keyed-answer intake is refused, with no declared close mode and in the `release` mode a captain-gated work card declares.
   It leaves both tasks held with no resolution record or request.
 - Only the separately bound captured-source intake records one durable request per task, idempotently across a replay.
 
