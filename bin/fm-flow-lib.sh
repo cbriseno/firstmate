@@ -6,8 +6,11 @@
 # Reasons and titles are full captured text. Dependencies are home-local backlog
 # identities, with canonical state and provenance; absent records stay unknown.
 # A declaration is historical evidence, never a substitute for current_state.
-# presentation is optional owner-authored text, with separate historical
-# presentation_evidence. Missing text stays null; no action is minted by phase.
+# presentation is optional owner-authored card text (card_title, card_status,
+# group, summary, waiting_for, next_action; bin/fm-tasks-axi.sh owns their
+# meaning and bounds), with separate historical presentation_evidence. Every
+# key is always present; missing text stays null; no action is minted by phase.
+# title stays the full backlog title, never replaced by card_title.
 # The legacy human-hold next_action retains its canonical reason, never executed.
 # execution is registered metadata only; native_activity never uses phase or
 # endpoint presence as model liveness. run_step is a sampled validation source,
@@ -66,9 +69,8 @@ FM_FLOW_JQ_DEFS='
                elif $declaration.note != null then "status.declaration (historical)"
                else "unknown" end),
        declared_state:($declaration.state // null),
-       presentation:{summary:($record.presentation.summary // null),
-         waiting_for:($record.presentation.waiting_for // null),
-         next_action:($record.presentation.next_action // null)},
+       presentation:($record.presentation
+         | {card_title, card_status, group, summary, waiting_for, next_action}),
        presentation_evidence:($record.presentation_evidence // null),
        waiting_for:($record.presentation.waiting_for //
          (if ($waiting | length) > 0 then ($deps | map(select(.unresolved) | .title) | join(", ")) else null end)),

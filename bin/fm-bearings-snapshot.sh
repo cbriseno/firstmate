@@ -194,10 +194,12 @@ Opt-in surfaces: --fields bodies|paths|actions|endpoints, --all-in-flight,
   --all-secondmates, --all-landed, --all-reports, --all-queued, --all-recorded-prs,
   --all-unhealthy, --all-pr-repos, --include-prs (adds candidate_prs).
 Raise FM_BEARINGS_PR_LIMIT to expand per-repository open-PR results.
-Optional flow preserves reasons/dependencies and owner-authored presentation
-(bin/fm-flow-lib.sh; writer: fm-tasks-axi.sh presentation). Absent human text is
-null. execution is registered meta only; run_step is expiring validation
-evidence, separate from native_activity (unknown without verified native proof).
+Optional flow preserves reasons/dependencies and the owner-authored card
+presentation{card_title,card_status,group,summary,waiting_for,next_action}
+(bin/fm-flow-lib.sh; writer and meaning: fm-tasks-axi.sh presentation). Absent
+human text is null. execution is registered meta only; run_step is expiring
+validation evidence, separate from native_activity (unknown without verified
+native proof).
 supervisor reports an explicit bounded declaration, never model/process liveness
 (bin/fm-supervisor-activity.sh); expired/missing declarations are unknown.
 posture is the passive fm-afk-return.sh snapshot-posture projection; reading
