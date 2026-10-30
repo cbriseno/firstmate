@@ -453,6 +453,131 @@ test_codex_unverified_gate() {
   pass "codex classifies unknown until a semantic source passes its verification gate"
 }
 
+# A real holder process opens both files. The fixture pins the kernel/session
+# join and fold through the executable interface, not vendor behavior (the live
+# Codex guard proves that separately). No harness, account, or backend is used.
+test_codex_process_owned_rollout() {
+  CODEX_ACTIVITY_ROOT="$ROOT" CODEX_ACTIVITY_TMP="$TMP_ROOT" python3 - <<'PY' || fail 'Codex process-owned rollout regression failed'
+import json, os, pathlib, signal, subprocess, sys, time
+root = pathlib.Path(os.environ['CODEX_ACTIVITY_ROOT'])
+base = pathlib.Path(os.environ['CODEX_ACTIVITY_TMP']) / 'codex-rollout'
+base.mkdir()
+state = base / 'state'; state.mkdir()
+home = base / 'codex'; workspace = base / 'workspace'; workspace.mkdir()
+session = '11111111-2222-3333-4444-555555555555'
+log = home / 'sessions/2026/10/30' / ('rollout-test-' + session + '.jsonl')
+log.parent.mkdir(parents=True)
+lock = home / 'thread-writer-locks' / (session + '.lock'); lock.parent.mkdir()
+meta = {'type':'session_meta','payload':{'id':session,'cwd':str(workspace),'cli_version':'0.166.0','source':'cli'}}
+def row(kind, turn='turn-1', **extra):
+    return {'type':'event_msg','payload':dict(type=kind,turn_id=turn,**extra)}
+def write(*rows):
+    log.write_text(''.join(json.dumps(r)+'\n' for r in rows))
+def append(*rows):
+    with log.open('a') as f:
+        f.write(''.join(json.dumps(r)+'\n' for r in rows))
+write(meta)
+ready = base / 'ready'
+session2 = '66666666-2222-3333-4444-555555555555'
+log2 = log.parent / ('rollout-test-' + session2 + '.jsonl')
+lock2 = lock.parent / (session2 + '.lock')
+ready2 = base / 'switched'
+holder = subprocess.Popen([sys.executable,'-c',
+    '''import fcntl,pathlib,signal,sys,time
+a=open(sys.argv[1],"ab"); b=open(sys.argv[2],"a")
+fcntl.flock(b,fcntl.LOCK_EX)
+def switch(*_):
+    global a,b
+    a.close(); b.close()
+    a=open(sys.argv[4],"ab"); b=open(sys.argv[5],"a")
+    fcntl.flock(b,fcntl.LOCK_EX); pathlib.Path(sys.argv[6]).touch()
+signal.signal(signal.SIGUSR1,switch)
+pathlib.Path(sys.argv[3]).touch()
+time.sleep(120)
+''', str(log),str(lock),str(ready),str(log2),str(lock2),str(ready2)])
+try:
+    for _ in range(100):
+        if ready.exists(): break
+        time.sleep(.05)
+    assert ready.exists(), 'holder did not open both kernel descriptors'
+    def arm():
+        return subprocess.check_output(['bash',str(root/'bin/fm-busy-event.sh'),'arm',str(state),'codex',
+            '--state','unknown'],text=True).strip()
+    gen = arm()
+    proc = pathlib.Path('/proc') / str(holder.pid)
+    if not proc.is_dir():
+        print('skip: Codex rollout kernel binding requires Linux /proc')
+        sys.exit(0)
+    binding = dict(schema=1,gen=gen,pid=holder.pid,
+        identity=[pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+                  (proc/'stat').read_text().rsplit(')',1)[1].split()[19],os.readlink(proc/'ns/pid')],
+        executable=str((proc/'exe').resolve()),workspace=str(workspace),codex_home=str(home),version='0.166.0')
+    owner = state / ('codex.codex-owner.'+gen+'.json')
+    owner.write_text(json.dumps(binding))
+    def check(expected):
+        actual = subprocess.check_output(['bash','-c',
+            '. "$1"; fm_busy_classify tmux fixture codex codex "$2"',
+            'bash',str(root/'bin/fm-busy-lib.sh'),str(state)],text=True).strip()
+        assert actual == expected, (expected, actual)
+    check('unknown codex-rollout')  # no start is not idle
+    append(row('task_started')); check('busy codex-rollout')
+    # A long, completely quiet tool has no synthetic activity or refresh events.
+    time.sleep(.2); check('busy codex-rollout')
+    append(row('task_complete')); check('idle codex-rollout')
+    append(row('task_started','turn-2')); check('busy codex-rollout')
+    append(row('turn_aborted','turn-2')); check('idle codex-rollout')
+    append(row('task_started','turn-3'),row('error','turn-3')); check('unknown codex-rollout')
+    append(row('task_complete','turn-3')); check('idle codex-rollout')
+    append(row('task_complete','foreign-turn')); check('unknown codex-rollout')
+    write(meta,row('task_started'))
+    with log.open('a') as f:f.write('{"type":"event_msg","payload":{"type":"token_count"}}')
+    check('unknown codex-rollout')
+    with log.open('a') as f:f.write('\n')
+    check('busy codex-rollout')
+    append(row('task_started','overlap')); check('unknown codex-rollout')
+    write(meta,row('task_started'))
+    with log.open('a') as f:f.write('{"type":"event_msg","payload":{"type":"task_complete","turn_id":"foreign","turn_id":"turn-1"}}\n')
+    check('unknown codex-rollout')
+    wrong = json.loads(json.dumps(meta)); wrong['payload']['id']='different-session'
+    write(wrong,row('task_started')); check('unknown codex-rollout')
+    wrong = json.loads(json.dumps(meta)); wrong['payload']['cli_version']='future'
+    write(wrong,row('task_started')); check('unknown codex-rollout')
+    write(meta,row('task_started',thread_id='other')); check('unknown codex-rollout')
+    write(meta,row('task_started',turn_attribution={'turn_id':'other'}));check('unknown codex-rollout')
+    write(meta,row('task_started'))
+    with log.open('ab') as f:f.truncate(32*1024*1024+1)
+    check('unknown codex-rollout')
+    write(meta,row('task_started'))
+    original = binding.copy()
+    for key,value in [('identity',['other-boot','other-start']),('workspace','/wrong'),('version','future'),('gen','old')]:
+        binding = dict(original,**{key:value});owner.write_text(json.dumps(binding));check('unknown codex-rollout')
+    owner.write_text(json.dumps(original));check('busy codex-rollout')
+    # A replaced file at the same pathname cannot stand in for the held inode.
+    log.rename(log.with_suffix('.old'));write(meta,row('task_started'));check('unknown codex-rollout')
+    log.unlink();log.with_suffix('.old').rename(log)
+    new_gen = arm();check('unknown codex-unverified')
+    # A late old-session completion cannot select the old immutable owner record.
+    append(row('task_complete'));check('unknown codex-unverified')
+    binding = dict(original,gen=new_gen)
+    newer = state / ('codex.codex-owner.'+new_gen+'.json');newer.write_text(json.dumps(binding))
+    check('idle codex-rollout')
+    # Even a valid second session in the same workspace and process cannot
+    # silently replace the session already pinned to this launch generation.
+    second_meta=json.loads(json.dumps(meta));second_meta['payload']['id']=session2
+    log2.write_text(json.dumps(second_meta)+'\n'+json.dumps(row('task_started','turn-next'))+'\n')
+    holder.send_signal(signal.SIGUSR1)
+    for _ in range(100):
+        if ready2.exists():break
+        time.sleep(.05)
+    assert ready2.exists(), 'holder never switched its descriptors'
+    check('unknown codex-rollout')
+    holder.terminate();holder.wait();check('unknown codex-rollout')
+    print('ok - Codex rollout source proves lifecycle, kernel/session binding and replacement; invalid evidence stays unknown')
+finally:
+    if holder.poll() is None:holder.terminate();holder.wait()
+PY
+}
+
 test_kimi_unverified_gate() {
   local state gen out
   state=$(new_state_dir kimi-gate)
@@ -640,6 +765,7 @@ test_launch_prompt_never_reclassifies_an_advanced_record
 test_launch_prompt_requires_a_captured_tail
 test_grok_regex_isolated
 test_codex_unverified_gate
+test_codex_process_owned_rollout
 test_kimi_unverified_gate
 test_cursor_ignores_rendered_and_native_signals
 test_dead_endpoint_overrides

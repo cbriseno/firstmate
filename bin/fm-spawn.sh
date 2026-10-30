@@ -2515,7 +2515,7 @@ launch_template() {
     if [ "$kind" = secondmate ]; then
       printf '%s' 'codex __MODELFLAG____EFFORTFLAG____CODEXAPPROVALFLAG__ "$(__OPINPUT__ encode launch-brief < __BRIEF__)"'
     else
-      printf '%s' 'codex __MODELFLAG____EFFORTFLAG____CODEXAPPROVALFLAG__ --disable hooks -c "notify=[\"bash\",\"-c\",\"touch __TURNEND__\"]" "$(__OPINPUT__ encode launch-brief < __BRIEF__)"'
+      printf '%s' '__CODEXACTIVITY__codex __MODELFLAG____EFFORTFLAG____CODEXAPPROVALFLAG__ --disable hooks -c "notify=[\"bash\",\"-c\",\"touch __TURNEND__\"]" "$(__OPINPUT__ encode launch-brief < __BRIEF__)"'
     fi
     ;;
   opencode) printf '%s' 'OPENCODE_CONFIG_CONTENT='\''{"permission":{"*":"allow"}__EFFORTFLAG__}'\'' __OPENCODEBIN__ __MODELFLAG__--prompt "$(__OPINPUT__ encode launch-brief < __BRIEF__)"' ;;
@@ -5560,6 +5560,18 @@ BUSY_GEN=
     ;;
   esac
   case "$WIRING_HARNESS" in
+  codex*)
+    if [ "$HARNESS" = codex ] && [ "$KIND" != secondmate ] && [ "$RAW_LAUNCH" -eq 0 ]; then
+      # A generation binds the pull source; unlike hook adapters, launch alone
+      # proves no activity. Unsupported capabilities still launch and stay unknown.
+      BUSY_GEN=$("$FM_ROOT/bin/fm-busy-event.sh" arm "$STATE_REAL" "$ID" \
+        --state unknown --event codex-awaiting-session) || exit 1
+      [ "$RELAUNCH" -ne 1 ] || RELAUNCH_REPLACEMENT_BUSY_GEN=$BUSY_GEN
+    elif [ -e "$STATE_REAL/$ID.busy-gen" ]; then
+      # An unsupported replacement must not inherit a previous worker's source.
+      "$FM_ROOT/bin/fm-busy-event.sh" retire "$STATE_REAL" "$ID" --current-gen || exit 1
+    fi
+    ;;
   claude* | opencode* | pi | pi-signed | omp)
     # opencode arms on every detected major: OpenCode 2 and the OpenCode 1 /
     # undetected->1.x path both provision a busy-state plugin below that needs
@@ -5965,14 +5977,9 @@ export default function (pi: any) {
 EOF
     ;;
   codex*)
-    # Semantic busy-state source negotiation (bin/fm-busy-lib.sh owns the
-    # probes and the evidence). Neither Codex path is usable on the
-    # installed binary: a pane worker's turns are not observable through
-    # the app-server protocol, and its lifecycle hooks did not fire for a
-    # firstmate-launched worker. Codex therefore classifies unknown with
-    # an explicit reason rather than falling back to idle, and no busy
-    # wiring is installed. The turn-end NOTIFICATION marker still rides
-    # the launch command via -c notify=[...] and __TURNEND__.
+    # Hookless pull source; the launch helper owns the verified native Linux
+    # capability and process/session binding. Secondmates and raw launches keep
+    # their existing launch and unknown semantics. notify remains a notification.
     ;;
   grok*)
     # Parent turn-end wiring only. A secondmate already classifies through the
@@ -6425,6 +6432,11 @@ MODELFLAG=$(model_flag_for_harness "$HARNESS" "$MODEL" "$OPENCODE_MAJOR")
 EFFORTFLAG=$(effort_flag_for_harness "$HARNESS" "$EFFORT" "$MODEL" "$OPENCODE_MAJOR") || exit 1
 LAUNCH=${LAUNCH//__MODELFLAG__/$MODELFLAG}
 LAUNCH=${LAUNCH//__EFFORTFLAG__/$EFFORTFLAG}
+CODEX_ACTIVITY=
+if [ "$HARNESS" = codex ] && [ -n "$BUSY_GEN" ]; then
+  CODEX_ACTIVITY="python3 $(shell_quote "$FM_ROOT/bin/fm-codex-activity.py") launch $(shell_quote "$STATE_REAL") $(shell_quote "$ID") $(shell_quote "$BUSY_GEN") $(shell_quote "$WT") "
+fi
+LAUNCH=${LAUNCH//__CODEXACTIVITY__/$CODEX_ACTIVITY}
 # Relaunch session continuity. Computed here, where the adopted endpoint (T) is
 # known, and substituted only into the Pi-family template's `__PIRESUME__`
 # placeholder; an empty value leaves every other launch byte-identical.
