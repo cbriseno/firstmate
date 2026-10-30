@@ -1643,6 +1643,52 @@ test_crewmate_scaffolds_forbid_pool_administration() {
   pass "fm-brief.sh: every crewmate scaffold forbids administering the shared worktree pool"
 }
 
+# A worker keeps its card current with the command its brief renders, so that
+# command must reach this home's card from any directory and stay one shared
+# rule across ship and scout scaffolds; a secondmate charter is not a task card.
+test_crewmate_card_command_writes_the_task_card() {
+  local home brief ship_rule scout_rule command out rc
+  home="$TMP_ROOT/card-home"
+  mkdir -p "$home/data" "$home/state" "$home/config"
+  fm_test_tasks_toml "$home/.tasks.toml"
+  printf '## In flight\n\n## Queued\n- [ ] brief-card - Card fixture (kind: ship)\n- [ ] brief-card-scout - Card scout (kind: scout)\n\n## Done\n' \
+    > "$home/data/backlog.md"
+
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-card alpha --mode direct-PR >/dev/null 2>&1 \
+    || fail "fm-brief.sh --mode direct-PR exited non-zero"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-card-scout alpha --scout >/dev/null 2>&1 \
+    || fail "fm-brief.sh --scout exited non-zero"
+  brief="$home/data/brief-card/brief.md"
+  assert_grep "presentation 'brief-card' --card-status" "$brief" "ship brief did not render the card command"
+  assert_grep "add \`--summary" "$brief" "ship brief did not ask for the summary with done"
+  assert_grep "the card record below" "$home/data/brief-card-scout/brief.md" \
+    "scout brief did not authorize its card write outside the worktree"
+  ship_rule=$(awk '/also refresh the card/,/status line stays authoritative/' "$brief" | sed 's/brief-card/ID/')
+  scout_rule=$(awk '/also refresh the card/,/status line stays authoritative/' "$home/data/brief-card-scout/brief.md" \
+    | sed 's/brief-card-scout/ID/')
+  [ -n "$ship_rule" ] || fail "ship brief emitted no card rule to compare"
+  [ "$ship_rule" = "$scout_rule" ] || fail "ship and scout card rules have drifted apart"
+
+  if command -v tasks-axi >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+    command=$(awk '/also refresh the card/ { getline; print; exit }' "$brief" \
+      | sed -e 's/^ *`//' -e 's/`$//' -e 's/{what is happening now}/Probando los cambios/')
+    out=$( (cd "$TMP_ROOT" && env -u FM_HOME -u FM_DATA_OVERRIDE bash -c "$command") 2>&1)
+    rc=$?
+    expect_code 0 "$rc" "rendered card command ($out)"
+    out=$(FM_HOME="$home" bash "$ROOT/bin/fm-tasks-axi.sh" presentation brief-card --json 2>&1)
+    assert_contains "$out" '"card_status": "Probando los cambios"' "rendered card command did not reach the task card"
+  else
+    echo "skip: tasks-axi and node are needed to run the rendered card command"
+  fi
+
+  FM_SECONDMATE_CHARTER='Supervise the alpha domain.' \
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-card-mate --secondmate alpha >/dev/null 2>&1 \
+    || fail "fm-brief.sh --secondmate exited non-zero"
+  assert_no_grep "--card-status" "$home/data/brief-card-mate/brief.md" \
+    "secondmate charter must not carry a task card command"
+  pass "fm-brief.sh: ship and scout briefs render one card command that writes the task card"
+}
+
 test_script_parses
 test_no_heredoc_in_command_substitution
 test_help_includes_entire_header
@@ -1683,3 +1729,4 @@ test_branch_prefix_is_refused_where_it_does_not_apply
 test_branch_prefix_value_is_validated
 test_branch_prefix_command_is_shell_safe
 test_crewmate_scaffolds_forbid_pool_administration
+test_crewmate_card_command_writes_the_task_card

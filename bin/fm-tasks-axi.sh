@@ -62,13 +62,27 @@
 #
 # Home-owned presentation extension (not a tasks-axi backend mutation):
 #   presentation <id> [--json]                         Read the saved declaration.
-#   presentation <id> --summary TEXT [--waiting-for TEXT] [--next-action TEXT]
+#   presentation <id> [--card-title TEXT] [--card-status TEXT] [--group TEXT]
+#                     [--summary TEXT] [--waiting-for TEXT] [--next-action TEXT]
 #   presentation <id> --presentation-file /path/to/object.json
 #   presentation <id> --clear
-# Optional fields are summary, waiting_for, next_action: plain text (1..2000
-# characters) or null; summary is best kept within 280 characters. Writes patch
-# only supplied fields, empty text clears one field, --clear clears all three.
-# File input is the same partial object; unknown keys/types are rejected.
+#   presentation --groups [--json]                     List the group labels in use.
+# This is the card the captain's board renders. Every field is optional, null or
+# one line of plain text, written for the captain: short, plain, in the
+# captain's language, with no ids, paths, hashes, or tool names.
+#   card_title  (1..80)   short card title; firstmate sets it when filing the task.
+#   card_status (1..120)  what is happening now, without repeating the title; the
+#                         worker refreshes it with each status line (bin/fm-brief.sh
+#                         renders that command for it).
+#   group       (1..40)   the one project or initiative the task belongs to; reuse
+#                         the exact text of a label --groups lists.
+#   summary     (1..2000) one or two sentences on what the task delivers; the
+#                         worker sets it when it reports done, and firstmate
+#                         checks it before cleanup.
+#   waiting_for, next_action (1..2000) optional wait and next-step text.
+# Firstmate may rewrite any field at any time. Writes patch only supplied fields,
+# empty text clears one field, --clear clears them all. File input is the same
+# partial object; unknown keys, wrong types, and over-bound text are rejected.
 # The existing backlog owner verifies the exact task before writing private
 # data/<id>/presentation.json atomically. This is an authored declaration with
 # its own source/time, never a status transition, liveness signal or refresh
@@ -108,7 +122,8 @@ case "${1:-}" in
     shift
     case "${1:-}" in
       -h|--help) usage; exit 0 ;;
-      ''|-*) fail 'presentation requires a task id; use --help' ;;
+      --groups) export FM_HOME; exec python3 "$SCRIPT_DIR/fm_delivery.py" presentation --data "$DATA" "$@" ;;
+      ''|-*) fail 'presentation requires a task id or --groups; use --help' ;;
     esac
     presentation_id=$1
     shift

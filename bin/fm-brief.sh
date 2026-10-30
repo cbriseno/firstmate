@@ -122,6 +122,9 @@
 # bin/fm-classify-lib.sh; each scaffold renders the stamp as a literal <epoch>
 # placeholder the worker replaces with a numeric Unix time as it appends, so a
 # scaffold never emits a substitution a file-write tool would copy through.
+# Ship and scout status protocols also render the worker's card command, so the
+# card status is refreshed with each status line and the summary is set with
+# done; bin/fm-tasks-axi.sh presentation owns the card fields and their bounds.
 # Every scaffold also carries the steering-inbox receive-and-ack section:
 # process state/<id>.inbox/*.msg in order and acknowledge each by moving it to
 # handled/ (record, doorbell, and ladder owned by bin/fm-task-inbox-lib.sh).
@@ -444,6 +447,21 @@ STATUS_FILE=$(shell_quote "$STATE/$ID.status")
 # file test when the flag is absent. A host without that flag, such as a remote
 # second mate's, runs only the append; the watcher capture is the backstop.
 STATUS_APPEND="echo \"{state} [at=<epoch>]: {one short line}\" >> $STATUS_FILE && { [ ! -e $(shell_quote "$CONFIG/fleet-ledger") ] || $(shell_quote "$FM_ROOT/bin/fm-fleet-ledger.sh") appended $(shell_quote "$CONFIG") $STATUS_FILE >/dev/null 2>&1 || true; }"
+# The worker's card command: the card fields and their bounds are owned by
+# bin/fm-tasks-axi.sh presentation; the home is explicit because a worker's
+# environment need not carry it.
+CARD_ENV="FM_HOME=$(shell_quote "$FM_HOME")"
+[ "$DATA" = "$FM_HOME/data" ] || CARD_ENV="$CARD_ENV FM_DATA_OVERRIDE=$(shell_quote "$DATA")"
+CARD_UPDATE="$CARD_ENV $(shell_quote "$FM_ROOT/bin/fm-tasks-axi.sh") presentation $(shell_quote "$ID") --card-status '{what is happening now}'"
+# One shared string keeps the ship and scout card rule identical; it continues rule 4.
+IFS= read -r -d '' CARD_RULE <<EOF || true
+   With each status line, also refresh the card the captain's board shows for this task:
+   \`$CARD_UPDATE\`
+   Write \`{what is happening now}\` as one plain line of at most 120 characters that states a fact about the work rather than a message, in the language of the captain's own words under \`## Captain's intent\`, without repeating the card title and without ids, paths, hashes, or tool names.
+   When you report done, add \`--summary '{what this delivers, in one or two plain sentences}'\` to the same command, in the same language.
+   A card write that fails never blocks the task; the status line stays authoritative.
+EOF
+CARD_RULE=${CARD_RULE%$'\n'}
 INBOX_DIR=$(shell_quote "$STATE/$ID.inbox")
 
 # The receive-and-ack half of the steering-inbox contract, included in every
@@ -713,7 +731,7 @@ The report is the only thing that survives, so anything worth keeping must be in
 
 # Rules
 1. Never push to any remote and never open a PR.
-2. Stay inside this worktree; the only files you may write outside it are the report and the status file below.
+2. Stay inside this worktree; the only files you may write outside it are the report, the status file, and the card record below.
 3. Use gh-axi for GitHub operations and chrome-devtools-axi for browser operations.
 4. Report status by appending one line:
    \`$STATUS_APPEND\`
@@ -725,6 +743,7 @@ The report is the only thing that survives, so anything worth keeping must be in
    Whenever you mention a PR anywhere - a status line, your terminal, a summary - write its full
    https:// URL exactly as the forge printed it, never a bare number such as "PR 108"; firstmate
    copies that URL from your line rather than assembling one.
+$CARD_RULE
 $CREWMATE_PAUSE_INSTRUCTIONS
 $CREWMATE_OBSTACLE_INSTRUCTIONS
 6. If a decision belongs to a human (product choices, destructive actions),
@@ -789,7 +808,7 @@ If the top-level path is the primary checkout or not the worktree you were launc
 # Rules
 $RULE1
 2. Keep project edits inside this worktree; keep proof and scratch output outside it, under \`$DATA/$ID/\` or a temporary directory.
-   Outside the worktree, write only that task material and the status and steering-inbox records authorized below.
+   Outside the worktree, write only that task material and the status, card, and steering-inbox records authorized below.
    Leave the worktree clean before reporting done.
 3. $FORGE_RULE_LINE
 4. Report status by appending one line:
@@ -805,6 +824,7 @@ $RULE1
    copies that URL from your line rather than assembling one.
    A mid-task \`working:\` line (including setup complete) is nonterminal: do not end the
    turn after it; continue the same stage until a defined \`done:\` gate under Definition of done.
+$CARD_RULE
 $CREWMATE_PAUSE_INSTRUCTIONS
 $CREWMATE_OBSTACLE_INSTRUCTIONS
 6. If a decision belongs above the implementation worker (product choices, destructive actions),

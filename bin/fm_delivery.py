@@ -429,16 +429,21 @@ def activity(home, args):
                     age_seconds=None, current_model_activity='unknown', reason=str(exc))
 
 
-PRESENTATION_FIELDS = ('summary', 'waiting_for', 'next_action')
+# Character bounds; the card fields are what a board renders on every card.
+PRESENTATION_BOUNDS = dict(summary=2000, waiting_for=2000, next_action=2000,
+                           card_title=80, card_status=120, group=40)
+PRESENTATION_FIELDS = tuple(PRESENTATION_BOUNDS)
 
 
 def presentation_fields(value):
     if not isinstance(value, dict) or set(value) - set(PRESENTATION_FIELDS):
-        raise ValueError('presentation accepts only summary, waiting_for, next_action')
-    for text in value.values():
+        raise ValueError('presentation accepts only ' + ', '.join(PRESENTATION_FIELDS))
+    for key, text in value.items():
         if text is not None and (not isinstance(text, str) or not text.strip()
-                                 or len(text) > 2000 or any(ord(c) < 32 or ord(c) == 127 for c in text)):
-            raise ValueError('presentation fields must be null or plain text of 1..2000 characters')
+                                 or len(text) > PRESENTATION_BOUNDS[key]
+                                 or any(ord(c) < 32 or ord(c) == 127 for c in text)):
+            raise ValueError('presentation %s must be null or one line of plain text of 1..%d characters'
+                             % (key, PRESENTATION_BOUNDS[key]))
     return value
 
 
@@ -518,10 +523,26 @@ def read_captain_call(task, data):
         return None
 
 
+def presentation_groups(home, data=None):
+    """Group labels this home's declarations use, so a new task reuses the exact text."""
+    base = Path(data) if data else home / 'data'
+    counts = {}
+    for entry in sorted(base.iterdir()) if base.is_dir() else []:
+        if entry.is_dir() and not entry.is_symlink() and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', entry.name):
+            group = read_presentation(home, entry.name, data)['presentation']['group']
+            if group:
+                counts[group] = counts.get(group, 0) + 1
+    return dict(groups=[dict(group=g, tasks=n) for g, n in sorted(counts.items(), key=lambda i: (-i[1], i[0]))])
+
+
 def presentation(home, args):
-    path = presentation_path(home, args.task, args.data)
     patch = {key: getattr(args, key) or None for key in PRESENTATION_FIELDS
              if getattr(args, key) is not None}
+    if args.groups:
+        if args.task or patch or args.clear or args.presentation_file:
+            raise ValueError('--groups is a home-wide read; it takes no task or field flags')
+        return presentation_groups(home, args.data)
+    path = presentation_path(home, args.task, args.data)
     if args.presentation_file:
         if patch or args.clear:
             raise ValueError('--presentation-file cannot be combined with field flags or --clear')
@@ -583,6 +604,10 @@ def main():
     parser.add_argument('--summary')
     parser.add_argument('--waiting-for', dest='waiting_for')
     parser.add_argument('--next-action', dest='next_action')
+    parser.add_argument('--card-title', dest='card_title')
+    parser.add_argument('--card-status', dest='card_status')
+    parser.add_argument('--group')
+    parser.add_argument('--groups', action='store_true')
     parser.add_argument('--presentation-file')
     parser.add_argument('--clear', action='store_true')
     parser.add_argument('--ttl', type=int, default=300)

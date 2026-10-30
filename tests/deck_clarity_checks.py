@@ -11,6 +11,8 @@ import tempfile
 import unittest
 
 ROOT = Path(sys.argv.pop(1)).resolve()
+EMPTY_CARD = dict(card_title=None, card_status=None, group=None,
+                  summary=None, waiting_for=None, next_action=None)
 
 
 class Clarity(unittest.TestCase):
@@ -239,13 +241,13 @@ class Clarity(unittest.TestCase):
         # summary consumed by local and remote secondmate ledger transports.
         summary = self.value('fm-fleet-snapshot.sh', '--secondmate-home-summary', env=env)
         self.assertIn('flow', next(v for v in summary['queued'] if v['id'] == 'free'))
-        self.assertEqual(free['presentation'], dict(summary=None, waiting_for=None, next_action=None))
+        self.assertEqual(free['presentation'], EMPTY_CARD)
         self.assertIsNone(free['next_action'])
 
     def test_presentation_owner_patch_clear_and_read_without_refresh(self):
         (self.home / 'data/backlog.md').write_text('## Queued\n- [ ] demo - Preparación (kind: ship)\n')
         missing = self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--json')
-        self.assertEqual(missing['presentation'], dict(summary=None, waiting_for=None, next_action=None))
+        self.assertEqual(missing['presentation'], EMPTY_CARD)
         authored = self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--summary', 'La corrección ya conserva los avisos.',
                               '--waiting-for', 'Un evento interno genuino.', '--json')
         self.assertEqual(authored['presentation']['summary'], 'La corrección ya conserva los avisos.')
@@ -302,7 +304,68 @@ class Clarity(unittest.TestCase):
         saved.write_text('[]')
         invalid = self.value('fm-tasks-axi.sh', 'presentation', 'demo')
         self.assertFalse(invalid['evidence']['available'])
-        self.assertEqual(invalid['presentation'], dict(summary=None, waiting_for=None, next_action=None))
+        self.assertEqual(invalid['presentation'], EMPTY_CARD)
+
+    def test_card_fields_are_bounded_listed_and_exported_beside_the_full_title(self):
+        if not shutil.which('tasks-axi') or not shutil.which('node'):
+            self.skipTest('installed tasks-axi + Node required')
+        title = 'Fase 1 del plan de relevo por contexto: medición y aviso (relay_mode warn) en firstmate-extensiones'
+        (self.home / 'data/backlog.md').write_text(
+            '## In flight\n- [ ] shipped - Entrega local (kind: ship)\n- [ ] live - En curso (kind: ship)\n\n## Queued\n'
+            '- [ ] demo - ' + title + ' (kind: ship)\n- [ ] other - Otra (kind: ship)\n\n## Done\n')
+        (self.home / 'state/live.meta').write_text('window=fixture:fm-live\nbackend=tmux\nharness=codex\nkind=ship\n'
+                                                  'mode=local-only\nworktree=' + str(self.home / 'projects') + '\n')
+        fakebin = Path(self.tmp.name) / 'bin'
+        fakebin.mkdir()
+        (fakebin / 'tmux').write_text('#!/usr/bin/env bash\necho "no server running" >&2\nexit 1\n')
+        (fakebin / 'tmux').chmod(0o755)
+        offline = dict(self.env, PATH=str(fakebin) + ':' + self.env['PATH'])
+        # A declaration written before the card fields existed still reads.
+        (self.home / 'data/other').mkdir()
+        (self.home / 'data/other/presentation.json').write_text(json.dumps(dict(
+            schema='fm-task-presentation.v1', home=str(self.home), id='other',
+            presentation=dict(summary='Texto anterior.', waiting_for=None, next_action=None),
+            source='task.owner.declaration', observed_at='2026-10-27T05:46:20Z')))
+        legacy = self.value('fm-tasks-axi.sh', 'presentation', 'other')
+        self.assertEqual(legacy['presentation'], dict(EMPTY_CARD, summary='Texto anterior.'))
+        self.assertTrue(legacy['evidence']['available'])
+        card = self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--card-title', 'Medir y avisar el relevo',
+                          '--card-status', 'Probando el aviso antes de abrir el PR', '--group', 'Firstmate')['presentation']
+        self.assertEqual(card, dict(EMPTY_CARD, card_title='Medir y avisar el relevo',
+                                    card_status='Probando el aviso antes de abrir el PR', group='Firstmate'))
+        saved = self.home / 'data/demo/presentation.json'
+        before = saved.read_bytes()
+        for flag, text in (('--card-title', 'x' * 81), ('--card-status', 'x' * 121), ('--group', 'x' * 41),
+                           ('--card-status', 'dos\nlíneas')):
+            failed = self.run_cli('fm-tasks-axi.sh', 'presentation', 'demo', flag, text, good=(1,))
+            self.assertIn(flag[2:].replace('-', '_'), failed.stdout)
+        self.assertEqual(saved.read_bytes(), before)
+        self.assertEqual(self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--card-title', 'x' * 80)
+                         ['presentation']['card_title'], 'x' * 80)
+        self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--card-title', 'Medir y avisar el relevo')
+        self.value('fm-tasks-axi.sh', 'presentation', 'other', '--group', 'Firstmate')
+        self.run_cli('fm-tasks-axi.sh', 'done', 'shipped', '--note', 'local main', '--json')
+        self.value('fm-tasks-axi.sh', 'presentation', 'shipped', '--group', 'Captain’s Deck',
+                   '--summary', 'El tablero ya muestra títulos cortos.')
+        self.assertEqual(self.value('fm-tasks-axi.sh', 'presentation', '--groups')['groups'],
+                         [dict(group='Firstmate', tasks=2), dict(group='Captain’s Deck', tasks=1)])
+        self.run_cli('fm-tasks-axi.sh', 'presentation', 'demo', '--groups', good=(1,))
+        self.run_cli('fm-tasks-axi.sh', 'presentation', '--groups', '--card-title', 'x', good=(1,))
+        live = self.value('fm-tasks-axi.sh', 'presentation', 'live', '--card-title', 'Tarjetas parejas',
+                          '--card-status', 'Midiendo los textos', '--group', 'Captain’s Deck')['presentation']
+        snapshot = self.value('fm-bearings-snapshot.sh', '--json', env=offline)
+        self.assertEqual(next(v for v in snapshot['in_flight'] if v['id'] == 'live')['flow']['presentation'], live)
+        gate = next(v for v in snapshot['gates'] if v['id'] == 'demo')
+        self.assertEqual(gate['flow']['presentation'], card)
+        # The card title sits beside the unchanged full backlog title.
+        self.assertEqual(gate['flow']['title'], title)
+        self.assertEqual(gate['title'], title[:60] + '…')
+        landed = next(v for v in snapshot['landed'] if v['id'] == 'shipped')['flow']['presentation']
+        self.assertEqual((landed['group'], landed['summary']), ('Captain’s Deck', 'El tablero ya muestra títulos cortos.'))
+        summary = self.value('fm-fleet-snapshot.sh', '--secondmate-home-summary')
+        self.assertEqual(next(v for v in summary['queued'] if v['id'] == 'demo')['flow']['presentation'], card)
+        cleared = self.value('fm-tasks-axi.sh', 'presentation', 'demo', '--card-status', '')['presentation']
+        self.assertEqual(cleared, dict(card, card_status=None))
 
     def test_registered_executor_is_not_current_native_activity(self):
         (self.home / 'data/backlog.md').write_text(

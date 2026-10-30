@@ -22,6 +22,7 @@ For any custom `state/<id>.check.sh` you write yourself, keep it an ordinary sin
 Retire a custom check only through `bin/fm-check-unregister.sh <id>` (or `bin/fm-teardown.sh` for a spawned task); never hand-compose an `rm` with `$STATE`/`$ID`.
 
 Tear down a ship task only after landing is confirmed.
+Before cleanup, check that the card's summary says in one or two plain sentences, in the captain's language, what changed for the captain, and rewrite it with `bin/fm-tasks-axi.sh presentation <id> --summary` when it does not.
 A teardown refusal for uncommitted or unlanded work is a stop-and-investigate result, never an obstacle to bypass.
 Never force teardown without explicit discard authority.
 Landed work is closed now, even when something must stay alive to protect it or a real-world check remains that may never happen: neither is a wait, so never keep the task in flight or declare it `paused:` for either.
