@@ -3031,3 +3031,30 @@ On 2026-10-26, the real Codex 0.164.0 Unix control endpoint returned a typed RPC
 The result was `status: unknown, error_class: outcome-missing`; it confirms transport and a bounded metadata response, without establishing that turn's outcome, a queued client-ID join or automatic recovery.
 Native Stop loading, callback survival across final, repeated cycles beyond two180-second checkpoints and an event created after idle require coordinated live acceptance before this frontend is called continuous.
 No permanent native-owner acceptance is recorded here.
+
+## Codex worker activity
+
+Verified on 2026-10-30 UTC with native Linux `codex-cli 0.166.0` and `gpt-6.1-sol`, using the real worker launch captured from `fm-spawn.sh` in disposable resources on a private tmux socket.
+The activity source is the process-owned rollout, with binding and supported limits owned by [`fm-codex-activity.py`](../../bin/fm-codex-activity.py).
+The guard copies authentication into a disposable Codex home and changes no user settings, hooks, trust records, shared servers or other conversations.
+Its failure case uses a private provider returning HTTP 400, without an authorization header.
+
+Refresh command and decisive output:
+
+```sh
+FM_LIVE=0 FM_CODEX_ACTIVITY_LIVE=1 bash bin/fm-test-run.sh tests/fm-codex-activity-live-e2e.test.sh
+# ok - codex-cli 0.166.0: captured launch, task start, quiet long tool and ordinary completion
+# ok - codex-cli 0.166.0: real Escape emits a bound turn_aborted and settles idle
+# ok - codex-cli 0.166.0: old completion cannot overwrite the live replacement generation
+# ok - codex-cli 0.166.0: native HTTP 400 error => idle codex-rollout; events=task_started,task_complete
+# ok - codex-cli 0.166.0: verified one installed native harness; no other harness invoked
+```
+
+The HTTP failure's `task_complete` proves a closed turn, not successful work; that rollout contains no separate `error` event.
+A refused connection instead left a real Codex turn open and reconnecting for over 90 seconds, and classification remained `busy codex-rollout`.
+An interrupted turn settled even while a terminal process remained, so neither child liveness nor the displayed terminal count is an activity source.
+
+Portable refresh: `FM_LIVE=0 FM_BUSY_ADAPTER_CODEX_ONLY=1 bash bin/fm-test-run.sh tests/fm-busy-state.test.sh tests/fm-busy-adapter-wiring.test.sh`.
+It exercises real file descriptors and processes through the activity executable, including malformed, contradictory, stale and replaced evidence, an in-process session switch, late old-generation completion, unsupported script shims, raw launches and an unknown launch seed.
+Only the native Linux worker launch at the verified CLI version is supported; secondmates, other versions, script shims, nonlocal process evidence and non-Linux hosts retain explicit unknown activity.
+The source does not depend on the pane backend; the live guard proves the native source on private tmux without operating Herdr.

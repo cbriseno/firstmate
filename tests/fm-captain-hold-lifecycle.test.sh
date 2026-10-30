@@ -976,6 +976,153 @@ EOF
   pass "release frees held work with the captain's words recorded and the body preserved"
 }
 
+resolution_records_in() {  # <home> <task-id>
+  tasks_in "$1" show "$2" --full | grep -o 'Resolution recorded by fm-captain-hold\.' | wc -l | tr -d ' '
+}
+
+# A channel that declares no close mode - the Deck for a card with no composed
+# close, chat through fm-send --resolve-key - must never complete work that is
+# still in flight: the backlog lifecycle state, not kind, title, or worker
+# metadata, decides release versus close, and explicit modes keep their meaning.
+test_undeclared_close_releases_in_flight_work() {
+  local home identity current out show
+  home=$(make_home undeclared-close)
+
+  # An in-flight ship with a live recorded worker, answered exactly as the Deck
+  # sends it: a guarded single keyed row with no close mode.
+  tasks_in "$home" add live-ship "Cut the notification flood" --kind ship --repo sample --start >/dev/null \
+    || fail "could not dispatch the in-flight ship fixture"
+  write_origin_meta "$home" live-ship ship
+  FM_CAPTAIN_HOLD_NOW=2026-06-01T12:00:00Z run_captain "$home" hold live-ship "${FM_TEST_CALL[@]}" \
+    --reason "what to do with the uncommitted leftovers" >/dev/null || fail "could not hold the in-flight ship"
+  identity=$(run_captain "$home" open live-ship --identity) || fail "cannot read the in-flight call identity"
+  out=$(printf 'live-ship\tright\tCut the notification flood\n' \
+    | run_captain "$home" answers --source "captain's deck" --expected-identity "$identity") \
+    || fail "the guarded undeclared answer failed: $out"
+  assert_contains "$out" "closed: live-ship" "the guarded undeclared answer was not accepted"
+  show=$(tasks_in "$home" show live-ship --full)
+  assert_contains "$show" "state: in_flight" "an undeclared answer completed in-flight work"
+  assert_contains "$show" "held: no" "an undeclared answer left in-flight work held"
+  assert_contains "$show" "Resolution mode: released" "an undeclared answer on in-flight work did not record a release"
+  assert_contains "$show" "Answer: right" "the release lost the captain's answer"
+  assert_present "$home/state/live-ship.meta" "answering touched the worker record"
+  run_captain "$home" resolved live-ship 1 || fail "a settled release did not read as resolved for the Deck"
+  if run_captain "$home" open live-ship; then fail "a released call still reads as an open captain call"; fi
+
+  # Retries: the guarded retry of the same occurrence is stale and changes
+  # nothing; the unguarded exact replay (fm-send, captured boards) is a no-op.
+  printf 'live-ship\tright\tCut the notification flood\n' \
+    | expect_intake_refusal "$home" 3 identity-conflict not-open answers --source "captain's deck" \
+      --expected-identity "$identity"
+  out=$(printf 'live-ship\tright\tCut the notification flood\n' \
+    | run_captain "$home" answers --source "captain's deck") || fail "the exact undeclared replay was refused: $out"
+  assert_contains "$out" "closed: live-ship" "the exact undeclared replay was not idempotent"
+  assert_equals 1 "$(resolution_records_in "$home" live-ship)" "the undeclared replay recorded a second answer"
+  assert_contains "$(tasks_in "$home" show live-ship --full)" "state: in_flight" "the undeclared replay completed the work"
+
+  # A stale occurrence of a later call on the same task is refused; the current
+  # one releases again and still never completes the work.
+  FM_CAPTAIN_HOLD_NOW=2026-06-01T12:00:00Z run_captain "$home" hold live-ship "${FM_TEST_CALL[@]}" \
+    --reason "a second question while the work runs" >/dev/null || fail "could not re-hold the in-flight ship"
+  current=$(run_captain "$home" open live-ship --identity) || fail "cannot read the re-held identity"
+  printf 'live-ship\tleft\tCut the notification flood\n' \
+    | expect_intake_refusal "$home" 3 identity-conflict mismatch answers --source "captain's deck" \
+      --expected-identity "$identity"
+  printf 'live-ship\tleft\tCut the notification flood\n' \
+    | run_captain "$home" answers --source "captain's deck" --expected-identity "$current" >/dev/null \
+    || fail "the current occurrence was refused"
+  show=$(tasks_in "$home" show live-ship --full)
+  assert_contains "$show" "state: in_flight" "the second undeclared answer completed in-flight work"
+  assert_contains "$show" "Resolution mode: released" "the second undeclared answer did not release"
+
+  # Dispatched work whose worker record is gone is still in flight by its
+  # lifecycle state; missing metadata never turns the answer into a close.
+  tasks_in "$home" add orphan-ship "Ship without a worker record" --kind ship --repo sample --start >/dev/null
+  run_captain "$home" hold orphan-ship "${FM_TEST_CALL[@]}" --reason "idle in-flight work" >/dev/null
+  printf 'orphan-ship\tleft\t\n' | run_captain "$home" answers --source chat >/dev/null \
+    || fail "the undeclared answer on worker-less in-flight work failed"
+  assert_contains "$(tasks_in "$home" show orphan-ship --full)" "state: in_flight" \
+    "missing worker metadata let an undeclared answer complete in-flight work"
+
+  # Question-only calls still close: one minted by hold, and a legacy row that
+  # carries ship kind and a work-like title but was never dispatched.
+  run_captain "$home" hold pure-question "${FM_TEST_CALL[@]}" --title "Choose the route" \
+    --reason "route choice" --repo sample >/dev/null || fail "could not mint the question-only call"
+  tasks_in "$home" add legacy-question "Ship the fork or stay local" --kind ship --repo sample >/dev/null
+  run_captain "$home" hold legacy-question "${FM_TEST_CALL[@]}" --reason "legacy question row" >/dev/null
+  printf 'pure-question\tleft\t\nlegacy-question\tright\t\n' | run_captain "$home" answers --source chat >/dev/null \
+    || fail "undeclared answers on question-only calls failed"
+  for id in pure-question legacy-question; do
+    show=$(tasks_in "$home" show "$id" --full)
+    assert_contains "$show" "state: done" "an undeclared answer did not close question-only call $id"
+    assert_contains "$show" "Resolution mode: answered" "question-only call $id recorded the wrong close"
+  done
+
+  # Explicit choices keep their meaning on both sides of the lifecycle line.
+  tasks_in "$home" add explicit-done "Explicitly closed work" --kind ship --repo sample --start >/dev/null
+  run_captain "$home" hold explicit-done "${FM_TEST_CALL[@]}" --reason "explicit close" >/dev/null
+  tasks_in "$home" add explicit-release "Explicitly released queued work" --kind ship --repo sample >/dev/null
+  run_captain "$home" hold explicit-release "${FM_TEST_CALL[@]}" --reason "explicit release" >/dev/null
+  printf 'explicit-done\tleft\t\tdone\nexplicit-release\tleft\t\trelease\n' \
+    | run_captain "$home" answers --source board >/dev/null || fail "explicit close modes failed"
+  assert_contains "$(tasks_in "$home" show explicit-done --full)" "state: done" \
+    "an explicit done close on in-flight work did not complete it"
+  show=$(tasks_in "$home" show explicit-release --full)
+  assert_contains "$show" "state: queued" "an explicit release closed queued work"
+  assert_contains "$show" "Resolution mode: released" "an explicit release recorded the wrong close"
+
+  # The direct command: no flag still closes, --release-in-flight follows the
+  # lifecycle state, and the two release flags are alternatives.
+  printf 'Go ahead.\n' > "$home/go.txt"
+  tasks_in "$home" add direct-flight "Direct in-flight answer" --kind ship --repo sample --start >/dev/null
+  run_captain "$home" hold direct-flight "${FM_TEST_CALL[@]}" --reason "direct" >/dev/null
+  if run_captain "$home" answer direct-flight --decision-file "$home/go.txt" --release --release-in-flight \
+    > "$home/both.out" 2> "$home/both.err"; then
+    fail "answer accepted both release flags"
+  fi
+  assert_grep "alternatives" "$home/both.err" "the double-flag refusal did not explain itself"
+  run_captain "$home" answer direct-flight --decision-file "$home/go.txt" --release-in-flight >/dev/null \
+    || fail "answer --release-in-flight failed on in-flight work"
+  assert_contains "$(tasks_in "$home" show direct-flight --full)" "state: in_flight" \
+    "answer --release-in-flight completed in-flight work"
+  run_captain "$home" hold direct-question "${FM_TEST_CALL[@]}" --title "Direct question" \
+    --reason "direct question" --repo sample >/dev/null
+  run_captain "$home" answer direct-question --decision-file "$home/go.txt" --release-in-flight >/dev/null \
+    || fail "answer --release-in-flight failed on a queued question"
+  assert_contains "$(tasks_in "$home" show direct-question --full)" "state: done" \
+    "answer --release-in-flight did not close a question that is not in flight"
+  tasks_in "$home" add direct-close "Direct explicit close" --kind ship --repo sample --start >/dev/null
+  run_captain "$home" hold direct-close "${FM_TEST_CALL[@]}" --reason "direct close" >/dev/null
+  run_captain "$home" answer direct-close --decision-file "$home/go.txt" >/dev/null \
+    || fail "a plain answer failed on in-flight work"
+  assert_contains "$(tasks_in "$home" show direct-close --full)" "state: done" \
+    "a plain answer, an explicit close, no longer completed its task"
+
+  # An interrupted release retries to the same release, never a close.
+  tasks_in "$home" add flaky-ship "Interrupted release" --kind ship --repo sample --start >/dev/null
+  run_captain "$home" hold flaky-ship "${FM_TEST_CALL[@]}" --reason "interrupted" >/dev/null
+  cat > "$home/fakebin/tasks-axi" <<'EOF'
+#!/usr/bin/env bash
+if [ "${1:-}" = unhold ] && [ "${2:-}" = flaky-ship ] && [ ! -e "$FM_HOME/unhold-failed-once" ]; then
+  : > "$FM_HOME/unhold-failed-once"
+  exit 92
+fi
+exec "$REAL_TASKS_AXI" "$@"
+EOF
+  chmod +x "$home/fakebin/tasks-axi"
+  if printf 'flaky-ship\tleft\t\n' | run_captain "$home" answers --source chat > "$home/flaky.out" 2>&1; then
+    fail "the forced release failure reported success"
+  fi
+  printf 'flaky-ship\tleft\t\n' | run_captain "$home" answers --source chat >/dev/null \
+    || fail "the interrupted undeclared release did not finish on retry"
+  rm -f -- "$home/fakebin/tasks-axi"
+  show=$(tasks_in "$home" show flaky-ship --full)
+  assert_contains "$show" "state: in_flight" "the interrupted release retried into a close"
+  assert_contains "$show" "held: no" "the interrupted release retry left the work held"
+  assert_equals 1 "$(resolution_records_in "$home" flaky-ship)" "the release retry recorded the answer twice"
+  pass "an answer with no declared close releases in-flight work and closes only question-only calls"
+}
+
 # The hold-set stamp must be durable before the captain hold becomes visible.
 # A wrapper observes the real tasks-axi hold boundary, and a forced stamp-write
 # failure proves the command never publishes the hold without its timestamp.
@@ -5504,6 +5651,7 @@ if [ "${1:-}" = --intake-cas ] || [ "${FM_CAPTAIN_HOLD_TEST_INTAKE_CAS:-}" = 1 ]
   if [ "${FM_CAPTAIN_HOLD_TEST_INTAKE_CAS:-}" != core ]; then
     test_answer_records_and_closes
     test_release_frees_held_work
+    test_undeclared_close_releases_in_flight_work
     test_reconcile_requests_wake_the_owner_and_retry
     test_reconcile_never_closes_through_the_keyed_answer_intake
   fi
@@ -5533,6 +5681,7 @@ test_retained_body_keeps_its_utf8_bytes
 test_completion_gate_attests_and_transfers
 test_answer_records_and_closes
 test_release_frees_held_work
+test_undeclared_close_releases_in_flight_work
 test_hold_stamp_precedes_hold_visibility
 test_interrupted_answer_preserves_hold_age
 test_deferral_leaves_captains_call_until_due

@@ -7,6 +7,7 @@
 # the OpenCode plugin) in a plain Node host, so the artifact, the real
 # bin/fm-busy-event.sh writer, and the real classifier are exercised together
 # with no live harness session.
+# FM_BUSY_ADAPTER_CODEX_ONLY=1 selects the affected Codex launch contract alone.
 set -u
 
 # shellcheck source=tests/fixtures.sh
@@ -398,20 +399,34 @@ test_claude_hooks_stale_incarnation_harmless() {
 }
 
 test_codex_unverified_until_a_semantic_source_exists() {
-  local rec id=busy-cx-1 out state
+  local rec id=busy-cx-1 out state launch
   rec=$(make_spawn_case codex-unverified codex "$id")
   read_case_record "$rec"
-  out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id" "$PROJ_DIR")
+  out=$(FM_FAKE_LAUNCH_LOG="$HOME_DIR/codex-launch" run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id" "$PROJ_DIR")
   expect_code 0 $? "codex spawn should succeed: $out"
-  state="$HOME_DIR/state"
-  assert_absent "$state/$id.busy-gen" "codex must not arm a busy contract with no verified semantic source"
-  assert_absent "$WT_DIR/.codex/hooks.json" "codex must not install unverified busy hooks"
   assert_contains "$out" 'spawned '"$id"' harness=codex' "codex spawn did not complete normally"
+  state="$HOME_DIR/state"
+  assert_present "$state/$id.busy-gen" "canonical codex launch must bind its pull source to a generation"
+  out=$(fm_busy_record_read "$state" "$id")
+  assert_contains "$out" 'unknown fm-spawn codex-awaiting-session' "codex launch must seed unknown, never busy"
+  assert_absent "$WT_DIR/.codex/hooks.json" "codex must not install unverified busy hooks"
   out=$(classify codex "$id" "$state")
   [ "$out" = "unknown codex-unverified" ] || fail "codex must classify 'unknown codex-unverified', got '$out'"
   out=$(fm_busy_classify tmux fake:w codex "$id" "$state" '• Working (6s • esc to interrupt)')
   [ "$out" = "unknown codex-unverified" ] || fail "codex must not fall back to footer text, got '$out'"
-  pass "codex classifies unknown until a semantic source is verified, never idle or footer-matched"
+  launch=$(cat "$HOME_DIR/codex-launch")
+  # This fixture's script shim is deliberately unsupported. Execute the captured
+  # production launch: it must still run, without fabricating a source binding.
+  PATH="$FAKEBIN_DIR:$PATH" bash -c "$launch" || fail 'unsupported Codex shim failed to launch'
+  out=$(classify codex "$id" "$state")
+  [ "$out" = "unknown codex-unverified" ] || fail "unsupported shim fabricated activity: $out"
+  fm_test_spawn_brief "$HOME_DIR" "$id-raw"
+  "$ROOT/bin/fm-busy-event.sh" arm "$state" "$id-raw" --state unknown >/dev/null \
+    || fail 'could not seed the prior incarnation before raw replacement'
+  out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id-raw" "$PROJ_DIR" 'codex --custom-launch')
+  expect_code 0 $? "raw codex launch should retain its existing behavior: $out"
+  assert_absent "$state/$id-raw.busy-gen" 'raw launch must not acquire canonical Codex activity wiring'
+  pass "codex seeds unknown and requires a verified process-owned rollout, never footer text"
 }
 
 # Gemini's hooks are PROJECT hooks in the worktree's own .gemini/settings.json,
@@ -944,6 +959,12 @@ test_secondmate_codex_and_grok_do_not_arm_a_parent_turnend() {
   [ "$out" = "busy grok-regex" ] || fail "grok secondmate must still classify from its tail, got '$out'"
   pass "codex and grok secondmates stay on their existing verdicts and do not emit a parent turn-end"
 }
+
+if [ "${FM_BUSY_ADAPTER_CODEX_ONLY:-0}" = 1 ]; then
+  test_codex_unverified_until_a_semantic_source_exists
+  echo 'all scoped Codex busy-adapter-wiring tests passed'
+  exit 0
+fi
 
 test_secondmate_claude_spawn_arms_busy_for_the_stall_gate
 test_raw_secondmate_launch_writes_no_busy_wiring
