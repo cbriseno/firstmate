@@ -321,9 +321,10 @@ def additional():
         (home / "state/shared-worker.meta").write_text(f"endpoint_task_id=shared-worker\nkind=ship\nharness=codex\nspawn_gen=generation-1\nworktree={worktree}\n")
         env.update(FM_TASK_ID="shared-worker", FM_TASK_INBOX=str(home / "state/shared-worker.inbox"),
                    FM_NOTIFY_SPAWN_GEN="generation-1", CODEX_THREAD_ID=worker_sid, CODEX_SESSION_ID=worker_sid)
+        forwarded = len((tmp / "consumer.jsonl").read_text().splitlines())
         cmd("hook", provider, "--consumer", consumer, data={"session_id": worker_sid, "hook_event_name": "Stop"})
-        assert json.loads((tmp / "consumer.jsonl").read_text().splitlines()[-1])["binding"] is None
-        print("ok - shared native payload selects proven binding; other/missing SID and unbound shared worker retain fallback")
+        assert len((tmp / "consumer.jsonl").read_text().splitlines()) == forwarded
+        print("ok - shared native payload selects proven binding; other/missing SID retain fallback; unbound shared worker stays silent")
     else:
         cmd("hook", provider, "--consumer", consumer, data={**payload, "hook_event_name": "PermissionRequest"})
         record = json.loads((tmp / "consumer.jsonl").read_text().splitlines()[-1])
@@ -611,6 +612,12 @@ with (root/'consumer.jsonl').open('a') as f: f.write(json.dumps(row)+'\\n')
             payload={"session_id": sid or env["CODEX_THREAD_ID"], "hook_event_name": event, **kwargs})
         return records()[-1]
 
+    def silent(event="Stop", sid=None, **kwargs):
+        before = len(records())
+        cmd("hook", "codex", "--consumer", consumer,
+            payload={"session_id": sid or env["CODEX_THREAD_ID"], "hook_event_name": event, **kwargs})
+        return len(records()) == before
+
     def tasks(*args):
         return subprocess.run(["bash", str(code / "bin/fm-tasks-axi.sh"), *args],
                               capture_output=True, text=True, env=env, check=True).stdout
@@ -830,8 +837,7 @@ with (root/'consumer.jsonl').open('a') as f: f.write(json.dumps(row)+'\\n')
     cmd("designate", "result-a", "outcome-a", expected=1)
     cmd("call", "worker-forgery", 1, "open", "--at", fresh, expected=1)
     worker_meta(generation="generation-2")
-    assert hook()["binding"] is None
-    assert records()[-1]["task"] is None and records()[-1]["inbox"] is None
+    assert silent()  # A stale worker binding never falls back to personal policy.
     cmd("bind", "codex", expected=1)
     worker_meta()
     cmd("revoke", "codex")
@@ -842,10 +848,17 @@ with (root/'consumer.jsonl').open('a') as f: f.write(json.dumps(row)+'\\n')
     env.pop("FM_TASK_ID")  # Persistent secondmate launches intentionally omit it.
     assert hook()["binding"]["role"] == "secondmate"
     env["FM_TASK_ID"] = "worker"
-    assert hook(sid="unbound-worker-thread")["binding"] is None
+    # An unbindable launched worker reaches no consumer, while an ordinary
+    # personal session without launch markers still forwards (root: below).
+    assert silent(sid="unbound-worker-thread") and silent("PermissionRequest", sid="unbound-worker-thread")
+    assert silent(sid="invalid/id")
+    launch_markers = {key: env.pop(key) for key in ("FM_TASK_ID", "FM_TASK_INBOX", "FM_NOTIFY_SPAWN_GEN")}
+    personal = hook(sid="unbound-worker-thread")
+    assert personal["binding"] is None and personal["task"] is None and personal["inbox"] is None
+    env.update(launch_markers)
     cmd("bind", "codex", more_env={"FM_TASK_INBOX": str(tmp / "foreign/state/worker.inbox")}, expected=1)
     assert not (tmp / "foreign").exists()
-    print("ok - ordinary hooks auto-adopt ship/scout/secondmate with exact launch proof; absent config/legacy/stale/foreign stay unclassified")
+    print("ok - ordinary hooks auto-adopt ship/scout/secondmate with exact launch proof; absent config/legacy stay unclassified; stale/unbindable launched workers stay silent")
 
     # Authoritative hold and backlog-close integrations, using fixture tasks-axi.
     for key in ("FM_TASK_ID", "FM_TASK_INBOX", "FM_NOTIFY_SPAWN_GEN"):
@@ -884,6 +897,7 @@ with (root/'consumer.jsonl').open('a') as f: f.write(json.dumps(row)+'\\n')
     assert len(records()) == before + 4  # Failed unauthorized writes left no tombstones.
     external("bridge", "call", "actual-call", 2, "resolved", "--at", fresh, expected=1)
     assert len(records()) == before + 4  # Another occurrence is not this canonical answer.
+    assert hook(sid="replacement-root")["binding"]["role"] == "firstmate"  # Root hooks still forward.
     before = len(records())
     hold("hold", "deferred", "--title", "deferred call", "--reason", "later", "--until", "2099-01-01", *card)
     assert len(records()) == before
