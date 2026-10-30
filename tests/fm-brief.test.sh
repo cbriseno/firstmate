@@ -1624,6 +1624,10 @@ test_crewmate_scaffolds_forbid_pool_administration() {
   [ "$ship_cd_rule" = "$scout_cd_rule" ] \
     || fail "scout brief leading-cd rule is missing or differs from the ship brief"
   assert_grep "every sub-agent you launch" "$brief" "scout brief did not pass the leading-cd rule to sub-agents"
+  # shellcheck disable=SC2016 # Literal backticks and dollar signs must remain unexpanded.
+  assert_grep 'rm -rf -- "$dir"' "$brief" "scout brief did not tell workers to quote variables in deletions"
+  assert_grep 'Quote every variable' "$home/data/brief-pool-no-mistakes/brief.md" \
+    "ship brief did not tell workers to quote variables in deletions"
 
   # The daemon half of the rule survived the fold.
   assert_grep "no-mistakes" "$brief" "scout brief lost the shared no-mistakes daemon rule"
